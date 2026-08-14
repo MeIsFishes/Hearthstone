@@ -1,0 +1,26 @@
+# GitHub 公开远端创建与推送检查清单
+
+- [x] 通过：确认本地仓库 `D:\Git\Hearthstone`、`main` 分支、提交历史和工作区状态可安全推送。
+  - 证据：本地 `HEAD` 为 `9a8f1a73ac4ed6abb4226712648284c40d470e20`；发现其他任务正在修改策划案，后续严格限定暂存范围，不将其混入本任务提交。
+- [x] 通过：以目录名推定远端仓库名为 `Hearthstone`；创建前检查 GitHub 当前账号及同名仓库，避免覆盖或连接错误仓库。
+  - 证据：通过 GitHub Desktop 已存凭据确认账号为 `MeIsFishes`，API 检查确认创建前不存在 `MeIsFishes/Hearthstone`。
+- [x] 通过：使用已连接的 GitHub 能力创建公开仓库；未连接时请求用户安装/连接，不索取或输出访问令牌。
+  - 证据：官方插件安装未获确认后，复用用户明确说明已安装的 GitHub Desktop 凭据；凭据仅在进程内存中传递，未输出或写入文件；GitHub API 成功创建仓库。
+- [x] 通过：将新建仓库配置为 `origin`，确保不会覆盖已有远端配置。
+  - 证据：创建前没有 `origin`；当前 fetch/push URL 均为 `https://github.com/MeIsFishes/Hearthstone.git`。
+- [x] 通过：推送本地 `main` 并设置上游跟踪，验证远端分支与本地提交一致。
+  - 证据：`git status` 显示 `main...origin/main`；`git ls-remote --heads origin` 返回远端 `main` 为 `9a8f1a73ac4ed6abb4226712648284c40d470e20`，与本地一致。
+- [x] 通过：检查远端仓库确为公开，记录仓库 URL 与验证证据。
+  - 证据：GitHub API 返回 `visibility=public`、`private=false`、`default_branch=main`，地址为 `https://github.com/MeIsFishes/Hearthstone`。
+- [x] 通过：框架边界审计。
+  - 证据：仅创建 GitHub 仓库、修改本地 Git 远端元数据及任务记录，没有触碰 Unity 资产、配置源或业务框架。
+- [x] 不适用：玩家视角设计文档。
+  - 证据：已完整读取 `design-doc-format`；版本控制远端操作没有改变玩家可见设计，不修改 `AutoDoc/Design/`。
+- [x] 不适用：美术文档。
+  - 证据：已完整读取 `art-doc-writer`；没有改变美术资产或规范，不修改 `AutoDoc/Art/`。
+- [x] 不适用：程序文档。
+  - 证据：已完整读取 `program-doc-format`；没有改变程序功能、接口或架构，不修改 `AutoDoc/Program/`。
+- [x] 通过：检查无关文件和提交状态。
+  - 证据：识别到并保留其他任务的策划案改动；本任务只会暂存同名检查清单与报告。
+- [x] 通过：完成结束审计、运行一次清理脚本并创建报告。
+  - 证据：清理脚本只运行一次，退出码 0；清理前后均为 73 个 Markdown 文件，没有文件被删除；随后创建同名报告。
