@@ -1,0 +1,102 @@
+<Window x:Class="BbxDeployer.Views.SyncItemDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Transfer Directory Group"
+        Width="900"
+        Height="680"
+        MinWidth="780"
+        MinHeight="600"
+        WindowStartupLocation="CenterOwner">
+    <Grid Margin="18">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="140"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Grid.Column="0" Text="Name" VerticalAlignment="Center"/>
+        <TextBox x:Name="DisplayNameBox"
+                 Grid.Row="0"
+                 Grid.Column="1"
+                 Margin="0,0,0,12"
+                 Padding="6"/>
+
+        <TextBlock Grid.Row="1"
+                   Grid.ColumnSpan="2"
+                   Text="Each whitelist path is copied. Select a whitelist to edit its own blacklist paths."
+                   Foreground="#64748B"
+                   Margin="0,0,0,8"/>
+
+        <GroupBox Grid.Row="2"
+                  Grid.ColumnSpan="2"
+                  Header="Whitelist Paths">
+            <DataGrid x:Name="WhitelistPathsGrid"
+                      ItemsSource="{Binding WhitelistPaths}"
+                      AutoGenerateColumns="False"
+                      IsReadOnly="True"
+                      CanUserAddRows="False"
+                      SelectionMode="Single">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Relative Directory"
+                                        Binding="{Binding RelativePath}"
+                                        Width="*"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </GroupBox>
+
+        <WrapPanel Grid.Row="3"
+                   Grid.ColumnSpan="2"
+                   Margin="0,10,0,16">
+            <Button Content="Add Path..."
+                    Click="AddWhitelistPath_Click"
+                    Padding="14,7"
+                    Margin="0,0,12,0"/>
+            <Button Content="Remove"
+                    Click="RemoveWhitelist_Click"
+                    Padding="14,7"/>
+        </WrapPanel>
+
+        <GroupBox Grid.Row="4"
+                  Grid.ColumnSpan="2"
+                  Header="Blacklist Paths for Selected Whitelist">
+            <ListBox x:Name="ManualRulesList"
+                     ItemsSource="{Binding SelectedItem.ManualRules, ElementName=WhitelistPathsGrid}"/>
+        </GroupBox>
+
+        <WrapPanel Grid.Row="5"
+                   Grid.ColumnSpan="2"
+                   Margin="0,10,0,16">
+            <Button Content="Add Path..."
+                    Click="AddBlacklistPath_Click"
+                    Padding="14,7"
+                    Margin="0,0,12,0"/>
+            <Button Content="Remove"
+                    Click="RemoveRule_Click"
+                    Padding="14,7"/>
+        </WrapPanel>
+
+        <StackPanel Grid.Row="6"
+                    Grid.ColumnSpan="2"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right">
+            <Button Content="Save"
+                    Width="90"
+                    Padding="14,7"
+                    Margin="0,0,12,0"
+                    IsDefault="True"
+                    Click="Save_Click"/>
+            <Button Content="Cancel"
+                    Width="90"
+                    Padding="14,7"
+                    IsCancel="True"/>
+        </StackPanel>
+    </Grid>
+</Window>

@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>$(BbxEditorTargetFramework)</TargetFramework>
+    <RootNamespace>BbxEditor</RootNamespace>
+    <AssemblyName>BbxEditor.Core</AssemblyName>
+  </PropertyGroup>
+</Project>

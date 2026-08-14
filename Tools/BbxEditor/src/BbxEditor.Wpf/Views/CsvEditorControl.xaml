@@ -1,0 +1,59 @@
+<UserControl x:Class="BbxEditor.Wpf.Views.CsvEditorControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{StaticResource DataEditorBackgroundBrush}"
+             Foreground="{StaticResource TextPrimaryBrush}">
+    <UserControl.Resources>
+        <Style x:Key="CsvColumnHeaderEditorStyle" TargetType="TextBox">
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="2,1" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="MinWidth" Value="62" />
+            <Style.Triggers>
+                <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                    <Setter Property="Background" Value="{StaticResource DataEditorSurfaceBrush}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <Border Background="{StaticResource DataEditorSurfaceBrush}" BorderBrush="{StaticResource BorderStrongBrush}"
+                BorderThickness="1" CornerRadius="8" Padding="10" Margin="0,0,0,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel>
+                    <TextBlock Text="CSV Editor" Style="{StaticResource SectionTitleStyle}" />
+                    <TextBlock Text="{Binding MetadataText}" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,3,12,0" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Menu Background="Transparent" Padding="0" Margin="0,0,6,0" VerticalAlignment="Center">
+                        <MenuItem x:Name="AssociatedTablesMenuItem" Header="Associated Tables (0)"
+                                  ToolTip="This CSV does not declare associated tables."
+                                  SubmenuOpened="AssociatedTables_SubmenuOpened" />
+                    </Menu>
+                    <Button Content="Add Row" Command="{Binding AddRowCommand}" />
+                    <Button Content="Delete Row" Command="{Binding DeleteRowCommand}" Margin="6,0,0,0" />
+                    <Button Content="Validate" Command="{Binding ValidateCommand}" Margin="6,0,0,0" />
+                </StackPanel>
+            </Grid>
+        </Border>
+        <DataGrid x:Name="Grid" Grid.Row="1" ItemsSource="{Binding Csv.Rows}"
+                  SelectedItem="{Binding SelectedRow}" AutoGenerateColumns="False"
+                  CanUserAddRows="False" CanUserDeleteRows="False" FrozenColumnCount="1"
+                  CanUserSortColumns="False"
+                  SelectionMode="Single" SelectionUnit="CellOrRowHeader"
+                  SelectedCellsChanged="Grid_SelectedCellsChanged"
+                  EnableRowVirtualization="True" EnableColumnVirtualization="True" />
+    </Grid>
+</UserControl>

@@ -1,0 +1,4 @@
+interface:
+  display_name: "BbxCommon 音频工作流"
+  short_description: "选择并接入项目音效，配置播放参数，或编曲生成游戏背景音乐"
+  default_prompt: "使用 $bbxcommon-audio 完成当前项目的音频选材、播放接入或编曲工作。"

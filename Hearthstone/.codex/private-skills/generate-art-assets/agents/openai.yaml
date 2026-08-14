@@ -1,0 +1,4 @@
+interface:
+  display_name: "2D美术资源生成"
+  short_description: "依据美术文档生成、评审并迭代2D图片，同步维护长期风格与规格约束"
+  default_prompt: "请使用 $generate-art-assets 根据本项目美术文档生成并检查一项2D美术资源。"

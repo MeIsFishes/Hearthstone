@@ -1,0 +1,38 @@
+using System;
+using System.Collections.Generic;
+using BbxCommon;
+
+public class #SCRIPT_NAME# : TaskDurationBase
+{
+    public int IntValue;
+
+    public enum EField
+    {
+        IntValue,
+    }
+
+    protected override void RegisterTaskFields()
+    {
+        RegisterField(EField.IntValue, IntValue, (fieldInfo, context) => { IntValue = ReadInt(fieldInfo, context); });
+    }
+
+    protected override void OnCollect()
+    {
+        IntValue = 0;
+    }
+
+    protected override void OnTaskCollect()
+    {
+        
+    }
+
+    protected override EDurationState OnInterval()
+    {
+        return EDurationState.Running;
+    }
+
+    protected override void OnTaskExit()
+    {
+        
+    }
+}

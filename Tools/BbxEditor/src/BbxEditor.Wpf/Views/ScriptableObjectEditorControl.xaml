@@ -1,0 +1,49 @@
+<UserControl x:Class="BbxEditor.Wpf.Views.ScriptableObjectEditorControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:views="clr-namespace:BbxEditor.Wpf.Views"
+             Background="{StaticResource DataEditorBackgroundBrush}"
+             Foreground="{StaticResource TextPrimaryBrush}">
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <Border Background="{StaticResource DataEditorSurfaceBrush}" BorderBrush="{StaticResource BorderStrongBrush}"
+                BorderThickness="1" CornerRadius="8" Padding="10" Margin="0,0,0,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel>
+                    <TextBlock Text="BbxScriptableObject Editor" Style="{StaticResource SectionTitleStyle}" />
+                    <TextBlock Text="{Binding MetadataText}" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,3,12,0" />
+                </StackPanel>
+                <Button Grid.Column="1" Content="Validate" Command="{Binding ValidateCommand}" VerticalAlignment="Center" />
+            </Grid>
+        </Border>
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Background="{StaticResource DataEditorBackgroundBrush}">
+            <ItemsControl ItemsSource="{Binding Asset.Properties}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Background="{StaticResource DataEditorSurfaceBrush}" BorderBrush="{StaticResource BorderStrongBrush}"
+                                BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,0,0,7">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="220" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Margin="0,2,12,0">
+                                    <TextBlock Text="{Binding DisplayName}" Foreground="{StaticResource TextPrimaryBrush}" FontWeight="SemiBold" />
+                                    <TextBlock Text="{Binding Path}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" />
+                                </StackPanel>
+                                <views:ScriptableObjectPropertyEditor Grid.Column="1" />
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

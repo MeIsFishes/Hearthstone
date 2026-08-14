@@ -1,0 +1,63 @@
+title "Signal Beyond the Storm"
+tempo 120
+time 4/4
+length 8
+master 0.72
+
+track "Victory Lead" channel=0 program=80 volume=0.72 pan=0.08 waveform=square
+note 0 0.5 D5 96
+note 0.5 0.5 F#5 98
+note 1 1 A5 102
+note 2 1 D6 108
+note 3 0.5 A5 92
+note 3.5 0.5 B5 96
+note 4 0.5 E6 100
+note 4.5 0.5 F#6 104
+note 5 1 A6 110
+note 6 2 D6 112
+end
+
+track "Victory Chords" channel=1 program=11 volume=0.48 pan=-0.18 waveform=triangle
+chord 0 1 D4,F#4,A4 74
+chord 1 1 A3,D4,F#4 70
+chord 2 1 B3,D4,F#4 74
+chord 3 1 G3,B3,D4 72
+chord 4 1 E4,G4,B4 76
+chord 5 1 A3,C#4,E4 82
+chord 6 2 D4,F#4,A4 90
+end
+
+track "Victory Bass" channel=2 program=38 volume=0.5 pan=0 waveform=triangle
+note 0 1 D2 82
+note 1 1 A2 76
+note 2 1 B2 80
+note 3 1 G2 78
+note 4 1 E2 82
+note 5 1 A2 88
+note 6 2 D2 94
+end
+
+track "Victory Spark" channel=3 program=10 volume=0.38 pan=0.28 waveform=sine
+note 0 0.25 D6 72
+note 1 0.25 A5 68
+note 2 0.25 B5 72
+note 3 0.25 D6 74
+note 4 0.25 E6 78
+note 5 0.25 A6 82
+note 6 0.5 D7 92
+note 7 0.5 A6 76
+end
+
+track "Victory Drums" channel=9 program=0 volume=0.5 pan=0 waveform=noise
+note 0 0.25 36 96
+note 0 0.25 49 88
+note 1 0.25 38 84
+note 2 0.25 36 94
+note 3 0.25 38 88
+note 4 0.25 36 100
+note 4 0.25 49 92
+note 5 0.25 38 92
+note 6 0.25 36 108
+note 6 0.25 49 104
+note 7 0.25 38 96
+end

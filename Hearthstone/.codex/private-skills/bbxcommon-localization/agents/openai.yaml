@@ -1,0 +1,4 @@
+interface:
+  display_name: "BbxCommon Localization"
+  short_description: "使用 LocApi、语言 CSV 与 UiLocText 完成本地化"
+  default_prompt: "使用 $bbxcommon-localization 接入或修改 BbxCommon 本地化功能。"

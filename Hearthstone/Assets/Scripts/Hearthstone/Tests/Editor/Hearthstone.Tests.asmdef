@@ -1,0 +1,25 @@
+{
+  "name": "Hearthstone.Tests",
+  "rootNamespace": "Hearthstone.Tests",
+  "references": [
+    "Hearthstone",
+    "BbxCommon",
+    "CrossLibrary",
+    "Unity.Mathematics",
+    "Unity.TextMeshPro"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false,
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ]
+}

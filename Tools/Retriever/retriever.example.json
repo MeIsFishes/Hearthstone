@@ -1,0 +1,49 @@
+{
+  "service": {
+    "host": "127.0.0.1",
+    "port": 8765,
+    "auto_start_for_mcp": true
+  },
+  "index": {
+    "directories": [],
+    "include_extensions": [".md"],
+    "exclude_globs": ["**/.git/**", "**/node_modules/**", "**/.venv/**"],
+    "storage_dir": "./retriever-index",
+    "write_vmeta_next_to_source": true
+  },
+  "chunk": {
+    "split_algorithm_version": 3
+  },
+  "embedding": {
+    "provider": "sentence-transformers",
+    "model": "BAAI/bge-small-zh-v1.5",
+    "device": "cpu",
+    "batch_size": 64
+  },
+  "bm25": {
+    "engine": "sqlite-fts5",
+    "tokenizer": "unicode61",
+    "segmenter": "jieba",
+    "segmenter_version": 1
+  },
+  "search": {
+    "default_k": 3,
+    "candidates_per_channel": 20,
+    "bm25_title_weight": 1.0,
+    "bm25_body_weight": 1.0,
+    "bm25_weight": 1.0,
+    "exact_keyword_weight": 1.0,
+    "accepted_synonym_weight": 0.65,
+    "provisional_synonym_weight": 0.3,
+    "oov_candidate_limit": 3,
+    "oov_similarity_threshold": 0.72,
+    "equivalence_candidate_limit_per_term": 3,
+    "equivalence_review_limit_per_search": 5,
+    "synonym_rejection_threshold": 3,
+    "synonym_review_cooldown_hours": 24
+  },
+  "logging": {
+    "level": "INFO",
+    "log_dir": "./retriever-index/logs"
+  }
+}

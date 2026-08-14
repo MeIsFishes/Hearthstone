@@ -1,0 +1,4 @@
+interface:
+  display_name: "2D美术文档写作规范"
+  short_description: "规范2D美术风格、模块及人物场景物件规格文档的编写和维护"
+  default_prompt: "请使用 $art-doc-writer 编写或更新2D美术风格、模块或分类规格文档。"

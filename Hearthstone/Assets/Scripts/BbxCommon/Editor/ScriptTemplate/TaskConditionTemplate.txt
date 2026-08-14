@@ -1,0 +1,28 @@
+using System;
+using System.Collections.Generic;
+using BbxCommon;
+
+public class #SCRIPT_NAME# : TaskConditionBase
+{
+    public int IntValue;
+
+    public enum EField
+    {
+        IntValue,
+    }
+
+    protected override void RegisterFields()
+    {
+        RegisterField(EField.IntValue, IntValue, (fieldInfo, context) => { IntValue = ReadInt(fieldInfo, context); });
+    }
+
+    protected override void OnConditionCollect()
+    {
+        IntValue = 0;
+    }
+
+    protected override EConditionState OnConditionUpdate(float deltaTime)
+    {
+        return EConditionState.Succeeded;
+    }
+}

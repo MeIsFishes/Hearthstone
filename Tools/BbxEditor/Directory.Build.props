@@ -1,0 +1,13 @@
+<Project>
+  <PropertyGroup>
+    <BbxEditorTargetFramework>net10.0</BbxEditorTargetFramework>
+    <BbxEditorWindowsTargetFramework>net10.0-windows</BbxEditorWindowsTargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+</Project>

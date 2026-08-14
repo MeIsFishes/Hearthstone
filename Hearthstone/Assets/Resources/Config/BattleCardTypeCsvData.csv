@@ -1,0 +1,8 @@
+CardTypeId,DisplayName,MinHealth,MaxHealth,MinAttack,MaxAttack
+// Unique card type identifier,Display name shown on cards,Minimum generated health inclusive,Maximum generated health inclusive,Minimum generated attack inclusive,Maximum generated attack inclusive
+// Associated: BattleCardCsvData
+1,哥布林战士,5,7,2,4
+2,哥布林弓手,3,5,3,5
+3,哥布林投弹手,2,4,4,6
+4,野猪,4,6,3,5
+5,食人魔,6,8,5,7

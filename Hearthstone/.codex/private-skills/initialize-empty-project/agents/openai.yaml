@@ -1,0 +1,4 @@
+interface:
+  display_name: "空项目初始化"
+  short_description: "判定空项目状态并搭建目录、基础文件、ECS 与 MVC 基础体系"
+  default_prompt: "使用 $initialize-empty-project 判定当前项目状态并完成适配的基础初始化。"

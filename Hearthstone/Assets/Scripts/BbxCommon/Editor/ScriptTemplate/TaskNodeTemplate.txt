@@ -1,0 +1,38 @@
+using System;
+using System.Collections.Generic;
+using BbxCommon;
+
+public class #SCRIPT_NAME# : TaskBase
+{
+    public int IntValue;
+
+    public enum EField
+    {
+        IntValue,
+    }
+
+    protected override void RegisterFields()
+    {
+        RegisterField(EField.IntValue, IntValue, (fieldInfo, context) => { IntValue = ReadInt(fieldInfo, context); });
+    }
+
+    protected override void OnTaskCollect()
+    {
+        IntValue = 0;
+    }
+
+    protected override void OnEnter()
+    {
+        
+    }
+
+    protected override ETaskRunState OnUpdate(float deltaTime)
+    {
+        return ETaskRunState.Succeeded;
+    }
+
+    protected override void OnExit()
+    {
+        
+    }
+}

@@ -1,0 +1,12 @@
+[
+  { "query": "敌人的基础 AI 行为", "expected": "EnemyBasicAi.editor.json" },
+  { "query": "激光敌人的完整攻击流程", "expected": "EnemyLaserFullAttack.editor.json" },
+  { "query": "带警告提示的贝塞尔轨迹导弹", "expected": "BezierWarningMissile.editor.json" },
+  { "query": "玩家狙击枪开火逻辑", "expected": "PlayerSniperFire.editor.json" },
+  { "query": "子弹结束时不要播放爆炸", "expected": "ProjectileEndNoExplosion.editor.json" },
+  { "query": "飞船装备了哪些武器和按键", "expected": "ShipWeaponCsvData.csv" },
+  { "query": "敌人的碰撞箱尺寸配置", "expected": "EnemyHitboxCsvData.csv" },
+  { "query": "战斗音效提示和音量配置", "expected": "CombatAudioCueCsvData.csv" },
+  { "query": "战斗画面和表现资源设置", "expected": "BattlePresentationAssetData.asset" },
+  { "query": "键盘武器界面设置", "expected": "KeyboardWeaponSettingsData.asset" }
+]

@@ -1,0 +1,4 @@
+interface:
+  display_name: "恢复 Unity MCP"
+  short_description: "诊断并恢复 Unity Editor 与 Codex 的 MCP 工具链路"
+  default_prompt: "使用 $recover-unity-mcp 诊断并恢复当前项目的 Unity MCP 连接。"

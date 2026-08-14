@@ -1,0 +1,182 @@
+# 8 小节战斗音乐结构示例。拍数从 0 开始，4/4 拍下每 4 拍为一小节。
+title "Battle Theme Prototype"
+tempo 120
+time 4/4
+
+track "Piano" channel=0 program=0 volume=0.72 pan=-0.15 waveform=triangle
+chord 0 4 D3,F3,A3,D4 68
+chord 4 4 Bb2,D3,F3,Bb3 66
+chord 8 4 F3,A3,C4,F4 68
+chord 12 4 C3,E3,G3,C4 66
+chord 16 4 D3,F3,A3,D4 74
+chord 20 4 Bb2,D3,F3,Bb3 72
+chord 24 4 C3,E3,G3,C4 74
+chord 28 4 A2,C#3,E3,A3 76
+end
+
+track "Strings" channel=1 program=48 volume=0.56 pan=0.18 waveform=saw
+chord 0 8 D4,F4,A4 54
+chord 8 4 F4,A4,C5 56
+chord 12 4 C4,E4,G4 56
+chord 16 8 D4,F4,A4 62
+chord 24 4 C4,E4,G4 64
+chord 28 4 A3,C#4,E4 66
+end
+
+track "Bass" channel=2 program=33 volume=0.78 pan=0 waveform=square
+note 0 1 D2 86
+note 1 1 D2 74
+note 2 1 A2 80
+note 3 1 D2 76
+note 4 1 Bb1 84
+note 5 1 Bb1 72
+note 6 1 F2 78
+note 7 1 Bb1 74
+note 8 1 F2 84
+note 9 1 C3 76
+note 10 1 F2 80
+note 11 1 A2 76
+note 12 1 C2 84
+note 13 1 G2 76
+note 14 1 C2 80
+note 15 1 E2 78
+note 16 0.5 D2 92
+note 16.5 0.5 A2 82
+note 17 0.5 D2 88
+note 17.5 0.5 F2 82
+note 18 0.5 D2 90
+note 18.5 0.5 A2 84
+note 19 0.5 C3 88
+note 19.5 0.5 A2 82
+note 20 0.5 Bb1 90
+note 20.5 0.5 F2 82
+note 21 0.5 Bb1 88
+note 21.5 0.5 D2 82
+note 22 0.5 Bb1 90
+note 22.5 0.5 F2 84
+note 23 0.5 A2 88
+note 23.5 0.5 F2 82
+note 24 0.5 C2 90
+note 24.5 0.5 G2 82
+note 25 0.5 C2 88
+note 25.5 0.5 E2 82
+note 26 0.5 C2 90
+note 26.5 0.5 G2 84
+note 27 0.5 Bb2 88
+note 27.5 0.5 G2 82
+note 28 0.5 A1 94
+note 28.5 0.5 E2 84
+note 29 0.5 A1 90
+note 29.5 0.5 C#2 84
+note 30 0.5 E2 92
+note 30.5 0.5 A2 86
+note 31 0.5 C#3 94
+note 31.5 0.5 E3 88
+end
+
+track "Lead" channel=3 program=81 volume=0.66 pan=0.08 waveform=sine
+note 0 0.5 D4 88
+note 0.5 0.5 F4 82
+note 1 1 A4 92
+note 2 0.5 G4 82
+note 2.5 0.5 F4 80
+note 3 1 D4 88
+note 4 0.5 F4 84
+note 4.5 0.5 D4 80
+note 5 1 Bb4 92
+note 6 0.5 A4 86
+note 6.5 0.5 F4 82
+note 7 1 D4 86
+note 8 0.5 A4 88
+note 8.5 0.5 C5 84
+note 9 1 F5 94
+note 10 0.5 E5 86
+note 10.5 0.5 C5 82
+note 11 1 A4 88
+note 12 0.5 G4 84
+note 12.5 0.5 C5 88
+note 13 1 E5 94
+note 14 0.5 D5 86
+note 14.5 0.5 C5 82
+note 15 1 A4 88
+note 16 0.5 D5 94
+note 16.5 0.5 F5 90
+note 17 0.5 A5 100
+note 17.5 0.5 F5 88
+note 18 0.5 G5 92
+note 18.5 0.5 F5 88
+note 19 1 D5 96
+note 20 0.5 F5 92
+note 20.5 0.5 D5 86
+note 21 0.5 Bb5 100
+note 21.5 0.5 A5 92
+note 22 0.5 F5 90
+note 22.5 0.5 D5 86
+note 23 1 F5 94
+note 24 0.5 G5 94
+note 24.5 0.5 E5 88
+note 25 0.5 C5 86
+note 25.5 0.5 G4 82
+note 26 1 C5 92
+note 27 1 E5 96
+note 28 0.5 A4 90
+note 28.5 0.5 C#5 92
+note 29 0.5 E5 96
+note 29.5 0.5 A5 102
+note 30 0.5 G5 92
+note 30.5 0.5 E5 88
+note 31 1 D5 104
+end
+
+track "Drums" channel=9 program=0 volume=0.74 pan=0 waveform=noise
+note 0 0.2 36 104
+note 1 0.12 42 66
+note 2 0.2 38 96
+note 3 0.12 42 68
+note 4 0.2 36 104
+note 5 0.12 42 66
+note 6 0.2 38 96
+note 7 0.12 46 74
+note 8 0.2 36 106
+note 9 0.12 42 68
+note 10 0.2 38 98
+note 11 0.12 42 70
+note 12 0.2 36 106
+note 13 0.12 42 68
+note 14 0.2 38 100
+note 15 0.12 46 76
+note 16 0.2 36 112
+note 16.5 0.1 42 72
+note 17 0.1 42 68
+note 17.5 0.1 42 72
+note 18 0.2 38 106
+note 18.5 0.1 42 72
+note 19 0.1 42 68
+note 19.5 0.1 46 78
+note 20 0.2 36 112
+note 20.5 0.1 42 72
+note 21 0.1 42 68
+note 21.5 0.1 42 72
+note 22 0.2 38 106
+note 22.5 0.1 42 72
+note 23 0.1 42 68
+note 23.5 0.1 46 78
+note 24 0.2 36 114
+note 24.5 0.1 42 74
+note 25 0.1 42 70
+note 25.5 0.1 42 74
+note 26 0.2 38 108
+note 26.5 0.1 42 74
+note 27 0.1 42 70
+note 27.5 0.1 46 80
+note 28 0.2 36 116
+note 28.5 0.1 42 76
+note 29 0.2 38 108
+note 29.5 0.1 42 76
+note 30 0.2 36 112
+note 30.5 0.1 42 76
+note 31 0.12 38 112
+note 31.25 0.12 38 108
+note 31.5 0.12 38 112
+note 31.75 0.12 49 118
+end

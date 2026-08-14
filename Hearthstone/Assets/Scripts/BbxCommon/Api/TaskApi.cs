@@ -1,0 +1,140 @@
+using System;
+using System.Collections.Generic;
+using BbxCommon.Internal;
+
+namespace BbxCommon
+{
+    public static class TaskApi
+    {
+        #region Task Store
+        public static void RegisterTask(string key, TaskGroupInfo value)
+        {
+            TaskManager.Instance.RegisterTask(key, value);
+        }
+
+        public static void RunTask(TaskBase task)
+        {
+            TaskManager.Instance.RunTask(task);
+        }
+
+        public static TaskBase RunTask(string key, TaskContextBase context)
+        {
+            return TaskManager.Instance.CreateTask(key, context, true);
+        }
+
+        public static TaskBase CreateTask(string key, TaskContextBase context)
+        {
+            return TaskManager.Instance.CreateTask(key, context, false);
+        }
+
+        public static T CreateContext<T>() where T : TaskContextBase, new()
+        {
+            return ObjectPool<T>.Alloc();
+        }
+        #endregion
+
+        #region Create Task by Code
+        public static TaskGroupInfo CreateTaskInfo<T>(int rootId) where T : TaskContextBase
+        {
+            var groupInfo = new TaskGroupInfo();
+            groupInfo.BindingContextFullType = typeof(T).FullName;
+            groupInfo.RootTaskId = rootId;
+            return groupInfo;
+        }
+        #endregion
+
+        #region Export Task
+        internal static TaskExportTypeInfo GenerateTaskTypeInfo(Type type, object obj = null)
+        {
+            var res = new TaskExportTypeInfo();
+            if (type == typeof(bool))
+                res.TypeName = "bool";
+            else if (type == typeof(char))
+                res.TypeName = "char";
+            else if (type == typeof(short))
+                res.TypeName = "short";
+            else if (type == typeof(ushort))
+                res.TypeName = "ushort";
+            else if (type == typeof(int))
+                res.TypeName = "int";
+            else if (type == typeof(uint))
+                res.TypeName = "uint";
+            else if (type == typeof(long))
+                res.TypeName = "long";
+            else if (type == typeof(ulong))
+                res.TypeName = "ulong";
+            else if (type == typeof(float))
+                res.TypeName = "float";
+            else if (type == typeof(double))
+                res.TypeName = "double";
+            else if (type == typeof(string))
+                res.TypeName = "string";
+            else if (type.IsGenericType)
+            {
+                if (type.GetGenericTypeDefinition() == typeof(List<>))
+                {
+                    res.TypeName = "List";
+                    res.GenericType1 = GenerateTaskTypeInfo(type.GenericTypeArguments[0]);
+                }
+                else if (type.GetGenericTypeDefinition() == typeof(HashSet<>))
+                {
+                    res.TypeName = "HashSet";
+                    res.GenericType1 = GenerateTaskTypeInfo(type.GenericTypeArguments[0]);
+                }
+                else if (type.GetGenericTypeDefinition() == typeof(SerializableHashSet<>))
+                {
+                    res.TypeName = "SerializableHashSet";
+                    res.GenericType1 = GenerateTaskTypeInfo(type.GenericTypeArguments[0]);
+                }
+                else if (type.GetGenericTypeDefinition() == typeof(Dictionary<,>))
+                {
+                    res.TypeName = "Dictionary";
+                    res.GenericType1 = GenerateTaskTypeInfo(type.GenericTypeArguments[0]);
+                    res.GenericType2 = GenerateTaskTypeInfo(type.GenericTypeArguments[1]);
+                }
+                else if (type.GetGenericTypeDefinition() == typeof(SerializableDic<,>))
+                {
+                    res.TypeName = "SerializableDic";
+                    res.GenericType1 = GenerateTaskTypeInfo(type.GenericTypeArguments[0]);
+                    res.GenericType2 = GenerateTaskTypeInfo(type.GenericTypeArguments[1]);
+                }
+            }
+            else if (type == typeof(TaskConnectPoint))
+            {
+                res.TypeName = "TaskConnectPoint";
+                if (obj == null)
+                {
+                    DebugApi.LogError("You passed a null object to GenerateTaskTypeInfo for TaskConnectPoint. This is not expected!");
+                }
+                else
+                {
+                    switch ((obj as TaskConnectPoint).ConnectPointType)
+                    {
+                        case ETaskConnectPointType.Single:
+                            res.TypeName += ".Single";
+                            break;
+                        case ETaskConnectPointType.Multiple:
+                            res.TypeName += ".Multiple";
+                            break;
+                    }
+                }
+            }
+            else if (type.IsEnum)
+            {
+                res.TypeName = type.FullName;
+#if UNITY_EDITOR
+                if (ExportTaskInfo.EnumDic.ContainsKey(type.FullName) == false)
+                {
+                    ExportTaskInfo.EnumDic.Add(type.FullName, type);
+                }
+#endif
+            }
+            else
+            {
+                res.TypeName = type.Name;
+            }
+            return res;
+        }
+        #endregion
+    }
+}

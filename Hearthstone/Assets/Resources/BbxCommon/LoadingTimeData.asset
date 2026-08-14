@@ -1,0 +1,38 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1a2708201abc46288e7e6c8bb78c783e, type: 3}
+  m_Name: LoadingTimeData
+  m_EditorClassIdentifier: 
+  LoadingItemTimeDic:
+    m_Items:
+    - Key: Game Engine Stage.Load.InitReflectionAndResource
+      Value: 139601600
+    - Key: Game Engine Stage.Load.Scene
+      Value: 131600
+    - Key: Game Engine Stage.Load.UI
+      Value: 60300
+    - Key: Game Engine Stage.Load.Data
+      Value: 54994600
+    - Key: Game Engine Stage.Load.Other
+      Value: 1774600
+    - Key: Game Engine Stage.Load.LoadLocTranslations
+      Value: 396600
+    - Key: BattleStage.Load.InitializeBattleRuntime
+      Value: 7402500
+    - Key: BattleStage.Load.Scene
+      Value: 700
+    - Key: BattleStage.Load.UI
+      Value: 93458000
+    - Key: BattleStage.Load.Data
+      Value: 8100
+    - Key: BattleStage.Load.Other
+      Value: 27700

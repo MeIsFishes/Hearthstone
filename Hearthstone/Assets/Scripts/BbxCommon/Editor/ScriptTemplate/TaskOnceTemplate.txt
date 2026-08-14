@@ -1,0 +1,28 @@
+using System;
+using System.Collections.Generic;
+using BbxCommon;
+
+public class #SCRIPT_NAME# : TaskOnceBase
+{
+    public int IntValue;
+
+    public enum EField
+    {
+        IntValue,
+    }
+
+    protected override void RegisterFields()
+    {
+        RegisterField(EField.IntValue, IntValue, (fieldInfo, context) => { IntValue = ReadInt(fieldInfo, context); });
+    }
+
+    protected override void OnTaskCollect()
+    {
+        IntValue = 0;
+    }
+
+    protected override EOnceState OnExecute()
+    {
+        return EOnceState.Succeeded;
+    }
+}

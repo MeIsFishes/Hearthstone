@@ -1,0 +1,53 @@
+title "Cold Hull, Silent Signal"
+tempo 120
+time 4/4
+length 8
+master 0.68
+
+track "Defeat Lead" channel=0 program=81 volume=0.66 pan=0.06 waveform=square
+note 0 1 D5 94
+note 1 1 C5 90
+note 2 1 Bb4 88
+note 3 1 A4 86
+note 4 0.5 F4 84
+note 4.5 0.5 E4 82
+note 5 1 Eb4 86
+note 6 2 D4 94
+end
+
+track "Defeat Chords" channel=1 program=48 volume=0.42 pan=-0.16 waveform=saw
+chord 0 2 D3,F3,A3 68
+chord 2 2 Bb2,D3,F3 66
+chord 4 1 G2,Bb2,D3 70
+chord 5 1 A2,C3,Eb3 74
+chord 6 2 D2,F2,A2 80
+end
+
+track "Defeat Bass" channel=2 program=39 volume=0.54 pan=0 waveform=triangle
+note 0 1 D2 82
+note 1 1 C2 78
+note 2 1 Bb1 80
+note 3 1 A1 82
+note 4 1 G1 84
+note 5 1 A1 88
+note 6 2 D1 96
+end
+
+track "Defeat Pulse" channel=3 program=88 volume=0.32 pan=0.22 waveform=sine
+note 0 0.5 A4 62
+note 2 0.5 F4 60
+note 4 0.5 D4 58
+note 5 0.5 Eb4 64
+note 6 1 A3 66
+end
+
+track "Defeat Drums" channel=9 program=0 volume=0.38 pan=0 waveform=noise
+note 0 0.25 36 82
+note 1 0.25 41 66
+note 2 0.25 36 78
+note 3 0.25 41 64
+note 4 0.25 36 74
+note 5 0.25 45 70
+note 6 0.25 36 90
+note 6 0.25 49 58
+end

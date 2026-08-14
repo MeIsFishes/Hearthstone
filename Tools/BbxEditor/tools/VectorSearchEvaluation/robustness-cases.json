@@ -1,0 +1,168 @@
+{
+  "paraphraseGroups": [
+    {
+      "target": "EnemyBasicAi.editor.json",
+      "queries": [
+        "普通敌人的行动逻辑",
+        "基础型敌人如何移动和攻击",
+        "standard enemy movement and attack behavior"
+      ]
+    },
+    {
+      "target": "EnemyLaserFullAttack.editor.json",
+      "queries": [
+        "光束敌人从蓄力到恢复的整套攻击流程",
+        "激光单位准备并发射武器的完整逻辑",
+        "complete laser enemy attack sequence including charge and recovery"
+      ]
+    },
+    {
+      "target": "BezierWarningMissile.editor.json",
+      "queries": [
+        "沿曲线路径飞行并提前闪烁警示的弹体",
+        "带预警效果的贝塞尔制导弹",
+        "warning missile following a Bezier curved path"
+      ]
+    },
+    {
+      "target": "PlayerSniperFire.editor.json",
+      "queries": [
+        "玩家瞄准后进行远距离精确射击",
+        "狙击武器锁定目标并开火的流程",
+        "player sniper aiming and precision firing logic"
+      ]
+    },
+    {
+      "target": "ProjectileEndNoExplosion.editor.json",
+      "queries": [
+        "投射物销毁但不产生爆炸效果",
+        "子弹结束时只结算命中，不生成爆炸",
+        "projectile end handling without an explosion"
+      ]
+    },
+    {
+      "target": "ShipWeaponCsvData.csv",
+      "queries": [
+        "舰船武器槽与快捷键映射表",
+        "飞船、武器和按键之间的绑定关系",
+        "ship weapon slots and keyboard bindings table"
+      ]
+    },
+    {
+      "target": "EnemyHitboxCsvData.csv",
+      "queries": [
+        "怪物受击区域的形状和大小参数",
+        "敌方碰撞体的半径宽度高度配置",
+        "enemy hitbox shape radius width and height configuration"
+      ]
+    },
+    {
+      "target": "CombatAudioCueCsvData.csv",
+      "queries": [
+        "战斗声音提示的音量和音高参数",
+        "作战音效资源及并发播放设置",
+        "combat audio cue volume pitch and concurrency settings"
+      ]
+    },
+    {
+      "target": "BattlePresentationAssetData.asset",
+      "queries": [
+        "战斗演出预制体与受击震屏设置",
+        "战斗场景视觉表现所使用的资源",
+        "battle presentation prefabs explosion and camera shake settings"
+      ]
+    },
+    {
+      "target": "KeyboardWeaponSettingsData.asset",
+      "queries": [
+        "键盘武器栏的三行布局参数",
+        "主键盘按键对应的武器界面设置",
+        "keyboard weapon UI row layout settings"
+      ]
+    }
+  ],
+  "contrastPairs": [
+    {
+      "name": "有爆炸 / 无爆炸",
+      "left": {
+        "query": "投射物结束时生成爆炸效果",
+        "expected": "ProjectileEndEffect.editor.json"
+      },
+      "right": {
+        "query": "投射物结束时不生成爆炸效果",
+        "expected": "ProjectileEndNoExplosion.editor.json"
+      }
+    },
+    {
+      "name": "普通开火 / 狙击开火",
+      "left": {
+        "query": "玩家普通武器直接开火，不进行狙击瞄准",
+        "expected": "PlayerWeaponFire.editor.json"
+      },
+      "right": {
+        "query": "玩家狙击武器瞄准目标后开火",
+        "expected": "PlayerSniperFire.editor.json"
+      }
+    },
+    {
+      "name": "直线 / 曲线",
+      "left": {
+        "query": "投射物沿直线飞行，不走曲线路径",
+        "expected": "LinearProjectile.editor.json"
+      },
+      "right": {
+        "query": "投射物沿贝塞尔曲线飞行并显示预警",
+        "expected": "BezierWarningMissile.editor.json"
+      }
+    },
+    {
+      "name": "投射物攻击 / 激光攻击",
+      "left": {
+        "query": "敌人发射投射物连射攻击，不使用激光",
+        "expected": "EnemyProjectileAttack.editor.json"
+      },
+      "right": {
+        "query": "敌人蓄力并发射激光，不使用普通投射物",
+        "expected": "EnemyLaserFullAttack.editor.json"
+      }
+    },
+    {
+      "name": "接触伤害 / 死亡表现",
+      "left": {
+        "query": "敌人与玩家接触碰撞并结算冲击伤害",
+        "expected": "EnemyContactImpact.editor.json"
+      },
+      "right": {
+        "query": "敌人死亡后播放爆炸表现，而不是接触伤害",
+        "expected": "EnemyDeathEffect.editor.json"
+      }
+    },
+    {
+      "name": "配置数据 / 执行行为",
+      "left": {
+        "query": "配置敌人碰撞箱的尺寸和形状数据",
+        "expected": "EnemyHitboxCsvData.csv"
+      },
+      "right": {
+        "query": "执行敌人接触玩家后的伤害处理行为",
+        "expected": "EnemyContactImpact.editor.json"
+      }
+    }
+  ],
+  "relationProbes": [
+    { "anchor": "开启", "synonym": "启用", "antonym": "关闭", "unrelated": "飞船" },
+    { "anchor": "增加", "synonym": "提高", "antonym": "减少", "unrelated": "音效" },
+    { "anchor": "允许", "synonym": "准许", "antonym": "禁止", "unrelated": "导弹" },
+    { "anchor": "开始", "synonym": "启动", "antonym": "结束", "unrelated": "碰撞箱" },
+    { "anchor": "显示", "synonym": "展示", "antonym": "隐藏", "unrelated": "武器" },
+    { "anchor": "产生爆炸", "synonym": "生成爆炸效果", "antonym": "不产生爆炸", "unrelated": "键盘布局" }
+  ],
+  "outOfDomainQueries": [
+    "明天上海会不会下雨",
+    "把数据库迁移到 PostgreSQL",
+    "登录服务器并重置用户密码",
+    "烘焙开放世界地形导航网格",
+    "购买机票并安排酒店",
+    "写一封请假邮件"
+  ]
+}

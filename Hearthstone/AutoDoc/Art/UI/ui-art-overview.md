@@ -1,0 +1,30 @@
+# Hearthstone UI 美术文档
+
+## 1. 文档范围
+
+本文档记录当前主要 UI 界面的二维视觉构成、通用风格分组与实际图片资产使用情况。项目级 UI 形状、线条、色彩和纹理规则以 `AutoDoc/Art/Style/art-style-overview.md` 为准；模块专属表现以对应模块美术文档为准。
+
+当前信息来自 `Assets/Resources/Ui/` 下实际 Prefab、`Assets/Resources/Art/BattleCards/` 下 Sprite 以及 Unity Editor 中的 Prefab 引用检查。战斗界面以基础 Image、TextMesh Pro、木质金边战场底板、五张怪物原画、红蓝两套透明卡框和三张属性/编号透明 Sprite 共同构成；编号底框与文字已经固化在卡牌 Prefab 静态层级。文字统一使用 Noto Sans SC，字体资产不计入下方二维图片资产表。
+
+## 2. UI 通用资产分组
+
+### 2.1 UI-STYLE-001 明亮红蓝金奇幻卡牌界面
+
+**风格说明**：竖向轻薄拱形红金/蓝金阵营卡框、窄暖金金属包边、低明度宽裕说明区和宝石质感属性徽章；装饰细节集中在边缘，卡面中央为原画与文字保留清晰空间。
+
+**适用范围**：当前战斗界面及战斗卡牌。
+
+| 资产或资产组 | 类型 | 通用用途 | 项目内路径 | 尺寸 / 格式 | 状态与视觉变体 | 复用约束 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 阵营卡面边框 | 边框 | 战斗怪物卡的外轮廓、阵营装饰层和攻击/目标高亮轮廓 | `Assets/Resources/Art/BattleCards/UI/CardFrame-v3.png`、`Assets/Resources/Art/BattleCards/UI/CardFrameBlue-v2.png` | 均为 `1024 × 1536` / PNG | 敌方红金、我方蓝金两种视觉变体；攻击者与目标状态复用当前阵营变体 | 两个版本共用轻薄轮廓和真实 Alpha；基础框与高亮层同尺寸覆盖卡面，不承载数字或文字，不拉宽装饰边，也不在状态切换时改用历史粗框 |
+| 攻击力剑形徽章 | 属性徽章 | 战斗卡左下角攻击力底框 | `Assets/Resources/Art/BattleCards/UI/AttackSwordBadge.png` | `1254 × 1254` / PNG | 当前单一红金剑形版本 | 保持正方形比例和完整剑形轮廓；数字由 TMP 叠加，不写入图片 |
+| 生命值血滴徽章 | 属性徽章 | 战斗卡右下角生命值底框 | `Assets/Resources/Art/BattleCards/UI/HealthDropBadge.png` | `1254 × 1254` / PNG | 当前单一绿金血滴版本 | 保持正方形比例和完整血滴轮廓；数字由 TMP 叠加，不写入图片 |
+| 卡牌编号六边形框 | 编号底框 | 战斗卡左上角编号衬底 | `Assets/Resources/Art/BattleCards/UI/CardNumberBadgeHex.png` | `384 × 256` / PNG | 当前单一深灰金属版本 | 保持 `3:2` 比例和透明外缘；白色编号由 TMP 叠加，不写入图片 |
+
+## 3. 当前主要 UI 界面
+
+| 界面名称 | 界面用途 | 主要视觉区域 | UI 风格分组 ID | 使用的通用资产 | 专属美术资产及路径 |
+| --- | --- | --- | --- | --- | --- |
+| 战斗界面 | 展示双方卡牌、卡牌编号、战斗状态与胜负结果 | 木质金边羊皮纸战场底板、上下两排正向竖向卡牌、敌方红金/我方蓝金轻薄边框、主体原画、放大的底部说明区、左上角灰色六边形编号框和中央状态文字 | `UI-STYLE-001` | 红蓝阵营卡面边框、卡牌编号六边形框、攻击力剑形徽章、生命值血滴徽章 | 战场底板：`Assets/Resources/Art/BattleCards/UI/BattleBoardBackground.png`；五张怪物原画：`Assets/Resources/Art/BattleCards/*.png` |
+
+## 4. UI 美术资产缺失

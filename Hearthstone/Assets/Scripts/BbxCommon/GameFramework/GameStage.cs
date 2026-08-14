@@ -1,0 +1,436 @@
+using System;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.Events;
+using UnityEngine.SceneManagement;
+using Unity.Entities;
+using BbxCommon.Ui;
+using BbxCommon.Internal;
+using Cysharp.Threading.Tasks;
+using Object = UnityEngine.Object;
+using System.Diagnostics;
+
+namespace BbxCommon
+{
+    public interface IStageLoad
+    {
+        void Load(GameStage stage);
+        void Unload(GameStage stage);
+    }
+
+    public class GameStage
+    {
+        #region Common
+        public string StageName;
+
+        // one for derived class to use if needs to extend, and another one for game framework to read
+        protected bool m_Loaded;
+        internal bool Loaded => m_Loaded;
+
+        public UnityAction PreLoadStage;
+        public UnityAction PostLoadStage;
+        public UnityAction PreUnloadStage;
+        public UnityAction PostUnloadStage;
+
+        protected World m_EcsWorld;
+
+        internal GameStage(string stageName, World ecsWorld)
+        {
+            StageName = stageName;
+            m_EcsWorld = ecsWorld;
+        }
+
+        internal void Init(string stageName, World ecsWorld)
+        {
+            StageName = stageName;
+            m_EcsWorld = ecsWorld;
+        }
+
+        internal async UniTask LoadStage()
+        {
+            if (m_Loaded)
+                return;
+
+            m_Loaded = true;
+            PreLoadStage?.Invoke();
+            // load
+            await OnLoadStageLoad();
+            // init StopWatch
+            var loadingTimeData = DataApi.GetData<LoadingTimeData>();
+            // scene
+            var key = StageName + ".Load.Scene";
+            var sampler = DebugApi.BeginSample(key);
+            OnLoadStageScene();
+            sampler.EndSample();
+            GameEngineFacade.SetLoadingWeight(loadingTimeData.GetLoadingTime(key));
+#if UNITY_EDITOR
+            loadingTimeData.SetLoadingTime(key, sampler.TimeNs);
+#endif
+            await UniTask.NextFrame();
+            // UI
+            key = StageName + ".Load.UI";
+            sampler = DebugApi.BeginSample(key);
+            OnLoadStageUiScene();
+            sampler.EndSample();
+            GameEngineFacade.SetLoadingWeight(loadingTimeData.GetLoadingTime(key));
+#if UNITY_EDITOR
+            loadingTimeData.SetLoadingTime(key, sampler.TimeNs);
+#endif
+            await UniTask.NextFrame();
+            // data
+            key = StageName + ".Load.Data";
+            sampler = DebugApi.BeginSample(key);
+            OnLoadStageData();
+            sampler.EndSample();
+            GameEngineFacade.SetLoadingWeight(loadingTimeData.GetLoadingTime(key));
+#if UNITY_EDITOR
+            loadingTimeData.SetLoadingTime(key, sampler.TimeNs);
+#endif
+            await UniTask.NextFrame();
+            // other
+            key = StageName + ".Load.Other";
+            sampler = DebugApi.BeginSample(key);
+            OnLoadStageTick();
+            OnLoadStageListener();
+            sampler.EndSample();
+            GameEngineFacade.SetLoadingWeight(loadingTimeData.GetLoadingTime(key));
+#if UNITY_EDITOR
+            loadingTimeData.SetLoadingTime(key, sampler.TimeNs);
+#endif
+            // late load
+            await OnLoadStageLateLoad();
+
+            PostLoadStage?.Invoke();
+
+#if UNITY_EDITOR
+            // remove obseleted items data
+            var stageItems = loadingTimeData.GetStageItemDic(StageName);
+            var visitedItems = SimplePool<HashSet<string>>.Alloc();
+            visitedItems.Add(StageName + ".Load.Scene");
+            visitedItems.Add(StageName + ".Load.UI");
+            visitedItems.Add(StageName + ".Load.Data");
+            visitedItems.Add(StageName + ".Load.Other");
+            visitedItems.Add(StageName + ".Unload");
+            foreach (var item in m_StageLoadItems)
+            {
+                visitedItems.Add(StageName + ".Load." + item.GetType().Name);
+            }
+            foreach (var item in m_StageLateLoadItems)
+            {
+                visitedItems.Add(StageName + ".Load." + item.GetType().Name);
+            }
+            foreach (var pair in stageItems)
+            {
+                if (visitedItems.Contains(pair.Key) == false)
+                {
+                    loadingTimeData.LoadingItemTimeDic.TryRemove(pair.Key);
+                }
+            }
+            visitedItems.CollectToPool();
+#endif
+        }
+
+        public float StageLoadingWeight = 1f;
+        
+        internal void UnloadStage()
+        {
+            if (m_Loaded == false)
+                return;
+
+            PreUnloadStage?.Invoke();
+            OnUnloadStageLateLoad();
+            OnUnloadStageListener();
+            OnUnloadStageTick();
+            OnUnloadStageData();
+            OnUnloadStageUiScene();
+            OnUnloadStageScene();
+            OnUnloadStageLoad();
+            m_Loaded = false;
+            PostUnloadStage?.Invoke();
+        }
+        #endregion
+
+        #region StageData
+        // store datas in the stage to offer to load stage
+        protected Dictionary<string, object> m_StageDatas = new Dictionary<string, object>();
+
+        public void SetStageData(string key, object value, bool collectToPool = false)
+        {
+            if (collectToPool && m_StageDatas.TryGetValue(key, out var origin))
+                ((PooledObject)origin)?.CollectToPool();
+            m_StageDatas[key] = value;
+        }
+
+        public object GetStageData(string key)
+        {
+            m_StageDatas.TryGetValue(key, out var value);
+            return value;
+        }
+        #endregion
+
+        #region StageScene
+        protected List<string> m_Scenes = new List<string>();
+
+        public void AddScene(params string[] scenes)
+        {
+            m_Scenes.AddArray(scenes);
+        }
+
+        protected void OnLoadStageScene()
+        {
+            foreach (var scene in m_Scenes)
+            {
+                if (scene.IsNullOrEmpty())
+                    continue;
+                SceneManager.LoadScene(scene, LoadSceneMode.Additive);
+            }
+        }
+
+        protected void OnUnloadStageScene()
+        {
+            foreach (var scene in m_Scenes)
+            {
+                if (scene.IsNullOrEmpty())
+                    continue;
+                SceneManager.UnloadSceneAsync(scene);
+            }
+        }
+        #endregion
+
+        #region StageUiScene
+        protected UiSceneBase m_UiScene;
+        protected UiSceneAsset m_UiSceneAsset;
+
+        public void SetUiScene(UiSceneBase uiScene, UiSceneAsset uiSceneAsset)
+        {
+            if (m_UiScene != null)
+            {
+                DebugApi.LogError("Current stage \"" + StageName + "\" has got a UiScene, you can only call SetUiScene once!");
+                return;
+            }
+            m_UiScene = uiScene;
+            m_UiSceneAsset = Object.Instantiate(uiSceneAsset);
+        }
+
+        protected void OnLoadStageUiScene()
+        {
+            if (m_UiScene != null && m_UiSceneAsset != null)
+                m_UiScene.CreateUiByAsset(m_UiSceneAsset);
+        }
+
+        protected void OnUnloadStageUiScene()
+        {
+            if (m_UiScene != null && m_UiSceneAsset != null)
+                m_UiScene.DestroyUiByAsset(m_UiSceneAsset);
+        }
+        #endregion
+
+        #region StageLoad
+        protected List<IStageLoad> m_StageLoadItems = new List<IStageLoad>();
+        protected List<IStageLoad> m_StageLateLoadItems = new List<IStageLoad>();
+
+        public void AddLoadItem(IStageLoad item)
+        {
+            m_StageLoadItems.Add(item);
+        }
+
+        public void AddLoadItem<T>() where T : IStageLoad, new()
+        {
+            AddLoadItem(new T());
+        }
+
+        protected async UniTask OnLoadStageLoad()
+        {
+            var loadingTimeData = DataApi.GetData<LoadingTimeData>();
+            foreach (var item in m_StageLoadItems)
+            {
+                var key = StageName + ".Load." + item.GetType().Name;
+                var sampler = DebugApi.BeginSample(key);
+                item.Load(this);
+                sampler.EndSample();
+                GameEngineFacade.SetLoadingWeight(loadingTimeData.GetLoadingTime(key));
+#if UNITY_EDITOR
+                loadingTimeData.SetLoadingTime(key, sampler.TimeNs);
+#endif
+                await UniTask.NextFrame();
+            }
+        }
+        
+        protected void OnUnloadStageLoad()
+        {
+            for (int i = m_StageLoadItems.Count - 1; i >= 0; i--)
+            {
+                m_StageLoadItems[i].Unload(this);
+            }
+        }
+
+        public void AddLateLoadItem(IStageLoad item)
+        {
+            m_StageLateLoadItems.Add(item);
+        }
+
+        public void AddLateLoadItem<T>() where T : IStageLoad, new()
+        {
+            AddLateLoadItem(new T());
+        }
+
+        protected async UniTask OnLoadStageLateLoad()
+        {
+            var loadingTimeData = DataApi.GetData<LoadingTimeData>();
+            foreach (var item in m_StageLateLoadItems)
+            {
+                var key = StageName + ".Load." + item.GetType().Name;
+                var sampler = DebugApi.BeginSample(key);
+                item.Load(this);
+                sampler.EndSample();
+                GameEngineFacade.SetLoadingWeight(loadingTimeData.GetLoadingTime(key));
+#if UNITY_EDITOR
+                loadingTimeData.SetLoadingTime(key, sampler.TimeNs);
+#endif
+                await UniTask.NextFrame();
+            }
+        }
+
+        protected void OnUnloadStageLateLoad()
+        {
+            for (int i = m_StageLateLoadItems.Count - 1; i >= 0; i--)
+            {
+                m_StageLateLoadItems[i].Unload(this);
+            }
+        }
+        #endregion
+
+        #region StageTick
+        protected List<EcsSystemBase> m_UpdateSystems = new();
+        protected List<EcsSystemBase> m_FixedUpdateSystems = new();
+
+        internal IReadOnlyList<EcsSystemBase> UpdateSystems => m_UpdateSystems;
+        internal IReadOnlyList<EcsSystemBase> FixedUpdateSystems => m_FixedUpdateSystems;
+
+        public void AddUpdateSystem<T>() where T : EcsSystemBase, new()
+        {
+            var system = m_EcsWorld.CreateSystemManaged<T>();
+            m_UpdateSystems.Add(system);
+        }
+
+        public void AddFixedUpdateSystem<T>() where T : EcsSystemBase, new()
+        {
+            var system = m_EcsWorld.CreateSystemManaged<T>();
+            m_FixedUpdateSystems.Add(system);
+        }
+
+        private void OnLoadStageTick()
+        {
+            foreach (var system in m_UpdateSystems)
+            {
+                var systemGroup = m_EcsWorld.GetExistingSystemManaged<UpdateSystemGroup>();
+                systemGroup.AddSystemToUpdateList(system);
+            }
+            m_EcsWorld.GetExistingSystemManaged<UpdateSystemGroup>().RefreshSystemUpdateOrder();
+
+            foreach (var system in m_FixedUpdateSystems)
+            {
+                var systemGroup = m_EcsWorld.GetExistingSystemManaged<FixedUpdateSystemGroup>();
+                systemGroup.AddSystemToUpdateList(system);
+            }
+            m_EcsWorld.GetExistingSystemManaged<FixedUpdateSystemGroup>().RefreshSystemUpdateOrder();
+        }
+
+
+        private void OnUnloadStageTick()
+        {
+            m_EcsWorld.GetExistingSystemManaged<UpdateSystemGroup>()
+                .RemoveSystemsFromUpdateOrder(m_UpdateSystems);
+            m_EcsWorld.GetExistingSystemManaged<FixedUpdateSystemGroup>()
+                .RemoveSystemsFromUpdateOrder(m_FixedUpdateSystems);
+        }
+        #endregion
+
+        #region StageListener
+        private List<StageListenerBase> m_StageListeners = new();
+
+        public void AddStageListener<T>() where T : StageListenerBase, new()
+        {
+            var listener = new T();
+            m_StageListeners.Add(listener);
+        }
+
+        private void OnLoadStageListener()
+        {
+            foreach (var listener in m_StageListeners)
+            {
+                listener.OnLoad();
+            }
+        }
+
+        private void OnUnloadStageListener()
+        {
+            foreach (var listener in m_StageListeners)
+            {
+                listener.OnUnload();
+            }
+        }
+        #endregion
+
+        #region StageData
+        private List<string> m_LoadDataGroups = new();
+        private HashSet<BbxScriptableObject> m_ScriptableObjects = new();
+
+        public void AddDataGroup(string group)
+        {
+            m_LoadDataGroups.Add(group);
+        }
+
+        private void OnLoadStageData()
+        {
+            var soAssets = Resources.Load<ScriptableObjectAssets>(BbxVar.ExportScriptableObjectPathInResource);
+            if (soAssets == null)
+                return;
+            for (int i = 0; i < m_LoadDataGroups.Count; i++)
+            {
+                var group = m_LoadDataGroups[i];
+                if (soAssets.Assets.TryGetValue(group, out var paths))
+                {
+                    foreach (var path in paths)
+                    {
+                        var target = Resources.Load(ResourceApi.EditorOperation.RelativePathToResourcesPath(path));
+                        if (target is BbxScriptableObject asset)
+                        {
+                            var runtimeAsset = Object.Instantiate(asset);
+                            runtimeAsset.Load();
+                            m_ScriptableObjects.TryAdd(runtimeAsset);
+                        }
+                    }
+                }
+                if (ResourceApi.DataGroupCsvPairs.TryGetValue(group, out var csvDataList))
+                {
+                    foreach (var csvObj in csvDataList)
+                    {
+                        var tableNames = csvObj.GetTableNames();
+                        bool foundTable = false;
+                        foreach (var name in tableNames)
+                        {
+                            if (ResourceManager.LoadCsv(name, csvObj) == true)
+                                foundTable = true;
+                        }
+                        if (foundTable == false)
+                        {
+                            DebugApi.LogWarning("There is no CSV file fits " + csvObj.GetType().FullName + " requires. It requires " + csvObj.GetTableNames());
+                        }
+                    }
+                }
+            }
+        }
+
+        private void OnUnloadStageData()
+        {
+            foreach (var asset in m_ScriptableObjects)
+            {
+                asset.Unload();
+                Object.Destroy(asset);
+            }
+            m_ScriptableObjects.Clear();
+        }
+        #endregion
+    }
+}

@@ -1,0 +1,19 @@
+title "Boss Entry Hi-Lo Siren"
+tempo 120
+time 4/4
+length 4
+master 0.66
+
+track "Hi-Lo Siren Body" channel=0 program=81 volume=0.82 pan=0 waveform=sine
+note 0 0.92 D5 116
+note 1 0.92 A4 112
+note 2 0.92 D5 120
+note 3 0.92 A4 116
+end
+
+track "Hi-Lo Siren Horn" channel=1 program=81 volume=0.34 pan=0 waveform=saw
+note 0 0.92 D5 104
+note 1 0.92 A4 100
+note 2 0.92 D5 108
+note 3 0.92 A4 104
+end

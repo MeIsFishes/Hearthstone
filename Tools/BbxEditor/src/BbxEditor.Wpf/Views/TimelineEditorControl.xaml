@@ -1,0 +1,107 @@
+<UserControl x:Class="BbxEditor.Wpf.Views.TimelineEditorControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:views="clr-namespace:BbxEditor.Wpf.Views">
+    <UserControl.Resources>
+        <Style x:Key="ConditionGroupStyle" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="7" />
+            <Setter Property="Padding" Value="7" />
+            <Setter Property="Margin" Value="3" />
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Background="{StaticResource WorkspaceBackgroundBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <ToolBar Grid.Row="0">
+            <Button Content="＋ Add Action" Style="{StaticResource PrimaryButtonStyle}"
+                    Command="{Binding AddTaskCommand}" />
+            <Separator Style="{StaticResource ToolbarSeparatorStyle}" />
+            <Button Content="↑" ToolTip="Move selected node up" Style="{StaticResource IconButtonStyle}"
+                    Command="{Binding MoveUpCommand}" CommandParameter="{Binding SelectedItem}" />
+            <Button Content="↓" ToolTip="Move selected node down" Style="{StaticResource IconButtonStyle}"
+                    Command="{Binding MoveDownCommand}" CommandParameter="{Binding SelectedItem}" />
+            <Button Content="Delete Node" ToolTip="Delete the selected Timeline node" Style="{StaticResource DangerButtonStyle}"
+                    Command="{Binding DeleteCommand}" CommandParameter="{Binding SelectedItem}" />
+            <Separator Style="{StaticResource ToolbarSeparatorStyle}" />
+            <TextBlock Text="Nodes appear to the left of the timeline. Drag a time bar to change its start time, or drag its right handle to change its duration."
+                       Foreground="{StaticResource TextSecondaryBrush}" Margin="6,0" />
+        </ToolBar>
+
+        <Border Grid.Row="1" Margin="10,9,10,0" Background="{StaticResource SidebarBackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="5">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0" Style="{StaticResource ConditionGroupStyle}">
+                    <StackPanel>
+                        <Button Content="＋ Enter Condition" Command="{Binding AddEnterConditionCommand}"
+                                CommandParameter="{Binding SelectedItem}" />
+                        <ItemsControl ItemsSource="{Binding SelectedItem.EnterConditions}">
+                            <ItemsControl.ItemTemplate><DataTemplate>
+                                <DockPanel Margin="1">
+                                    <Button DockPanel.Dock="Right" Content="×" Style="{StaticResource IconButtonStyle}"
+                                            Command="{Binding DataContext.DeleteConditionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
+                                    <Button Content="{Binding TaskType}" Style="{StaticResource FlatButtonStyle}" HorizontalContentAlignment="Left"
+                                            Command="{Binding DataContext.SelectTaskCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
+                                </DockPanel>
+                            </DataTemplate></ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="1" Style="{StaticResource ConditionGroupStyle}">
+                    <StackPanel>
+                        <Button Content="＋ Condition" Command="{Binding AddConditionCommand}"
+                                CommandParameter="{Binding SelectedItem}" />
+                        <ItemsControl ItemsSource="{Binding SelectedItem.Conditions}">
+                            <ItemsControl.ItemTemplate><DataTemplate>
+                                <DockPanel Margin="1">
+                                    <Button DockPanel.Dock="Right" Content="×" Style="{StaticResource IconButtonStyle}"
+                                            Command="{Binding DataContext.DeleteConditionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
+                                    <Button Content="{Binding TaskType}" Style="{StaticResource FlatButtonStyle}" HorizontalContentAlignment="Left"
+                                            Command="{Binding DataContext.SelectTaskCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
+                                </DockPanel>
+                            </DataTemplate></ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="2" Style="{StaticResource ConditionGroupStyle}">
+                    <StackPanel>
+                        <Button Content="＋ Exit Condition" Command="{Binding AddExitConditionCommand}"
+                                CommandParameter="{Binding SelectedItem}" />
+                        <ItemsControl ItemsSource="{Binding SelectedItem.ExitConditions}">
+                            <ItemsControl.ItemTemplate><DataTemplate>
+                                <DockPanel Margin="1">
+                                    <Button DockPanel.Dock="Right" Content="×" Style="{StaticResource IconButtonStyle}"
+                                            Command="{Binding DataContext.DeleteConditionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
+                                    <Button Content="{Binding TaskType}" Style="{StaticResource FlatButtonStyle}" HorizontalContentAlignment="Left"
+                                            Command="{Binding DataContext.SelectTaskCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
+                                </DockPanel>
+                            </DataTemplate></ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="2" Margin="10" Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="8"
+                ClipToBounds="True">
+            <views:TimelineOverviewControl Document="{Binding Timeline}" SelectedItem="{Binding SelectedItem}"
+                                           Catalog="{Binding Owner.Catalog}" />
+        </Border>
+    </Grid>
+</UserControl>

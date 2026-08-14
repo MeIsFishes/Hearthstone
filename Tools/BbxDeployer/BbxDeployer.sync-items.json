@@ -1,0 +1,86 @@
+{
+  "SyncItems": [
+    {
+      "Id": "shared-tools",
+      "DisplayName": "Shared Tools",
+      "Enabled": true,
+      "IsBuiltIn": true,
+      "SourceBase": "RepositoryRoot",
+      "SourceRelativePath": "Tools",
+      "TargetBase": "RepositoryRoot",
+      "TargetRelativePath": "Tools",
+      "IncludeCompanionMeta": false,
+      "UseGitIgnoreFiles": true,
+      "WhitelistPaths": [],
+      "ManualExcludePatterns": [],
+      "AdditionalIgnoreFiles": []
+    },
+    {
+      "Id": "bbxcommon-source",
+      "DisplayName": "BbxCommon Source",
+      "Enabled": true,
+      "IsBuiltIn": true,
+      "SourceBase": "UnityProjectRoot",
+      "SourceRelativePath": "Assets/Scripts/BbxCommon",
+      "TargetBase": "UnityProjectRoot",
+      "TargetRelativePath": "Assets/Scripts/BbxCommon",
+      "IncludeCompanionMeta": false,
+      "UseGitIgnoreFiles": true,
+      "WhitelistPaths": [
+        {
+          "RelativePath": "{GameProject}/Assets/Scripts/BbxCommon",
+          "ManualExcludePatterns": []
+        },
+        {
+          "RelativePath": "{GameProject}/AutoDoc/UIItem",
+          "ManualExcludePatterns": []
+        }
+      ],
+      "ManualExcludePatterns": [],
+      "AdditionalIgnoreFiles": []
+    },
+    {
+      "Id": "odin-inspector",
+      "DisplayName": "Odin Inspector",
+      "Enabled": true,
+      "IsBuiltIn": true,
+      "SourceBase": "UnityProjectRoot",
+      "SourceRelativePath": "Assets/Plugins/Sirenix",
+      "TargetBase": "UnityProjectRoot",
+      "TargetRelativePath": "Assets/Plugins/Sirenix",
+      "IncludeCompanionMeta": false,
+      "UseGitIgnoreFiles": true,
+      "WhitelistPaths": [],
+      "ManualExcludePatterns": [],
+      "AdditionalIgnoreFiles": []
+    },
+    {
+      "Id": "codex-project-config",
+      "DisplayName": "Codex Project Configuration",
+      "Enabled": true,
+      "IsBuiltIn": true,
+      "SourceBase": "UnityProjectRoot",
+      "SourceRelativePath": ".codex",
+      "TargetBase": "UnityProjectRoot",
+      "TargetRelativePath": ".codex",
+      "IncludeCompanionMeta": false,
+      "UseGitIgnoreFiles": true,
+      "WhitelistPaths": [
+        {
+          "RelativePath": "{GameProject}/.codex",
+          "ManualExcludePatterns": []
+        },
+        {
+          "RelativePath": "{GameProject}/AGENTS.md",
+          "ManualExcludePatterns": []
+        },
+        {
+          "RelativePath": "{GameProject}/AutoDoc/CleanupTempDocs.bat",
+          "ManualExcludePatterns": []
+        }
+      ],
+      "ManualExcludePatterns": [],
+      "AdditionalIgnoreFiles": []
+    }
+  ]
+}

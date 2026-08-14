@@ -1,0 +1,57 @@
+# Unity generated directories
+Hearthstone/[Ll]ibrary/
+Hearthstone/[Tt]emp/
+Hearthstone/[Oo]bj/
+Hearthstone/[Ll]ogs/
+Hearthstone/[Uu]ser[Ss]ettings/
+Hearthstone/[Mm]emoryCaptures/
+Hearthstone/[Rr]ecordings/
+
+# Unity-generated IDE files
+Hearthstone/*.csproj
+Hearthstone/*.sln
+Hearthstone/*.suo
+Hearthstone/*.user
+Hearthstone/*.userprefs
+Hearthstone/*.pidb
+Hearthstone/*.booproj
+Hearthstone/*.svd
+Hearthstone/*.pdb
+Hearthstone/*.mdb
+Hearthstone/*.opendb
+Hearthstone/*.VC.db
+
+# IDE and editor state
+.vs/
+.vscode/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Build and test outputs
+**/bin/
+**/obj/
+TestResult.xml
+TestResults/
+*.coverage
+*.coveragexml
+
+# Python caches and local environments
+**/.venv/
+**/__pycache__/
+**/.pytest_cache/
+*.py[cod]
+
+# OS metadata and temporary files
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.tmp
+*.temp
+*.log
+
+# Unity crash reports
+sysinfo.txt
+crashlytics-build.properties

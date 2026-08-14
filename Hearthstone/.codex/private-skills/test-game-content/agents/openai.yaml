@@ -1,0 +1,4 @@
+interface:
+  display_name: "StageGroup 启动游戏"
+  short_description: "通过 BbxCommon StageGroup 框架配置参数并由脚本直接启动游戏"
+  default_prompt: "使用 $test-game-content 通过 BbxCommon StageGroup 框架直接启动指定游戏内容。"
