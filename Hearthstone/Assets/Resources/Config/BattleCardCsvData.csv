@@ -3,7 +3,7 @@ CardNumber,CardTypeId,ArtworkKey
 // Associated: BattleCardTypeCsvData
 1,4,Boar_001
 2,3,GoblinBomber_002
-3,3,GoblinBomber
+3,3,GoblinBomber_003
 4,1,GoblinWarrior
 5,2,GoblinArcher
 6,2,GoblinArcher
