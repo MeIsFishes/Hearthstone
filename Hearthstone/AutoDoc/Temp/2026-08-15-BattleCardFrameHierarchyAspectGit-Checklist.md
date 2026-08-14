@@ -25,5 +25,5 @@
 
 - [x] 已核对 Git 根目录、`main` 分支与 `origin` 远端；明确排除当前并行任务的资源字典、加载数据、策划案、卡图 `.meta` 和其他检查清单。
 - [x] 已完成差异检查，任务文件无空白错误；将只显式暂存本清单列出的实现、Prefab、测试与现状文档。
-- [ ] 执行一次 `AutoDoc/CleanupTempDocs.bat` 并生成对应任务报告。
-- [ ] 提交 Git 并推送到 `origin/main`；在 Git 操作完成后更新最终审计记录。
+- [x] 已执行一次 `AutoDoc/CleanupTempDocs.bat` 并生成对应任务报告；退出码 0，未触发阈值删除。
+- [x] 已提交 Git 并推送到 `origin/main`；实现提交为 `4ba7367`，远端推送成功。
