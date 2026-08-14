@@ -34,8 +34,10 @@ namespace Hearthstone
                 ConfigureFrame(view.CardFrame, narrowFrame, "CardFrameOverlay");
                 ConfigureFrame(view.AttackerHighlight, narrowFrame, "AttackerHighlight");
                 ConfigureFrame(view.TargetHighlight, narrowFrame, "TargetHighlight");
+                ConfigureArtwork(view.ArtworkArea);
                 ConfigureBadge(view.HealthText, healthBadge, Vector2.zero, new Vector2(30f, 30f), "HealthBadge");
                 ConfigureBadge(view.AttackText, attackBadge, new Vector2(1f, 0f), new Vector2(-30f, 30f), "AttackBadge");
+                ConfigureLayerOrder(view);
 
                 PrefabUtility.SaveAsPrefabAsset(root, PrefabPath);
             }
@@ -54,7 +56,7 @@ namespace Hearthstone
             rectTransform.anchorMin = Vector2.zero;
             rectTransform.anchorMax = Vector2.one;
             rectTransform.anchoredPosition = Vector2.zero;
-            rectTransform.sizeDelta = new Vector2(-40f, -32f);
+            rectTransform.sizeDelta = new Vector2(-20f, -12f);
             rectTransform.localRotation = Quaternion.identity;
             rectTransform.localScale = Vector3.one;
 
@@ -62,6 +64,28 @@ namespace Hearthstone
             image.type = Image.Type.Simple;
             image.preserveAspect = false;
             image.raycastTarget = false;
+        }
+
+        private static void ConfigureArtwork(Image artwork)
+        {
+            if (artwork == null)
+                throw new InvalidOperationException("ArtworkArea image reference is missing.");
+
+            artwork.type = Image.Type.Simple;
+            artwork.preserveAspect = true;
+            artwork.raycastTarget = false;
+        }
+
+        private static void ConfigureLayerOrder(BattleCardItemView view)
+        {
+            view.CardFrame.transform.SetAsLastSibling();
+            view.AttackerHighlight.transform.SetAsLastSibling();
+            view.TargetHighlight.transform.SetAsLastSibling();
+            if (view.DeadOverlay != null)
+                view.DeadOverlay.transform.SetAsLastSibling();
+            view.HealthText.transform.parent.SetAsLastSibling();
+            view.AttackText.transform.parent.SetAsLastSibling();
+            view.CardNumberBadge.transform.SetAsLastSibling();
         }
 
         private static void ConfigureBadge(

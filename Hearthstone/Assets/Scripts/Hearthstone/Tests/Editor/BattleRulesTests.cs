@@ -121,6 +121,10 @@ namespace Hearthstone.Tests
             AssertFrameFitsCardBody(view.CardFrame.rectTransform);
             AssertFrameFitsCardBody(view.AttackerHighlight.rectTransform);
             AssertFrameFitsCardBody(view.TargetHighlight.rectTransform);
+            AssertFramesRenderBelowCardMarkers(view);
+            Assert.NotNull(view.ArtworkArea);
+            Assert.AreEqual(Image.Type.Simple, view.ArtworkArea.type);
+            Assert.IsTrue(view.ArtworkArea.preserveAspect);
         }
 
         [Test]
@@ -363,7 +367,27 @@ namespace Hearthstone.Tests
             Assert.AreEqual(Vector2.zero, frame.anchorMin);
             Assert.AreEqual(Vector2.one, frame.anchorMax);
             Assert.AreEqual(Vector2.zero, frame.anchoredPosition);
-            Assert.AreEqual(new Vector2(-40f, -32f), frame.sizeDelta);
+            Assert.AreEqual(new Vector2(-20f, -12f), frame.sizeDelta);
+        }
+
+        private static void AssertFramesRenderBelowCardMarkers(BattleCardItemView view)
+        {
+            var healthBadge = view.HealthText.transform.parent;
+            var attackBadge = view.AttackText.transform.parent;
+            var cardNumberBadge = view.CardNumberBadge.transform;
+            var frames = new[]
+            {
+                view.CardFrame.transform,
+                view.AttackerHighlight.transform,
+                view.TargetHighlight.transform,
+            };
+
+            foreach (var frame in frames)
+            {
+                Assert.Less(frame.GetSiblingIndex(), healthBadge.GetSiblingIndex());
+                Assert.Less(frame.GetSiblingIndex(), attackBadge.GetSiblingIndex());
+                Assert.Less(frame.GetSiblingIndex(), cardNumberBadge.GetSiblingIndex());
+            }
         }
 
         private static void AssertReadableStatText(TMP_Text text)

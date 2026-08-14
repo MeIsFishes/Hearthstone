@@ -16,7 +16,7 @@
 
 | 资产或资产组 | 类型 | 通用用途 | 项目内路径 | 尺寸 / 格式 | 状态与视觉变体 | 复用约束 |
 | --- | --- | --- | --- | --- | --- | --- |
-| 阵营卡面边框 | 边框 | 战斗怪物卡主体的外轮廓、阵营装饰层和攻击/目标高亮轮廓 | `Assets/Resources/Art/BattleCards/UI/CardFrame-v3.png`、`Assets/Resources/Art/BattleCards/UI/CardFrameBlue-v2.png` | 均为 `1024 × 1536` / PNG | 敌方红金、我方蓝金两种视觉变体；攻击者与目标状态复用当前阵营变体 | 两个版本共用轻薄轮廓和真实 Alpha；基础框与高亮层在 `250 × 360` 卡面内以 `210 × 328` 同尺寸包围主体，允许底部属性徽章露出，不在状态切换时改用历史粗框 |
+| 阵营卡面边框 | 边框 | 战斗怪物卡主体的外轮廓、阵营装饰层和攻击/目标高亮轮廓 | `Assets/Resources/Art/BattleCards/UI/CardFrame-v3.png`、`Assets/Resources/Art/BattleCards/UI/CardFrameBlue-v2.png` | 均为 `1024 × 1536` / PNG | 敌方红金、我方蓝金两种视觉变体；攻击者与目标状态复用当前阵营变体 | 两个版本共用轻薄轮廓和真实 Alpha；基础框与高亮层在 `250 × 360` 卡面内以 `230 × 348` 同尺寸完整包围立绘与说明栏，位于属性和编号标志下方，允许底部属性徽章露出，不在状态切换时改用历史粗框 |
 | 攻击力红金外框 | 属性徽章 | 战斗卡右下角攻击力底框 | `Assets/Resources/Art/BattleCards/UI/AttackBadgeFrame.png` | `1254 × 1254` / PNG | 当前单一无剑红金盾框版本 | 保持正方形比例、真实 Alpha 和完整盾形轮廓；中央留出深红数值区，不绘制剑、数字或文字 |
 | 生命值血滴徽章 | 属性徽章 | 战斗卡左下角生命值底框 | `Assets/Resources/Art/BattleCards/UI/HealthDropBadge.png` | `1254 × 1254` / PNG | 当前单一绿金血滴版本 | 保持正方形比例和完整血滴轮廓；数字由白色粗体 TMP 叠加，不写入图片 |
 | 卡牌编号六边形框 | 编号底框 | 战斗卡左上角编号衬底 | `Assets/Resources/Art/BattleCards/UI/CardNumberBadgeHex.png` | `384 × 256` / PNG | 当前单一深灰金属版本 | 保持 `3:2` 比例和透明外缘；白色编号由 TMP 叠加，不写入图片 |
