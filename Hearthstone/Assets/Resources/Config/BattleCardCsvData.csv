@@ -2,7 +2,7 @@ CardNumber,CardTypeId,ArtworkKey
 // Unique card number from 1 through 98,Card type identifier from BattleCardTypeCsvData,Artwork resource key
 // Associated: BattleCardTypeCsvData
 1,4,Boar_001
-2,3,GoblinBomber
+2,3,GoblinBomber_002
 3,3,GoblinBomber
 4,1,GoblinWarrior
 5,2,GoblinArcher
