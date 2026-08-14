@@ -4,6 +4,7 @@
   "references": [
     "Hearthstone",
     "BbxCommon",
+    "Unity.TextMeshPro",
     "Unity.ugui"
   ],
   "includePlatforms": [

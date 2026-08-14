@@ -30,9 +30,11 @@
 
 卡面尺寸为 `250 × 360`。`ArtworkViewport` 使用 `RectMask2D` 覆盖卡面约 `89%` 宽、`82.5%` 高的主体区域，实际为 `222.5 × 297`，`ArtworkArea` 在 Controller 绑定时保持 `2:3` 原画比例。`SkillArea` 扩大为卡面 `72%` 宽、`21%` 高的下部说明区，实际由 `160 × 45.72` 增至 `180 × 75.6`；子级说明文字区域为 `160 × 63.6`。
 
-`CardFrameOverlay` 默认直连红金 `CardFrame-v3.png`，绑定时由 `BattleCardItemController` 根据阵营通过 `ResourceApi.LoadSprite` 选择敌方红金框或我方蓝金 `CardFrameBlue-v2.png`。`CardFrameOverlay`、`AttackerHighlight` 与 `TargetHighlight` 均拉伸到卡面根节点且 `sizeDelta = (0, 0)`；Controller 绑定阵营框时同步把当前阵营的窄框 Sprite 赋给两个高亮层，因此攻击者/目标状态不会再显示旧 `CardFrame-v2.png` 粗框或形成外扩双框。该静态布局由一一对应的 `BattleCardItemUiBuilder.Build()` 维护。
+`CardFrameOverlay` 默认直连红金 `CardFrame-v3.png`，绑定时由 `BattleCardItemController` 根据阵营通过 `ResourceApi.LoadSprite` 选择敌方红金框或我方蓝金 `CardFrameBlue-v2.png`。`CardFrameOverlay`、`AttackerHighlight` 与 `TargetHighlight` 均在卡面根节点内拉伸并使用 `sizeDelta = (-40, -32)`，实际尺寸为 `210 × 328`；Controller 绑定阵营框时同步把当前阵营的窄框 Sprite 赋给两个高亮层，因此攻击者/目标状态保持相同的主体框范围，不会显示旧 `CardFrame-v2.png` 粗框。
 
-左上角 `58 × 38` 的 `CardNumberBadge` 与其 TMP 子文本已经固化在 Prefab 静态层级并由 View 持有序列化引用，不再由 Controller 运行时创建。左下 `AttackBadge` 和右下 `HealthBadge` 均为 `60 × 60`，数值由子级 TMP 文本动态刷新。敌我双方 View 根节点保持单位旋转，不再使用方形阵营底色；池化换绑或关闭时恢复单位旋转、清空名称、隐藏编号并移除原画 Sprite。
+左上角 `58 × 38` 的 `CardNumberBadge` 与其 TMP 子文本已经固化在 Prefab 静态层级并由 View 持有序列化引用，不再由 Controller 运行时创建。左下 `HealthBadge` 使用 `60 × 60` 的 `HealthDropBadge.png`，锚点为左下、中心位置 `(30, 30)`；右下 `AttackBadge` 使用 `60 × 60` 的无剑 `AttackBadgeFrame.png`，锚点为右下、中心位置 `(-30, 30)`。两个徽章分别比主体窄框向左右露出 `20`、向下露出 `16`；数值使用 `30` 号白色粗体 TMP，并通过深色 `Outline` 增强对比度。敌我双方 View 根节点保持单位旋转，不再使用方形阵营底色；池化换绑或关闭时恢复单位旋转、清空名称、隐藏编号并移除原画 Sprite。
+
+该静态布局与三张相关 Sprite 的 Single/Alpha/Mipmap/WrapMode 导入约束由一一对应的 `BattleCardItemUiBuilder.Build()` 维护。
 
 `BattleView.prefab` 与 `BattleCardItem.prefab` 中的 7 个 TMP 文本统一引用 `Assets/Resources/Fonts/NotoSansSC-Dynamic SDF.asset`。该字体资产使用 Dynamic population 与 Multi Atlas，预置当前战斗中文字符，并允许技能说明在运行时补充其他简体中文字形；源字体为同目录的 `NotoSansSC-VF.ttf`。
 

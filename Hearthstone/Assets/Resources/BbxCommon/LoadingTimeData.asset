@@ -15,24 +15,24 @@ MonoBehaviour:
   LoadingItemTimeDic:
     m_Items:
     - Key: Game Engine Stage.Load.InitReflectionAndResource
-      Value: 139601600
+      Value: 139040500
     - Key: Game Engine Stage.Load.Scene
-      Value: 131600
+      Value: 166500
     - Key: Game Engine Stage.Load.UI
-      Value: 60300
+      Value: 117100
     - Key: Game Engine Stage.Load.Data
-      Value: 54994600
+      Value: 153796500
     - Key: Game Engine Stage.Load.Other
-      Value: 1774600
+      Value: 1768300
     - Key: Game Engine Stage.Load.LoadLocTranslations
-      Value: 396600
+      Value: 401600
     - Key: BattleStage.Load.InitializeBattleRuntime
-      Value: 7402500
+      Value: 7692600
     - Key: BattleStage.Load.Scene
-      Value: 700
+      Value: 1900
     - Key: BattleStage.Load.UI
-      Value: 93458000
+      Value: 610376000
     - Key: BattleStage.Load.Data
-      Value: 8100
+      Value: 10600
     - Key: BattleStage.Load.Other
-      Value: 27700
+      Value: 33200

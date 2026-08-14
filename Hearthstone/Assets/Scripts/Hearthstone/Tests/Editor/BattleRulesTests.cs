@@ -4,6 +4,7 @@ using TMPro;
 using Unity.Mathematics;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.UI;
 using Random = Unity.Mathematics.Random;
 using Resources = UnityEngine.Resources;
 
@@ -102,7 +103,7 @@ namespace Hearthstone.Tests
         }
 
         [Test]
-        public void BattleCardPrefabUsesAlignedNarrowFramesForEveryCombatState()
+        public void BattleCardPrefabUsesInsetNarrowFramesForEveryCombatState()
         {
             var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(
                 "Assets/Resources/Ui/BattleCardItem.prefab");
@@ -117,9 +118,34 @@ namespace Hearthstone.Tests
             Assert.AreSame(view.CardFrame.sprite, view.AttackerHighlight.sprite);
             Assert.AreSame(view.CardFrame.sprite, view.TargetHighlight.sprite);
 
-            AssertFrameMatchesCard(view.CardFrame.rectTransform);
-            AssertFrameMatchesCard(view.AttackerHighlight.rectTransform);
-            AssertFrameMatchesCard(view.TargetHighlight.rectTransform);
+            AssertFrameFitsCardBody(view.CardFrame.rectTransform);
+            AssertFrameFitsCardBody(view.AttackerHighlight.rectTransform);
+            AssertFrameFitsCardBody(view.TargetHighlight.rectTransform);
+        }
+
+        [Test]
+        public void BattleCardStatsUseReadableSwappedBadges()
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(
+                "Assets/Resources/Ui/BattleCardItem.prefab");
+            Assert.NotNull(prefab);
+
+            var view = prefab.GetComponent<BattleCardItemView>();
+            Assert.NotNull(view);
+
+            var healthBadge = view.HealthText.transform.parent.GetComponent<Image>();
+            var attackBadge = view.AttackText.transform.parent.GetComponent<Image>();
+            Assert.NotNull(healthBadge);
+            Assert.NotNull(attackBadge);
+            Assert.AreEqual(Vector2.zero, healthBadge.rectTransform.anchorMin);
+            Assert.AreEqual(new Vector2(30f, 30f), healthBadge.rectTransform.anchoredPosition);
+            Assert.AreEqual(new Vector2(1f, 0f), attackBadge.rectTransform.anchorMin);
+            Assert.AreEqual(new Vector2(-30f, 30f), attackBadge.rectTransform.anchoredPosition);
+            Assert.AreEqual("HealthDropBadge", healthBadge.sprite.name);
+            Assert.AreEqual("AttackBadgeFrame", attackBadge.sprite.name);
+
+            AssertReadableStatText(view.HealthText);
+            AssertReadableStatText(view.AttackText);
         }
 
         [Test]
@@ -332,12 +358,22 @@ namespace Hearthstone.Tests
             }
         }
 
-        private static void AssertFrameMatchesCard(RectTransform frame)
+        private static void AssertFrameFitsCardBody(RectTransform frame)
         {
             Assert.AreEqual(Vector2.zero, frame.anchorMin);
             Assert.AreEqual(Vector2.one, frame.anchorMax);
             Assert.AreEqual(Vector2.zero, frame.anchoredPosition);
-            Assert.AreEqual(Vector2.zero, frame.sizeDelta);
+            Assert.AreEqual(new Vector2(-40f, -32f), frame.sizeDelta);
+        }
+
+        private static void AssertReadableStatText(TMP_Text text)
+        {
+            Assert.GreaterOrEqual(text.fontSize, 30f);
+            Assert.IsTrue((text.fontStyle & FontStyles.Bold) != 0);
+            Assert.AreEqual(Color.white, text.color);
+            var outline = text.GetComponent<Outline>();
+            Assert.NotNull(outline);
+            Assert.Greater(outline.effectColor.a, 0.9f);
         }
     }
 }
