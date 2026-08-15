@@ -1,0 +1,21 @@
+
+{
+    "Default.TypeInfo" : {
+        "FullType" : "BbxCommon.Internal.TaskEnumExportInfo"
+    },
+    "EnumTypeName"     : "BbxCommon.ECompare",
+    "EnumValues"       : {
+        "Default.TypeInfo" : {
+            "SpecialType" : "List",
+            "GenericType1" : {
+                "SpecialType" : "string"
+            }
+        },
+        "0"                : "Equal",
+        "1"                : "NotEqual",
+        "2"                : "Greater",
+        "3"                : "GreaterOrEqual",
+        "4"                : "Less",
+        "5"                : "LessOrEqual"
+    }
+}

@@ -30,7 +30,7 @@
 
 卡面尺寸为 `250 × 360`。`ArtworkViewport` 使用 `RectMask2D` 覆盖卡面约 `89%` 宽、`82.5%` 高的主体区域，实际为 `222.5 × 297`；`ArtworkArea` 在 Prefab 静态配置和 Controller 绑定时都启用等比显示，保持 `2:3` 原画比例，不做非等比拉伸。`SkillArea` 扩大为卡面 `72%` 宽、`21%` 高的下部说明区，实际由 `160 × 45.72` 增至 `180 × 75.6`；子级说明文字区域为 `160 × 63.6`。
 
-`CardFrameOverlay` 默认直连红金 `CardFrame-v3.png`，绑定时由 `BattleCardItemController` 根据阵营通过 `ResourceApi.LoadSprite` 选择敌方红金框或我方蓝金 `CardFrameBlue-v2.png`。`CardFrameOverlay`、`AttackerHighlight` 与 `TargetHighlight` 均在卡面根节点内拉伸并使用 `sizeDelta = (-20, -12)`，实际尺寸为 `230 × 348`，完整覆盖 `ArtworkViewport` 与 `SkillArea` 的外缘；三个框层的同级索引都低于生命、攻击与编号标志。Controller 绑定阵营框时同步把当前阵营的窄框 Sprite 赋给两个高亮层，因此攻击者/目标状态保持相同的主体框范围，不会显示旧 `CardFrame-v2.png` 粗框。
+`CardFrameOverlay` 默认直连红金 `CardFrame-v3.png`，绑定时由 `BattleCardItemController` 根据阵营通过 `ResourceApi.LoadSprite` 选择敌方红金框或我方蓝金 `CardFrameBlue-v2.png`。两张 Sprite 都是中央与框外透明的直边矩形全卡面框。`CardFrameOverlay`、`AttackerHighlight` 与 `TargetHighlight` 均在卡面根节点内四边拉伸并使用 `sizeDelta = (0, 0)`，实际尺寸为完整 `250 × 360`，覆盖 `ArtworkViewport` 与 `SkillArea` 的外缘；三个框层的同级索引都低于生命、攻击与编号标志。Controller 绑定阵营框时同步把当前阵营 Sprite 赋给两个高亮层，因此攻击者/目标状态保持相同的全卡面框范围。
 
 左上角 `58 × 38` 的 `CardNumberBadge` 与其 TMP 子文本已经固化在 Prefab 静态层级并由 View 持有序列化引用，不再由 Controller 运行时创建。左下 `HealthBadge` 使用 `60 × 60` 的 `HealthDropBadge.png`，锚点为左下、中心位置 `(30, 30)`；右下 `AttackBadge` 使用 `60 × 60` 的无剑 `AttackBadgeFrame.png`，锚点为右下、中心位置 `(-30, 30)`。两个徽章分别比主体窄框向左右露出 `10`、向下露出 `6`；数值使用 `30` 号白色粗体 TMP，并通过深色 `Outline` 增强对比度。敌我双方 View 根节点保持单位旋转，不再使用方形阵营底色；池化换绑或关闭时恢复单位旋转、清空名称、隐藏编号并移除原画 Sprite。
 

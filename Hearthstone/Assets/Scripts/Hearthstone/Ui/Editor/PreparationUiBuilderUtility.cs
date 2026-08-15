@@ -16,7 +16,7 @@ namespace Hearthstone
         internal const string ArtRoot = "Assets/Resources/Art/Preparation/UI/";
         private const string ChineseFontAssetPath = "Assets/Resources/Fonts/NotoSansSC-Dynamic SDF.asset";
         private const string RequiredChineseCharacters =
-            "备战阶段本轮获得张卡槽位池哥布林战士弓手投弹野猪食人魔";
+            "备战阶段本轮获得张卡槽位池哥布林战士弓手投弹野猪食人魔融合造物出战素材已选合计继续下一关嘲讽远射爆裂冲锋";
         internal const float CardPoolViewportWidth = 1400f;
         internal static float CardPoolCellWidth => CardPoolViewportWidth / RunCardRules.CardsPerRow;
         internal static float CardPoolCellHeight =>

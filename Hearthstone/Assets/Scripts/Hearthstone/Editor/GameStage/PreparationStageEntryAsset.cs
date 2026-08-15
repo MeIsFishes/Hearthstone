@@ -24,15 +24,15 @@ namespace Hearthstone.Editor
         }
 
         [SerializeField]
-        private string m_BatchId = "preparation-isolated-001";
+        private string m_BatchId = "fusion-acceptance-001";
         [SerializeField]
         private RewardGrantEntry[] m_RewardGrants =
         {
-            new RewardGrantEntry(2, 5, 3),
-            new RewardGrantEntry(3, 4, 4),
-            new RewardGrantEntry(5, 3, 5),
-            new RewardGrantEntry(6, 5, 4),
-            new RewardGrantEntry(7, 6, 2),
+            new RewardGrantEntry(14, 2, 3),
+            new RewardGrantEntry(20, 3, 4),
+            new RewardGrantEntry(30, 2, 3),
+            new RewardGrantEntry(35, 4, 5),
+            new RewardGrantEntry(54, 4, 2),
         };
 
         public override bool ValidateEntry(out string error)

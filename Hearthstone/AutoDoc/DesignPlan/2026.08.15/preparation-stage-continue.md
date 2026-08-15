@@ -1,6 +1,8 @@
 title: 备战阶段继续下一关
-state: In Design
+state: Completed
 priority: P1
+plan: AutoDoc/DesignPlan/Plan/preparation-stage-continue-plan.md
+review: AutoDoc/DesignPlan/Review/preparation-stage-continue-review.md
 
 ## 1. 需求简述
 

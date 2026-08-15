@@ -1,0 +1,41 @@
+
+{
+    "Default.TypeInfo" : {
+        "FullType" : "BbxCommon.Internal.TaskExportInfo"
+    },
+    "TaskTypeName"     : "TaskTimeline",
+    "TaskFullTypeName" : "BbxCommon.TaskTimeline",
+    "Comment"          : "null",
+    "Tags"             : {
+        "Default.TypeInfo" : {
+            "SpecialType" : "List",
+            "GenericType1" : {
+                "SpecialType" : "string"
+            }
+        },
+        "0"                : "Timeline"
+    },
+    "FieldInfos"       : {
+        "Default.TypeInfo" : {
+            "SpecialType" : "List",
+            "GenericType1" : {
+                "FullType" : "BbxCommon.Internal.TaskExportFieldInfo"
+            }
+        },
+        "0"                : {
+            "Default.TypeInfo" : {
+                "FullType" : "BbxCommon.Internal.TaskExportFieldInfo"
+            },
+            "FieldName"        : "Duration",
+            "TypeInfo"         : {
+                "Default.TypeInfo" : {
+                    "FullType" : "BbxCommon.Internal.TaskExportTypeInfo"
+                },
+                "TypeName"         : "float",
+                "GenericType1"     : "null",
+                "GenericType2"     : "null"
+            },
+            "Comment"          : "null"
+        }
+    }
+}

@@ -15,48 +15,48 @@ MonoBehaviour:
   LoadingItemTimeDic:
     m_Items:
     - Key: Game Engine Stage.Load.InitReflectionAndResource
-      Value: 139040500
+      Value: 123586000
     - Key: Game Engine Stage.Load.Scene
-      Value: 166500
+      Value: 131500
     - Key: Game Engine Stage.Load.UI
-      Value: 117100
+      Value: 54600
     - Key: Game Engine Stage.Load.Data
-      Value: 153796500
+      Value: 505486900
     - Key: Game Engine Stage.Load.Other
-      Value: 1768300
+      Value: 1867600
     - Key: Game Engine Stage.Load.LoadLocTranslations
-      Value: 401600
+      Value: 353400
     - Key: BattleStage.Load.InitializeBattleRuntime
-      Value: 7692600
+      Value: 1445900
     - Key: BattleStage.Load.Scene
-      Value: 1900
+      Value: 700
     - Key: BattleStage.Load.UI
-      Value: 610376000
+      Value: 2504500
     - Key: BattleStage.Load.Data
-      Value: 10600
+      Value: 8500
     - Key: BattleStage.Load.Other
-      Value: 33200
+      Value: 43800
     - Key: RunStateStage.Load.InitializeRunStateRuntime
-      Value: 2093900
+      Value: 2301500
     - Key: RunStateStage.Load.Scene
-      Value: 500
+      Value: 700
     - Key: RunStateStage.Load.UI
       Value: 200
     - Key: RunStateStage.Load.Data
-      Value: 7000
+      Value: 7700
     - Key: RunStateStage.Load.Other
-      Value: 18900
+      Value: 21700
     - Key: BattleStage.Unload
-      Value: 1212300
+      Value: 1103500
     - Key: PreparationStage.Load.InitializePreparationRuntime
-      Value: 404700
+      Value: 653300
     - Key: PreparationStage.Load.Scene
-      Value: 1100
+      Value: 600
     - Key: PreparationStage.Load.UI
-      Value: 22149200
+      Value: 98763900
     - Key: PreparationStage.Load.Data
-      Value: 10600
+      Value: 8800
     - Key: PreparationStage.Load.Other
-      Value: 27300
+      Value: 20300
     - Key: PreparationStage.Unload
-      Value: 111628000
+      Value: 155667800

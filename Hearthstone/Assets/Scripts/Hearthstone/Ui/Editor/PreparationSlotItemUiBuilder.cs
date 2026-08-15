@@ -40,6 +40,13 @@ namespace Hearthstone
                 var nameObject = PreparationUiBuilderUtility.CreateUiObject("Name", occupied.transform);
                 PreparationUiBuilderUtility.SetRect(nameObject, new Vector2(0.5f, 0f), new Vector2(165f, 38f), new Vector2(0f, 62f));
                 var nameText = PreparationUiBuilderUtility.AddText(nameObject, string.Empty, 23f);
+                var keywordObject = PreparationUiBuilderUtility.CreateUiObject("Keywords", occupied.transform);
+                PreparationUiBuilderUtility.SetRect(keywordObject, new Vector2(0.5f, 0f), new Vector2(170f, 34f), new Vector2(0f, 27f));
+                var keywordText = PreparationUiBuilderUtility.AddText(keywordObject, string.Empty, 16f);
+                keywordText.enableAutoSizing = true;
+                keywordText.enableWordWrapping = false;
+                keywordText.fontSizeMin = 9f;
+                keywordText.fontSizeMax = 16f;
                 var attack = CreateStat(occupied.transform, "Attack", new Vector2(1f, 0f), new Vector2(-34f, 34f),
                     "Assets/Resources/Art/BattleCards/UI/AttackBadgeFrame.png");
                 var health = CreateStat(occupied.transform, "Health", new Vector2(0f, 0f), new Vector2(34f, 34f),
@@ -66,11 +73,12 @@ namespace Hearthstone
                 view.CardFrame = frameImage;
                 view.DropHighlight = highlightImage;
                 view.NameText = nameText;
+                view.KeywordText = keywordText;
                 view.AttackText = attack;
                 view.HealthText = health;
                 view.Dragable = dragable;
                 view.Interactor = interactor;
-                PreparationUiBuilderUtility.SavePrefab(root, PrefabPath, true);
+                PreparationUiBuilderUtility.SavePrefab(root, PrefabPath, false);
             }
             finally
             {

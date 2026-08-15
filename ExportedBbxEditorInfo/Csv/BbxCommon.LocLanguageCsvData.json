@@ -1,0 +1,84 @@
+
+{
+  "TypeName" : "LocLanguageCsvData",
+  "FullTypeName" : "BbxCommon.LocLanguageCsvData",
+  "DataGroup"    : "GameEngineDefault",
+  "DataLoadType" : "Addition",
+  "TableNames"   : [
+    "LocLanguageList"
+  ],
+  "Columns"      : [
+    {
+      "Name" : "CsvName",
+      "BindingMemberName" : "CsvName",
+      "DisplayName"       : "Csv Name",
+      "Tooltip"           : "",
+      "Type"              : {
+        "Kind" : "String",
+        "TypeName" : "System.String",
+        "ElementType" : null,
+        "EnumValues"  : [
+        ],
+        "EnumNumericValues" : {
+        }
+      },
+      "Required"          : false,
+      "Unique"            : false,
+      "ReadOnly"          : false,
+      "Minimum"           : null,
+      "Maximum"           : null,
+      "ReferenceTypeName" : "",
+      "ReferenceFieldName" : "",
+      "Fields"             : [
+      ]
+    },
+    {
+      "Name" : "Id",
+      "BindingMemberName" : "Id",
+      "DisplayName"       : "Id",
+      "Tooltip"           : "",
+      "Type"              : {
+        "Kind" : "String",
+        "TypeName" : "System.String",
+        "ElementType" : null,
+        "EnumValues"  : [
+        ],
+        "EnumNumericValues" : {
+        }
+      },
+      "Required"          : false,
+      "Unique"            : false,
+      "ReadOnly"          : false,
+      "Minimum"           : null,
+      "Maximum"           : null,
+      "ReferenceTypeName" : "",
+      "ReferenceFieldName" : "",
+      "Fields"             : [
+      ]
+    },
+    {
+      "Name" : "Name",
+      "BindingMemberName" : "Name",
+      "DisplayName"       : "Name",
+      "Tooltip"           : "",
+      "Type"              : {
+        "Kind" : "String",
+        "TypeName" : "System.String",
+        "ElementType" : null,
+        "EnumValues"  : [
+        ],
+        "EnumNumericValues" : {
+        }
+      },
+      "Required"          : false,
+      "Unique"            : false,
+      "ReadOnly"          : false,
+      "Minimum"           : null,
+      "Maximum"           : null,
+      "ReferenceTypeName" : "",
+      "ReferenceFieldName" : "",
+      "Fields"             : [
+      ]
+    }
+  ]
+}

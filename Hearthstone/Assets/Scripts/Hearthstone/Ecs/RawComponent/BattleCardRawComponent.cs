@@ -20,7 +20,9 @@ namespace Hearthstone
         public EBattleSide Side;
         public int SlotIndex;
         public int Attack;
+        public EBattleKeyword Keywords;
         public int MaxHealth;
+        public readonly ListenableVariable<int> AttackValue = new(0);
         public readonly ListenableVariable<int> CurrentHealth = new(0);
         public readonly ListenableVariable<bool> IsAlive = new(false);
 
@@ -42,10 +44,9 @@ namespace Hearthstone
             CardTypeId = cardConfig.CardTypeId;
             Side = side;
             SlotIndex = slotIndex;
-            Attack = typeConfig.RollAttack(ref random);
-            MaxHealth = typeConfig.RollHealth(ref random);
-            CurrentHealth.SetValue(MaxHealth);
-            IsAlive.SetValue(true);
+            var attack = typeConfig.RollAttack(ref random);
+            var maxHealth = typeConfig.RollHealth(ref random);
+            InitializeValues(attack, maxHealth, maxHealth, typeConfig.InitialKeyword);
         }
 
         public void InitializePlayer(int slotIndex, RunCardInstanceData instance)
@@ -60,26 +61,104 @@ namespace Hearthstone
             CardTypeId = cardConfig.CardTypeId;
             Side = EBattleSide.Player;
             SlotIndex = slotIndex;
-            Attack = instance.Attack;
-            MaxHealth = instance.MaxHealth;
-            CurrentHealth.SetValue(MaxHealth);
-            IsAlive.SetValue(true);
+            InitializeValues(instance.Attack, instance.MaxHealth, instance.MaxHealth, instance.Keywords);
+        }
+
+        public void InitializePlayerExplicit(
+            int slotIndex,
+            RunCardInstanceData instance,
+            int attack,
+            int maxHealth,
+            int currentHealth)
+        {
+            InitializePlayer(slotIndex, instance);
+            InitializeValues(attack, maxHealth, currentHealth, instance.Keywords);
+        }
+
+        public void InitializeExplicit(
+            EBattleSide side,
+            int slotIndex,
+            BattleCardCsvData cardConfig,
+            BattleCardTypeCsvData typeConfig,
+            int attack,
+            int maxHealth,
+            int currentHealth)
+        {
+            if (cardConfig == null)
+                throw new ArgumentNullException(nameof(cardConfig));
+            if (typeConfig == null)
+                throw new ArgumentNullException(nameof(typeConfig));
+            if (cardConfig.CardTypeId != typeConfig.CardTypeId)
+                throw new ArgumentException("Card and type configurations do not reference the same card type.");
+            CardNumber = cardConfig.CardNumber;
+            CardTypeId = cardConfig.CardTypeId;
+            Side = side;
+            SlotIndex = slotIndex;
+            InitializeValues(attack, maxHealth, currentHealth, typeConfig.InitialKeyword);
+        }
+
+        public void SetAttack(int attack)
+        {
+            if (attack < 0)
+                throw new ArgumentOutOfRangeException(nameof(attack));
+            Attack = attack;
+            AttackValue.SetValue(attack);
+        }
+
+        public void SyncAttackValue()
+        {
+            AttackValue.SetValue(Attack);
+        }
+
+        public void ApplyBattleStatGain(int attackGain, int healthGain)
+        {
+            if (attackGain < 0)
+                throw new ArgumentOutOfRangeException(nameof(attackGain));
+            if (healthGain < 0)
+                throw new ArgumentOutOfRangeException(nameof(healthGain));
+            if (IsAlive.Value == false)
+                return;
+            SetAttack(checked(Attack + attackGain));
+            MaxHealth = checked(MaxHealth + healthGain);
+            CurrentHealth.SetValue(checked(CurrentHealth.Value + healthGain));
         }
 
         public void SetCurrentHealth(int health)
         {
-            var clampedHealth = health;
-            if (clampedHealth < 0)
-                clampedHealth = 0;
-            else if (clampedHealth > MaxHealth)
-                clampedHealth = MaxHealth;
+            SetCurrentHealthWithoutAliveCommit(health);
+            CommitAliveState();
+        }
 
-            CurrentHealth.SetValue(clampedHealth);
-            IsAlive.SetValue(clampedHealth > 0);
+        public void SetCurrentHealthWithoutAliveCommit(int health)
+        {
+            CurrentHealth.SetValue(Math.Max(0, Math.Min(health, MaxHealth)));
+        }
+
+        public void CommitAliveState()
+        {
+            IsAlive.SetValue(CurrentHealth.Value > 0);
+        }
+
+        private void InitializeValues(
+            int attack,
+            int maxHealth,
+            int currentHealth,
+            EBattleKeyword keywords)
+        {
+            if (maxHealth <= 0)
+                throw new ArgumentOutOfRangeException(nameof(maxHealth));
+            if (currentHealth < 0 || currentHealth > maxHealth)
+                throw new ArgumentOutOfRangeException(nameof(currentHealth));
+            SetAttack(attack);
+            MaxHealth = maxHealth;
+            CurrentHealth.SetValue(currentHealth);
+            IsAlive.SetValue(currentHealth > 0);
+            Keywords = BattleKeywordRules.Normalize(keywords);
         }
 
         protected override void OnComponentCollect()
         {
+            AttackValue.MakeInvalid();
             CurrentHealth.MakeInvalid();
             IsAlive.MakeInvalid();
             CardNumber = 0;
@@ -87,7 +166,9 @@ namespace Hearthstone
             Side = EBattleSide.Player;
             SlotIndex = 0;
             Attack = 0;
+            Keywords = EBattleKeyword.None;
             MaxHealth = 0;
+            AttackValue.SetValue(0);
             CurrentHealth.SetValue(0);
             IsAlive.SetValue(false);
         }

@@ -2,6 +2,20 @@ using System;
 
 namespace Hearthstone
 {
+    public readonly struct BattleAttackDamageData
+    {
+        public int MainDamage { get; }
+        public int BlastDamage { get; }
+        public int CounterDamage { get; }
+
+        public BattleAttackDamageData(int mainDamage, int blastDamage, int counterDamage)
+        {
+            MainDamage = mainDamage;
+            BlastDamage = blastDamage;
+            CounterDamage = counterDamage;
+        }
+    }
+
     /// <summary>
     /// 不依赖场景对象的核心战斗规则。
     /// </summary>
@@ -94,6 +108,69 @@ namespace Hearthstone
             }
 
             throw new InvalidOperationException("Unable to resolve a living card slot.");
+        }
+
+        public static uint FilterTargetCandidateMask(uint aliveMask, uint tauntMask)
+        {
+            var livingTaunts = aliveMask & tauntMask;
+            return livingTaunts == 0 ? aliveMask : livingTaunts;
+        }
+
+        public static int ScaleDamageFloor(int damage, int numerator, int denominator)
+        {
+            if (damage < 0)
+                throw new ArgumentOutOfRangeException(nameof(damage));
+            if (numerator < 0)
+                throw new ArgumentOutOfRangeException(nameof(numerator));
+            if (denominator <= 0)
+                throw new ArgumentOutOfRangeException(nameof(denominator));
+            return checked((int)((long)damage * numerator / denominator));
+        }
+
+        public static uint GetAdjacentLivingMask(int mainSlot, uint aliveMask, int distance)
+        {
+            if (mainSlot < 0 || mainSlot >= CardsPerSide)
+                throw new ArgumentOutOfRangeException(nameof(mainSlot));
+            if (distance < 0)
+                throw new ArgumentOutOfRangeException(nameof(distance));
+            var adjacentMask = 0u;
+            for (var offset = 1; offset <= distance; offset++)
+            {
+                if (mainSlot - offset >= 0)
+                    adjacentMask |= 1u << (mainSlot - offset);
+                if (mainSlot + offset < CardsPerSide)
+                    adjacentMask |= 1u << (mainSlot + offset);
+            }
+            return adjacentMask & aliveMask;
+        }
+
+        public static BattleAttackDamageData ResolveKeywordDamage(
+            int attackerAttack,
+            int targetAttack,
+            EBattleKeyword attackerKeywords)
+        {
+            if (attackerAttack < 0)
+                throw new ArgumentOutOfRangeException(nameof(attackerAttack));
+            if (targetAttack < 0)
+                throw new ArgumentOutOfRangeException(nameof(targetAttack));
+
+            var isLongShot = BattleKeywordRules.Has(attackerKeywords, EBattleKeyword.LongShot);
+            var mainDamage = attackerAttack;
+            var counterDamage = targetAttack;
+            if (isLongShot)
+            {
+                var longShot = BattleKeywordRules.GetConfig(EBattleKeyword.LongShot);
+                mainDamage = ScaleDamageFloor(attackerAttack, longShot.DamageNumerator, longShot.DamageDenominator);
+                if (longShot.SuppressCounterDamage)
+                    counterDamage = 0;
+            }
+            var blastDamage = 0;
+            if (BattleKeywordRules.Has(attackerKeywords, EBattleKeyword.Blast))
+            {
+                var blast = BattleKeywordRules.GetConfig(EBattleKeyword.Blast);
+                blastDamage = ScaleDamageFloor(mainDamage, blast.DamageNumerator, blast.DamageDenominator);
+            }
+            return new BattleAttackDamageData(mainDamage, blastDamage, counterDamage);
         }
 
         public static void ResolveSimultaneousDamage(

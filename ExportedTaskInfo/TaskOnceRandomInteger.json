@@ -1,0 +1,72 @@
+
+{
+    "Default.TypeInfo" : {
+        "FullType" : "BbxCommon.Internal.TaskExportInfo"
+    },
+    "TaskTypeName"     : "TaskOnceRandomInteger",
+    "TaskFullTypeName" : "BbxCommon.TaskOnceRandomInteger",
+    "Comment"          : "Select an integer from an inclusive range and write it to a long Blackboard value.",
+    "Tags"             : {
+        "Default.TypeInfo" : {
+            "SpecialType" : "List",
+            "GenericType1" : {
+                "SpecialType" : "string"
+            }
+        },
+        "0"                : "Action",
+        "1"                : "Once"
+    },
+    "FieldInfos"       : {
+        "Default.TypeInfo" : {
+            "SpecialType" : "List",
+            "GenericType1" : {
+                "FullType" : "BbxCommon.Internal.TaskExportFieldInfo"
+            }
+        },
+        "0"                : {
+            "Default.TypeInfo" : {
+                "FullType" : "BbxCommon.Internal.TaskExportFieldInfo"
+            },
+            "FieldName"        : "MinInclusive",
+            "TypeInfo"         : {
+                "Default.TypeInfo" : {
+                    "FullType" : "BbxCommon.Internal.TaskExportTypeInfo"
+                },
+                "TypeName"         : "int",
+                "GenericType1"     : "null",
+                "GenericType2"     : "null"
+            },
+            "Comment"          : "Inclusive lower bound. Bounds are swapped when this value is greater than MaxInclusive."
+        },
+        "1"                : {
+            "Default.TypeInfo" : {
+                "FullType" : "BbxCommon.Internal.TaskExportFieldInfo"
+            },
+            "FieldName"        : "MaxInclusive",
+            "TypeInfo"         : {
+                "Default.TypeInfo" : {
+                    "FullType" : "BbxCommon.Internal.TaskExportTypeInfo"
+                },
+                "TypeName"         : "int",
+                "GenericType1"     : "null",
+                "GenericType2"     : "null"
+            },
+            "Comment"          : "Inclusive upper bound. Bounds are swapped when this value is less than MinInclusive."
+        },
+        "2"                : {
+            "Default.TypeInfo" : {
+                "FullType" : "BbxCommon.Internal.TaskExportFieldInfo"
+            },
+            "FieldName"        : "WriteToBlackboardKey",
+            "TypeInfo"         : {
+                "Default.TypeInfo" : {
+                    "FullType" : "BbxCommon.Internal.TaskExportTypeInfo"
+                },
+                "TypeName"         : "string",
+                "GenericType1"     : "null",
+                "GenericType2"     : "null"
+            },
+            "Comment"          : "Target long Blackboard key. The node fails when the key is empty."
+        }
+    }
+}

@@ -1,0 +1,7 @@
+Keyword,DisplayName,DisplayOrder,DamageNumerator,DamageDenominator,BlastDistance,AttackGain,HealthGain,SuppressCounterDamage
+// Unique single keyword flag,Chinese display name,Stable display order,Damage scale numerator,Damage scale denominator,Adjacent slot distance,Attack gain per trigger,Health gain per trigger,Whether counter damage is suppressed
+// Associated: BattleCardTypeCsvData
+Taunt,嘲讽,0,1,1,0,0,0,false
+LongShot,远射,1,1,2,0,0,0,true
+Blast,爆裂,2,1,2,1,0,0,false
+Charge,冲锋,3,1,1,0,1,1,false

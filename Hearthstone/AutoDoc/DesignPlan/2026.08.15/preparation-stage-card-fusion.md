@@ -1,6 +1,8 @@
 title: 备战阶段卡牌融合
-state: In Design
+state: Completed
 priority: P0
+plan: AutoDoc/DesignPlan/Plan/preparation-stage-card-fusion-plan.md
+review: AutoDoc/DesignPlan/Review/preparation-stage-card-fusion-review.md
 
 ## 1. 需求简述
 

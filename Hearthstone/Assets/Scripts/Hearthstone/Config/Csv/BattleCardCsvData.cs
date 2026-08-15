@@ -25,8 +25,9 @@ namespace Hearthstone
             CardTypeId = ParseIntFromKey(nameof(CardTypeId));
             ArtworkKey = GetStringFromKey(nameof(ArtworkKey));
 
-            if (CardNumber < 1 || CardNumber > 98)
-                throw new InvalidOperationException($"Battle card number {CardNumber} is outside the supported 1~98 range.");
+            if (CardNumber < RunCardRules.FirstCardNumber || CardNumber > RunCardRules.LastCardNumber)
+                throw new InvalidOperationException(
+                    $"Battle card number {CardNumber} is outside the supported {RunCardRules.FirstCardNumber}~{RunCardRules.LastCardNumber} range.");
             if (CardTypeId <= 0)
                 throw new InvalidOperationException($"Battle card {CardNumber} has an invalid card type id.");
             if (string.IsNullOrWhiteSpace(ArtworkKey))

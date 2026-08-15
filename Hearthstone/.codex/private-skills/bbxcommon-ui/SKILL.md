@@ -60,7 +60,7 @@ Controller 不直接向 ECS 数据字段挂裸 delegate。需要响应 Model 时
 
 #### 2.4.2 创建 UI 编辑场景
 
-1. 保护当前 Editor 状态：记录原活动场景，确认没有未保存 Scene/Prefab；自动化完成后恢复原场景。Unity MCP 只是可选通道；使用时先完成项目要求的连接与 Console 检查，未选择 MCP 时按实际 Editor 操作通道完成等价状态保护与验收。
+1. 保护当前 Editor 状态：记录原活动场景，确认没有未保存 Scene/Prefab；自动化完成后恢复原场景，并按实际 Editor 操作通道完成状态保护与验收。
 2. 在项目约定的 UI 场景目录新建独立场景。场景名决定默认导出文件名，例如 `Battle.unity` 将导出 `Battle.asset`。
 3. 创建 UI 根对象，配置与运行时 `CanvasProto` 相同的 `Canvas`、`CanvasScaler`、参考分辨率、缩放模式和 `GraphicRaycaster`，并挂 `UiSceneExporter`。UI 编辑场景按项目 UI 配置源约定创建，不因通用场景模板要求额外加入无关玩法对象。
 4. 将 `ExportPath` 设为运行时资源目录，例如 `Assets/Resources/Ui`；将 `FullUiGroupType` 设为 UiGroup 枚举完整类型名，例如 `MyGame.EMainUiGroup`。
@@ -78,7 +78,7 @@ Controller 不直接向 ECS 数据字段挂裸 delegate。需要响应 Model 时
 
 #### 2.4.4 验收与收尾
 
-1. 操作结束后保存必要资产、刷新并等待编译完成，恢复原活动场景。若使用 Unity MCP，再执行 `manage_scene(action="get_active")` 与 `read_console(action="get", types=["error"])`；使用其他允许通道时，完成活动场景与 Console 错误的等价只读验收并记录证据。
+1. 操作结束后保存必要资产、刷新并等待编译完成，恢复原活动场景；通过实际使用的 Editor 操作通道核对活动场景与 Console 错误并记录证据。
 2. 按项目的游戏验收授权验证 Stage 加载/卸载、页面默认显隐、Group 排序、关闭与重入以及目标分辨率。项目默认不允许主动进入 Play Mode 时，不得擅自进入；改做 Editor 结构、Resources 加载和 Console 验收，并明确记录未执行的游戏内验证风险。
 3. 在不改变目标配置的前提下重新导出并比对关键字段，或用等价的结构检查证明配置源能够稳定复现导出结果。最终交付必须同时保留编辑场景与导出 Asset。
 
@@ -110,11 +110,10 @@ Controller 不直接向 ECS 数据字段挂裸 delegate。需要响应 Model 时
 2. 每个 Prefab 必须对应一个独立 Builder，类名使用 `<Prefab名>UiBuilder`。可以复用纯 Editor 辅助函数，但不得用一个多用途 Builder 通过参数或分支维护多个 Prefab；Prefab 与最终构建入口必须保持一一对应。
 3. Builder 提供可由动态 C# 直接调用的公开静态入口，统一命名为 `public static void Build()`；入口应可重复执行，明确创建或更新目标 Prefab，保存序列化引用，并清理临时对象。产物仍放在该 UI 类型规定的 `Assets/Resources/` 路径。
 4. Builder 及其入口不得添加 `[MenuItem]`，也不得使用 `InitializeOnLoad`、资源导入回调等方式自动执行，不在 Unity 项目菜单栏注册任何临时或永久菜单项。
-5. 执行 Builder 前必须检查当前代理环境提供的完整工具列表（完整工具目录），不得因为顶层提示或初始工具列表没有显示 Unity 工具就判定 MCP 不可用。环境提供 `tool_search`、延迟工具目录或 `functions.exec` 的 `ALL_TOOLS` 时，使用相应正式入口搜索并枚举名称以 `mcp__unityMCP__` 开头的工具，重点查找 `execute_code`；发现延迟工具后先加载其实际 schema。
-6. 通过完整工具列表发现可调用的 Unity MCP 后，应优先通过项目固定 MCP 的 `execute_code` 直接调用 Builder 完整类型名和 `Build()`，例如当前项目沿用 `Hearthstone` 命名空间时调用 `Hearthstone.ExampleUiBuilder.Build();`；目录层级不强制增加同名命名空间。调用前按项目 MCP 约束确认连接与 Editor 状态，不得为了启动 Builder 临时添加菜单项。
-7. 只有完整工具列表确认没有可调用的 Unity MCP，或已发现工具但按实际 schema 调用仍失败时，才进入 `recover-unity-mcp` 或替代流程。若当前任务明确要求使用 Builder，优先恢复 MCP 后执行；若任务没有要求必须使用 Builder，可以改用本 skill 允许的普通 Unity Editor Prefab 编辑流程，但不得为 Builder 增加菜单入口，也不得把替代操作表述为 MCP 执行成功。
-8. Builder 只负责 Editor 期的静态层级、组件、资源引用、布局和序列化字段，不得把运行时初始化、事件、数据监听、动画或玩法逻辑塞进 Builder 或 View。动态重复条目、对象池、UiScene Group 和导出资产仍分别遵循本 skill 的既有流程。
-9. 构建后重新加载目标 Prefab，核对根 View 类型、完整层级、组件和序列化引用；若 Prefab 属于 UiScene，再继续实例化到 UI 编辑场景并通过 `UiSceneExporter` 导出。UiBuilder 不能替代 UI 编辑场景或 `UiSceneAsset` 导出配置源。
+5. 执行 Builder 时使用当前环境正式提供且项目允许的 Unity Editor 操作通道，直接调用 Builder 的完整类型名和 `Build()`，例如当前项目沿用 `Hearthstone` 命名空间时调用 `Hearthstone.ExampleUiBuilder.Build();`；目录层级不强制增加同名命名空间。项目不要求使用 MCP，也不优先使用 MCP；不得仅因 MCP 不可用而中断 Builder 流程或添加临时菜单入口。
+6. 当前环境没有可执行 Builder 的允许通道时，应如实记录未完成项；不得用手写 Prefab YAML、自动菜单项、初始化回调或其他平行配置源替代 Builder 执行。
+7. Builder 只负责 Editor 期的静态层级、组件、资源引用、布局和序列化字段，不得把运行时初始化、事件、数据监听、动画或玩法逻辑塞进 Builder 或 View。动态重复条目、对象池、UiScene Group 和导出资产仍分别遵循本 skill 的既有流程。
+8. 构建后重新加载目标 Prefab，核对根 View 类型、完整层级、组件和序列化引用；若 Prefab 属于 UiScene，再继续实例化到 UI 编辑场景并通过 `UiSceneExporter` 导出。UiBuilder 不能替代 UI 编辑场景或 `UiSceneAsset` 导出配置源。
 
 ## 3. API接口
 

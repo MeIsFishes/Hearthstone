@@ -1,0 +1,71 @@
+
+{
+    "Default.TypeInfo" : {
+        "FullType" : "BbxCommon.Internal.TaskExportInfo"
+    },
+    "TaskTypeName"     : "TaskConditionCompare",
+    "TaskFullTypeName" : "BbxCommon.TaskConditionCompare",
+    "Comment"          : "null",
+    "Tags"             : {
+        "Default.TypeInfo" : {
+            "SpecialType" : "List",
+            "GenericType1" : {
+                "SpecialType" : "string"
+            }
+        },
+        "0"                : "Condition"
+    },
+    "FieldInfos"       : {
+        "Default.TypeInfo" : {
+            "SpecialType" : "List",
+            "GenericType1" : {
+                "FullType" : "BbxCommon.Internal.TaskExportFieldInfo"
+            }
+        },
+        "0"                : {
+            "Default.TypeInfo" : {
+                "FullType" : "BbxCommon.Internal.TaskExportFieldInfo"
+            },
+            "FieldName"        : "LeftValue",
+            "TypeInfo"         : {
+                "Default.TypeInfo" : {
+                    "FullType" : "BbxCommon.Internal.TaskExportTypeInfo"
+                },
+                "TypeName"         : "float",
+                "GenericType1"     : "null",
+                "GenericType2"     : "null"
+            },
+            "Comment"          : "null"
+        },
+        "1"                : {
+            "Default.TypeInfo" : {
+                "FullType" : "BbxCommon.Internal.TaskExportFieldInfo"
+            },
+            "FieldName"        : "CompareType",
+            "TypeInfo"         : {
+                "Default.TypeInfo" : {
+                    "FullType" : "BbxCommon.Internal.TaskExportTypeInfo"
+                },
+                "TypeName"         : "BbxCommon.ECompare",
+                "GenericType1"     : "null",
+                "GenericType2"     : "null"
+            },
+            "Comment"          : "null"
+        },
+        "2"                : {
+            "Default.TypeInfo" : {
+                "FullType" : "BbxCommon.Internal.TaskExportFieldInfo"
+            },
+            "FieldName"        : "RightValue",
+            "TypeInfo"         : {
+                "Default.TypeInfo" : {
+                    "FullType" : "BbxCommon.Internal.TaskExportTypeInfo"
+                },
+                "TypeName"         : "float",
+                "GenericType1"     : "null",
+                "GenericType2"     : "null"
+            },
+            "Comment"          : "null"
+        }
+    }
+}

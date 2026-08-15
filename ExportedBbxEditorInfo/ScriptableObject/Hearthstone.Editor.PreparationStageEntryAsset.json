@@ -1,0 +1,143 @@
+
+{
+  "TypeName" : "PreparationStageEntryAsset",
+  "FullTypeName" : "Hearthstone.Editor.PreparationStageEntryAsset",
+  "ScriptGuid"   : "35cd19dc58285684f83da4537e5fbf95",
+  "BaseTypeName" : "BbxCommon.Editor.GameStageEntryAsset",
+  "MenuName"     : "Hearthstone/GameStage Entry/Preparation",
+  "DefaultFileName" : "PreparationStageEntry",
+  "Fields"          : [
+    {
+      "Name" : "LoadingType",
+      "BindingMemberName" : "",
+      "DisplayName"       : "Loading Type",
+      "Tooltip"           : "",
+      "Type"              : {
+        "Kind" : "Enum",
+        "TypeName" : "BbxCommon.BbxScriptableObject+ELoadingType",
+        "ElementType" : null,
+        "EnumValues"  : [
+          "AutoLoading",
+          "GroupedByName"
+        ],
+        "EnumNumericValues" : {
+          "AutoLoading" : 0,
+          "GroupedByName" : 1
+        }
+      },
+      "Required"          : false,
+      "Unique"            : false,
+      "ReadOnly"          : false,
+      "Minimum"           : null,
+      "Maximum"           : null,
+      "ReferenceTypeName" : "",
+      "ReferenceFieldName" : "",
+      "Fields"             : [
+      ]
+    },
+    {
+      "Name" : "GroupName",
+      "BindingMemberName" : "",
+      "DisplayName"       : "Group Name",
+      "Tooltip"           : "",
+      "Type"              : {
+        "Kind" : "String",
+        "TypeName" : "System.String",
+        "ElementType" : null,
+        "EnumValues"  : [
+        ],
+        "EnumNumericValues" : {
+        }
+      },
+      "Required"          : false,
+      "Unique"            : false,
+      "ReadOnly"          : false,
+      "Minimum"           : null,
+      "Maximum"           : null,
+      "ReferenceTypeName" : "",
+      "ReferenceFieldName" : "",
+      "Fields"             : [
+      ]
+    },
+    {
+      "Name" : "m_DisplayName",
+      "BindingMemberName" : "",
+      "DisplayName"       : "Display Name",
+      "Tooltip"           : "",
+      "Type"              : {
+        "Kind" : "String",
+        "TypeName" : "System.String",
+        "ElementType" : null,
+        "EnumValues"  : [
+        ],
+        "EnumNumericValues" : {
+        }
+      },
+      "Required"          : false,
+      "Unique"            : false,
+      "ReadOnly"          : false,
+      "Minimum"           : null,
+      "Maximum"           : null,
+      "ReferenceTypeName" : "",
+      "ReferenceFieldName" : "",
+      "Fields"             : [
+      ]
+    },
+    {
+      "Name" : "m_BatchId",
+      "BindingMemberName" : "",
+      "DisplayName"       : "Batch Id",
+      "Tooltip"           : "",
+      "Type"              : {
+        "Kind" : "String",
+        "TypeName" : "System.String",
+        "ElementType" : null,
+        "EnumValues"  : [
+        ],
+        "EnumNumericValues" : {
+        }
+      },
+      "Required"          : false,
+      "Unique"            : false,
+      "ReadOnly"          : false,
+      "Minimum"           : null,
+      "Maximum"           : null,
+      "ReferenceTypeName" : "",
+      "ReferenceFieldName" : "",
+      "Fields"             : [
+      ]
+    },
+    {
+      "Name" : "m_RewardGrants",
+      "BindingMemberName" : "",
+      "DisplayName"       : "Reward Grants",
+      "Tooltip"           : "",
+      "Type"              : {
+        "Kind" : "Array",
+        "TypeName" : "Hearthstone.Editor.PreparationStageEntryAsset+RewardGrantEntry[]",
+        "ElementType" : {
+          "Kind" : "Object",
+          "TypeName" : "Hearthstone.Editor.PreparationStageEntryAsset+RewardGrantEntry",
+          "ElementType" : null,
+          "EnumValues"  : [
+          ],
+          "EnumNumericValues" : {
+          }
+        },
+        "EnumValues"  : [
+        ],
+        "EnumNumericValues" : {
+        }
+      },
+      "Required"          : false,
+      "Unique"            : false,
+      "ReadOnly"          : false,
+      "Minimum"           : null,
+      "Maximum"           : null,
+      "ReferenceTypeName" : "",
+      "ReferenceFieldName" : "",
+      "Fields"             : [
+      ]
+    }
+  ]
+}

@@ -1,5 +1,6 @@
 using System;
 using System.Reflection;
+using BbxCommon;
 using BbxCommon.Ui;
 using NUnit.Framework;
 using TMPro;
@@ -30,7 +31,7 @@ namespace Hearthstone.Tests
             Assert.Throws<InvalidOperationException>(() => RunCardRules.ApplyRewardBatch(runState, overlapping));
             Assert.AreEqual(revision, runState.Revision.Value);
             Assert.AreEqual(5, runState.GetOwnedCardCount());
-            Assert.IsFalse(runState.AppliedRewardBatchIds.Contains("batch-b"));
+            Assert.IsFalse(runState.AppliedRewardBatchPayloadFingerprints.ContainsKey("batch-b"));
             Assert.IsFalse(runState.HasCard(8));
         }
 
@@ -48,6 +49,285 @@ namespace Hearthstone.Tests
                 });
 
             Assert.Throws<InvalidOperationException>(() => RunCardRules.ApplyRewardBatch(runState, altered));
+        }
+
+        [Test]
+        public void ApplyRewardBatch_RemainsIdempotentAfterGrantedCardsWereFused()
+        {
+            var runState = new RunStateSingletonRawComponent();
+            var session = new PreparationSessionSingletonRawComponent();
+            var batch = CreateFusionBatch("fusion-batch");
+
+            Assert.AreEqual(ERewardBatchApplyResult.Applied, RunCardRules.ApplyRewardBatch(runState, batch));
+            SelectFusionMaterials(runState, session, 14, 20, 30, 35);
+            Assert.AreEqual(
+                EFusionOperationResult.Applied,
+                RunCardRules.TryFuse(runState, session, out var result));
+            Assert.AreEqual(11, result.Attack);
+            Assert.AreEqual(15, result.MaxHealth);
+            var revision = runState.Revision.Value;
+
+            Assert.AreEqual(ERewardBatchApplyResult.AlreadyApplied, RunCardRules.ApplyRewardBatch(runState, batch));
+            Assert.AreEqual(revision, runState.Revision.Value);
+            Assert.IsFalse(runState.HasCard(14));
+            Assert.IsFalse(runState.HasCard(20));
+            Assert.IsFalse(runState.HasCard(30));
+            Assert.IsFalse(runState.HasCard(35));
+            Assert.IsTrue(runState.HasCard(54));
+            Assert.AreEqual(result, runState.CardInstances[RunCardRules.FusionResultCardNumber]);
+        }
+
+        [Test]
+        public void ApplyRewardBatch_RejectsDifferentPayloadForRecordedIdAfterFusion()
+        {
+            var runState = new RunStateSingletonRawComponent();
+            var session = new PreparationSessionSingletonRawComponent();
+            var batch = CreateFusionBatch("fusion-batch");
+            RunCardRules.ApplyRewardBatch(runState, batch);
+            SelectFusionMaterials(runState, session, 14, 20, 30, 35);
+            RunCardRules.TryFuse(runState, session, out var result);
+            var revision = runState.Revision.Value;
+            var fingerprint = runState.AppliedRewardBatchPayloadFingerprints["fusion-batch"];
+            var altered = new PreparationRewardBatchStartupData(
+                "fusion-batch",
+                new[]
+                {
+                    new RewardCardGrantStartupData(14, 3, 3),
+                    new RewardCardGrantStartupData(20, 3, 4),
+                    new RewardCardGrantStartupData(30, 2, 3),
+                    new RewardCardGrantStartupData(35, 4, 5),
+                    new RewardCardGrantStartupData(54, 4, 2),
+                });
+
+            Assert.Throws<InvalidOperationException>(() => RunCardRules.ApplyRewardBatch(runState, altered));
+            Assert.AreEqual(fingerprint, runState.AppliedRewardBatchPayloadFingerprints["fusion-batch"]);
+            Assert.AreEqual(revision, runState.Revision.Value);
+            Assert.AreEqual(result, runState.CardInstances[RunCardRules.FusionResultCardNumber]);
+            Assert.IsTrue(runState.HasCard(54));
+            CollectionAssert.AreEqual(new[] { 0, 0, 0 }, runState.BattleSlotCardNumbers);
+        }
+
+        [Test]
+        public void RunAndPreparationCollectionClearRewardLedgerAndFusionSelection()
+        {
+            var runState = new RunStateSingletonRawComponent();
+            var session = new PreparationSessionSingletonRawComponent();
+            var batch = CreateFusionBatch("fusion-batch");
+            RunCardRules.ApplyRewardBatch(runState, batch);
+            session.Initialize(batch, true);
+            SelectFusionMaterials(runState, session, 14, 20);
+
+            session.CollectToPool();
+            Assert.IsNull(session.BatchId);
+            CollectionAssert.AreEqual(new[] { 0, 0, 0, 0 }, session.FusionSlotCardNumbers);
+
+            runState.CollectToPool();
+            Assert.IsEmpty(runState.AppliedRewardBatchPayloadFingerprints);
+            Assert.AreEqual(0, runState.GetOwnedCardCount());
+            CollectionAssert.AreEqual(new[] { 0, 0, 0 }, runState.BattleSlotCardNumbers);
+        }
+
+        [Test]
+        public void FusionSelection_ReplacesMovesRemovesAndRejectsInvalidMaterials()
+        {
+            var runState = new RunStateSingletonRawComponent();
+            var session = new PreparationSessionSingletonRawComponent();
+            RunCardRules.ApplyRewardBatch(runState, CreateFusionBatch("fusion-batch"));
+
+            Assert.AreEqual(EFusionOperationResult.Applied, RunCardRules.TrySetFusionMaterial(runState, session, 14, 0));
+            Assert.AreEqual(EFusionOperationResult.DuplicateMaterial, RunCardRules.TrySetFusionMaterial(runState, session, 14, 1));
+            Assert.AreEqual(EFusionOperationResult.Applied, RunCardRules.TrySetFusionMaterial(runState, session, 20, 1));
+            Assert.AreEqual(EFusionOperationResult.Applied, RunCardRules.TrySetFusionMaterial(runState, session, 30, 1));
+            CollectionAssert.AreEqual(new[] { 14, 30, 0, 0 }, session.FusionSlotCardNumbers);
+            Assert.AreEqual(EFusionOperationResult.Applied, RunCardRules.TrySetFusionMaterial(runState, session, 30, 2, 1));
+            CollectionAssert.AreEqual(new[] { 14, 0, 30, 0 }, session.FusionSlotCardNumbers);
+            Assert.AreEqual(EFusionOperationResult.Applied, RunCardRules.TryRemoveFusionMaterial(session, 0));
+            CollectionAssert.AreEqual(new[] { 0, 0, 30, 0 }, session.FusionSlotCardNumbers);
+            Assert.AreEqual(EFusionOperationResult.UnownedCard, RunCardRules.TrySetFusionMaterial(runState, session, 2, 0));
+            Assert.AreEqual(EFusionOperationResult.ResultCardCannotBeMaterial,
+                RunCardRules.TrySetFusionMaterial(runState, session, RunCardRules.FusionResultCardNumber, 0));
+            Assert.AreEqual(EFusionOperationResult.InvalidSlot, RunCardRules.TrySetFusionMaterial(runState, session, 14, 4));
+        }
+
+        [Test]
+        public void FusionSelection_InvalidBranchesDoNotMutateOrDirty()
+        {
+            var runState = new RunStateSingletonRawComponent();
+            var session = new PreparationSessionSingletonRawComponent();
+            RunCardRules.ApplyRewardBatch(runState, CreateFusionBatch("fusion-batch"));
+            SelectFusionMaterials(runState, session, 14, 20);
+
+            AssertRejectedFusionSelection(
+                runState,
+                session,
+                EFusionOperationResult.DuplicateMaterial,
+                () => RunCardRules.TrySetFusionMaterial(runState, session, 14, 2));
+            AssertRejectedFusionSelection(
+                runState,
+                session,
+                EFusionOperationResult.ResultCardCannotBeMaterial,
+                () => RunCardRules.TrySetFusionMaterial(
+                    runState,
+                    session,
+                    RunCardRules.FusionResultCardNumber,
+                    2));
+            AssertRejectedFusionSelection(
+                runState,
+                session,
+                EFusionOperationResult.UnownedCard,
+                () => RunCardRules.TrySetFusionMaterial(runState, session, 2, 2));
+            AssertRejectedFusionSelection(
+                runState,
+                session,
+                EFusionOperationResult.InvalidSlot,
+                () => RunCardRules.TrySetFusionMaterial(runState, session, 30, 4));
+            AssertRejectedFusionSelection(
+                runState,
+                session,
+                EFusionOperationResult.NoChange,
+                () => RunCardRules.TrySetFusionMaterial(runState, session, 14, 0, 0));
+            AssertRejectedFusionSelection(
+                runState,
+                session,
+                EFusionOperationResult.NoChange,
+                () => RunCardRules.TryRemoveFusionMaterial(session, 2));
+            AssertRejectedFusionSelection(
+                runState,
+                session,
+                EFusionOperationResult.InvalidSlot,
+                () => RunCardRules.TrySetFusionMaterial(runState, session, 14, 2, -2));
+            AssertRejectedFusionSelection(
+                runState,
+                session,
+                EFusionOperationResult.InvalidSlot,
+                () => RunCardRules.TrySetFusionMaterial(runState, session, 14, 2, 4));
+            AssertRejectedFusionSelection(
+                runState,
+                session,
+                EFusionOperationResult.InvalidSlot,
+                () => RunCardRules.TrySetFusionMaterial(runState, session, 14, 2, 1));
+        }
+
+        [Test]
+        public void FusionEvaluation_MalformedSessionsAreRejectedWithoutMutationOrDirty()
+        {
+            AssertMalformedFusionSessionIsRejected(
+                new[] { 14, 14, 0, 0 },
+                EFusionOperationResult.DuplicateMaterial);
+            AssertMalformedFusionSessionIsRejected(
+                new[] { 14, RunCardRules.FusionResultCardNumber, 0, 0 },
+                EFusionOperationResult.ResultCardCannotBeMaterial);
+            AssertMalformedFusionSessionIsRejected(
+                new[] { 14, 2, 0, 0 },
+                EFusionOperationResult.UnownedCard);
+        }
+
+        [Test]
+        public void FusionEvaluationAndCommit_AreAtomicAndUsePermanentStats()
+        {
+            var runState = new RunStateSingletonRawComponent();
+            var session = new PreparationSessionSingletonRawComponent();
+            RunCardRules.ApplyRewardBatch(runState, CreateFusionBatch("fusion-batch"));
+            runState.BattleSlotCardNumbers[0] = 14;
+            runState.BattleSlotCardNumbers[1] = 54;
+
+            SelectFusionMaterials(runState, session, 14, 20);
+            var under = RunCardRules.EvaluateFusion(runState, session);
+            Assert.AreEqual(34, under.CardNumberSum);
+            Assert.IsFalse(under.CanFuse);
+
+            RunCardRules.TrySetFusionMaterial(runState, session, 30, 2);
+            RunCardRules.TrySetFusionMaterial(runState, session, 54, 3);
+            var over = RunCardRules.EvaluateFusion(runState, session);
+            Assert.AreEqual(118, over.CardNumberSum);
+            Assert.IsFalse(over.CanFuse);
+            var revisionBeforeInvalidFuse = runState.Revision.Value;
+            Assert.AreEqual(EFusionOperationResult.SumMismatch,
+                RunCardRules.TryFuse(runState, session, out _));
+            Assert.AreEqual(revisionBeforeInvalidFuse, runState.Revision.Value);
+            Assert.IsTrue(runState.HasCard(14));
+
+            Assert.AreEqual(EFusionOperationResult.Applied,
+                RunCardRules.TrySetFusionMaterial(runState, session, 35, 3));
+            Assert.IsTrue(RunCardRules.EvaluateFusion(runState, session).CanFuse);
+            Assert.AreEqual(EFusionOperationResult.Applied,
+                RunCardRules.TryFuse(runState, session, out var result));
+            Assert.AreEqual(RunCardRules.FusionResultCardNumber, result.CardNumber);
+            Assert.AreEqual(11, result.Attack);
+            Assert.AreEqual(15, result.MaxHealth);
+            Assert.IsFalse(runState.HasCard(14));
+            Assert.IsFalse(runState.HasCard(20));
+            Assert.IsFalse(runState.HasCard(30));
+            Assert.IsFalse(runState.HasCard(35));
+            Assert.IsTrue(runState.HasCard(54));
+            Assert.IsTrue(runState.HasCard(RunCardRules.FusionResultCardNumber));
+            CollectionAssert.AreEqual(new[] { 0, 54, 0 }, runState.BattleSlotCardNumbers);
+            CollectionAssert.AreEqual(new[] { 0, 0, 0, 0 }, session.FusionSlotCardNumbers);
+        }
+
+        [Test]
+        public void FusionCommit_AcceptsTwoThreeAndFourMaterialsThatSumTo99()
+        {
+            var combinations = new[]
+            {
+                new[] { 44, 55 },
+                new[] { 14, 30, 55 },
+                new[] { 14, 20, 30, 35 },
+            };
+
+            foreach (var combination in combinations)
+            {
+                var runState = new RunStateSingletonRawComponent();
+                var session = new PreparationSessionSingletonRawComponent();
+                var expectedAttack = 0;
+                var expectedHealth = 0;
+                for (var index = 0; index < combination.Length; index++)
+                {
+                    var attack = index + 2;
+                    var health = index + 3;
+                    runState.CardInstances[combination[index]] =
+                        new RunCardInstanceData(combination[index], attack, health);
+                    expectedAttack += attack;
+                    expectedHealth += health;
+                }
+
+                SelectFusionMaterials(runState, session, combination);
+                Assert.IsTrue(RunCardRules.EvaluateFusion(runState, session).CanFuse);
+                Assert.AreEqual(EFusionOperationResult.Applied,
+                    RunCardRules.TryFuse(runState, session, out var result));
+                Assert.AreEqual(expectedAttack, result.Attack);
+                Assert.AreEqual(expectedHealth, result.MaxHealth);
+                Assert.AreEqual(RunCardRules.FusionResultCardNumber, result.CardNumber);
+                foreach (var cardNumber in combination)
+                    Assert.IsFalse(runState.HasCard(cardNumber));
+            }
+        }
+
+        [Test]
+        public void FusionCommit_InvalidAndOverflowBranchesDoNotMutateOrDirty()
+        {
+            var runState = new RunStateSingletonRawComponent();
+            var session = new PreparationSessionSingletonRawComponent();
+            runState.CardInstances[44] = new RunCardInstanceData(44, int.MaxValue, 3);
+            runState.CardInstances[55] = new RunCardInstanceData(55, 1, 4);
+            SelectFusionMaterials(runState, session, 44, 55);
+            var runRevision = runState.Revision.Value;
+            var fusionRevision = session.FusionRevision.Value;
+
+            Assert.AreEqual(EFusionOperationResult.StatOverflow,
+                RunCardRules.TryFuse(runState, session, out _));
+            Assert.AreEqual(runRevision, runState.Revision.Value);
+            Assert.AreEqual(fusionRevision, session.FusionRevision.Value);
+            Assert.IsTrue(runState.HasCard(44));
+            Assert.IsTrue(runState.HasCard(55));
+            CollectionAssert.AreEqual(new[] { 44, 55, 0, 0 }, session.FusionSlotCardNumbers);
+
+            runState.CardInstances[RunCardRules.FusionResultCardNumber] =
+                new RunCardInstanceData(RunCardRules.FusionResultCardNumber, 11, 15);
+            Assert.AreEqual(EFusionOperationResult.ResultAlreadyOwned,
+                RunCardRules.TryFuse(runState, session, out _));
+            Assert.AreEqual(runRevision, runState.Revision.Value);
+            Assert.AreEqual(fusionRevision, session.FusionRevision.Value);
         }
 
         [Test]
@@ -72,6 +352,8 @@ namespace Hearthstone.Tests
                 "short", new[] { Grant(2) }));
             Assert.Throws<ArgumentException>(() => new PreparationRewardBatchStartupData(
                 "duplicate", new[] { Grant(2), Grant(2), Grant(3), Grant(5), Grant(6) }));
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                new RewardCardGrantStartupData(RunCardRules.FusionResultCardNumber, 1, 1));
         }
 
         [Test]
@@ -161,7 +443,7 @@ namespace Hearthstone.Tests
                 "Assets/Resources/Fonts/NotoSansSC-Dynamic SDF.asset");
             Assert.NotNull(font);
             const string requiredCharacters =
-                "备战阶段本轮获得张卡槽位池哥布林战士弓手投弹野猪食人魔";
+                "备战阶段本轮获得张卡槽位池哥布林战士弓手投弹野猪食人魔融合造物出战素材合计";
             Assert.IsTrue(font.HasCharacters(requiredCharacters));
 
             var prefabPaths = new[]
@@ -169,6 +451,7 @@ namespace Hearthstone.Tests
                 "Assets/Resources/Ui/PreparationView.prefab",
                 "Assets/Resources/Ui/PreparationCardItem.prefab",
                 "Assets/Resources/Ui/PreparationSlotItem.prefab",
+                "Assets/Resources/Ui/PreparationFusionSlotItem.prefab",
             };
             foreach (var path in prefabPaths)
             {
@@ -179,6 +462,57 @@ namespace Hearthstone.Tests
                 foreach (var label in labels)
                     Assert.AreSame(font, label.font, $"{path}/{label.name}");
             }
+        }
+
+        [Test]
+        public void PreparationFusionPrefabsAndResourcesAreFullyExported()
+        {
+            ResourceApi.Initialize();
+            var pagePrefab = AssetDatabase.LoadAssetAtPath<GameObject>(
+                "Assets/Resources/Ui/PreparationView.prefab");
+            var cardPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(
+                "Assets/Resources/Ui/PreparationCardItem.prefab");
+            var fusionSlotPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(
+                "Assets/Resources/Ui/PreparationFusionSlotItem.prefab");
+            Assert.NotNull(pagePrefab);
+            Assert.NotNull(cardPrefab);
+            Assert.NotNull(fusionSlotPrefab);
+
+            var page = pagePrefab.GetComponent<PreparationView>();
+            Assert.NotNull(page.BattleTabButton);
+            Assert.NotNull(page.FusionTabButton);
+            Assert.NotNull(page.BattleOperationRoot);
+            Assert.NotNull(page.FusionOperationRoot);
+            Assert.NotNull(page.BattleSlotList);
+            Assert.NotNull(page.FusionSlotList);
+            Assert.NotNull(page.FusionExpressionText);
+            Assert.NotNull(page.FusionResultText);
+            Assert.NotNull(page.FusionButton);
+            Assert.NotNull(page.FusionButtonAttemptListener);
+            Assert.NotNull(page.FusionAreaInteractor);
+            Assert.NotNull(page.CardPoolInteractor);
+
+            var card = cardPrefab.GetComponent<PreparationCardItemView>();
+            Assert.NotNull(card.MaterialSelectedState);
+            Assert.NotNull(card.EmptyAttemptListener);
+            Assert.NotNull(fusionSlotPrefab.GetComponent<PreparationFusionSlotItemView>());
+
+            var mappings = UiApi.CapturePreloadedUiPrefabPathsForValidation();
+            Assert.AreEqual("Ui/PreparationFusionSlotItem",
+                mappings[typeof(PreparationFusionSlotItemController).FullName]);
+            Assert.NotNull(Resources.Load<UiSceneAsset>("Ui/Preparation"));
+            Assert.AreEqual(15, RunCardRules.CardRowCount);
+            Assert.AreEqual(99, RunCardRules.LastCardNumber);
+
+            var spriteKeys = new[]
+            {
+                "PreparationTabIdle", "PreparationTabSelected", "PreparationFusionSlotFrame",
+                "PreparationFusionSumPanel", "PreparationFusionButtonDisabled",
+                "PreparationFusionButtonEnabled", "PreparationFusionButtonPressed",
+                "PreparationMaterialSelected", "FusionCard_099",
+            };
+            foreach (var key in spriteKeys)
+                Assert.NotNull(ResourceApi.LoadSprite(key), key);
         }
 
         [Test]
@@ -279,6 +613,80 @@ namespace Hearthstone.Tests
             for (var index = 0; index < numbers.Length; index++)
                 grants[index] = Grant(numbers[index]);
             return new PreparationRewardBatchStartupData(id, grants);
+        }
+
+        private static PreparationRewardBatchStartupData CreateFusionBatch(string id)
+        {
+            return new PreparationRewardBatchStartupData(
+                id,
+                new[]
+                {
+                    new RewardCardGrantStartupData(14, 2, 3),
+                    new RewardCardGrantStartupData(20, 3, 4),
+                    new RewardCardGrantStartupData(30, 2, 3),
+                    new RewardCardGrantStartupData(35, 4, 5),
+                    new RewardCardGrantStartupData(54, 4, 2),
+                });
+        }
+
+        private static void SelectFusionMaterials(
+            RunStateSingletonRawComponent runState,
+            PreparationSessionSingletonRawComponent session,
+            params int[] cardNumbers)
+        {
+            for (var index = 0; index < cardNumbers.Length; index++)
+            {
+                Assert.AreEqual(
+                    EFusionOperationResult.Applied,
+                    RunCardRules.TrySetFusionMaterial(runState, session, cardNumbers[index], index));
+            }
+        }
+
+        private static void AssertRejectedFusionSelection(
+            RunStateSingletonRawComponent runState,
+            PreparationSessionSingletonRawComponent session,
+            EFusionOperationResult expectedResult,
+            Func<EFusionOperationResult> operation)
+        {
+            var fusionSlots = (int[])session.FusionSlotCardNumbers.Clone();
+            var cardInstances = (RunCardInstanceData[])runState.CardInstances.Clone();
+            var ownedCardCount = runState.GetOwnedCardCount();
+            var runRevision = runState.Revision.Value;
+            var fusionRevision = session.FusionRevision.Value;
+
+            Assert.AreEqual(expectedResult, operation());
+            CollectionAssert.AreEqual(fusionSlots, session.FusionSlotCardNumbers);
+            Assert.AreEqual(runRevision, runState.Revision.Value);
+            Assert.AreEqual(fusionRevision, session.FusionRevision.Value);
+            CollectionAssert.AreEqual(cardInstances, runState.CardInstances);
+            Assert.AreEqual(ownedCardCount, runState.GetOwnedCardCount());
+        }
+
+        private static void AssertMalformedFusionSessionIsRejected(
+            int[] malformedFusionSlots,
+            EFusionOperationResult expectedResult)
+        {
+            var runState = new RunStateSingletonRawComponent();
+            var session = new PreparationSessionSingletonRawComponent();
+            RunCardRules.ApplyRewardBatch(runState, CreateFusionBatch("fusion-batch"));
+            Array.Copy(
+                malformedFusionSlots,
+                session.FusionSlotCardNumbers,
+                RunCardRules.FusionSlotCount);
+            var fusionSlots = (int[])session.FusionSlotCardNumbers.Clone();
+            var cardInstances = (RunCardInstanceData[])runState.CardInstances.Clone();
+            var ownedCardCount = runState.GetOwnedCardCount();
+            var runRevision = runState.Revision.Value;
+            var fusionRevision = session.FusionRevision.Value;
+
+            var evaluation = RunCardRules.EvaluateFusion(runState, session);
+            Assert.AreEqual(expectedResult, evaluation.BlockingResult);
+            Assert.AreEqual(expectedResult, RunCardRules.TryFuse(runState, session, out _));
+            CollectionAssert.AreEqual(fusionSlots, session.FusionSlotCardNumbers);
+            Assert.AreEqual(runRevision, runState.Revision.Value);
+            Assert.AreEqual(fusionRevision, session.FusionRevision.Value);
+            CollectionAssert.AreEqual(cardInstances, runState.CardInstances);
+            Assert.AreEqual(ownedCardCount, runState.GetOwnedCardCount());
         }
 
         private static RewardCardGrantStartupData Grant(int number)

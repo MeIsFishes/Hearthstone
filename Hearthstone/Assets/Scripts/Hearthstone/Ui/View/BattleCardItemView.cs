@@ -16,6 +16,7 @@ namespace Hearthstone
         public Image DeadOverlay;
         public TMP_Text CardNumberText;
         public TMP_Text SkillDescriptionText;
+        public TMP_Text KeywordText;
         public TMP_Text AttackText;
         public TMP_Text HealthText;
 

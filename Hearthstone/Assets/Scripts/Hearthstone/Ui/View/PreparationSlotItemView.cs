@@ -14,6 +14,7 @@ namespace Hearthstone
         public Image CardFrame;
         public Image DropHighlight;
         public TMP_Text NameText;
+        public TMP_Text KeywordText;
         public TMP_Text AttackText;
         public TMP_Text HealthText;
         public UiDragable Dragable;

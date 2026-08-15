@@ -1,0 +1,143 @@
+
+{
+  "TypeName" : "InitialStageEntryAsset",
+  "FullTypeName" : "Hearthstone.Editor.InitialStageEntryAsset",
+  "ScriptGuid"   : "34b0f7b71ab4b70488fd4ba314402def",
+  "BaseTypeName" : "BbxCommon.Editor.GameStageEntryAsset",
+  "MenuName"     : "Hearthstone/GameStage Entry/Initial",
+  "DefaultFileName" : "InitialStageEntry",
+  "Fields"          : [
+    {
+      "Name" : "LoadingType",
+      "BindingMemberName" : "",
+      "DisplayName"       : "Loading Type",
+      "Tooltip"           : "",
+      "Type"              : {
+        "Kind" : "Enum",
+        "TypeName" : "BbxCommon.BbxScriptableObject+ELoadingType",
+        "ElementType" : null,
+        "EnumValues"  : [
+          "AutoLoading",
+          "GroupedByName"
+        ],
+        "EnumNumericValues" : {
+          "AutoLoading" : 0,
+          "GroupedByName" : 1
+        }
+      },
+      "Required"          : false,
+      "Unique"            : false,
+      "ReadOnly"          : false,
+      "Minimum"           : null,
+      "Maximum"           : null,
+      "ReferenceTypeName" : "",
+      "ReferenceFieldName" : "",
+      "Fields"             : [
+      ]
+    },
+    {
+      "Name" : "GroupName",
+      "BindingMemberName" : "",
+      "DisplayName"       : "Group Name",
+      "Tooltip"           : "",
+      "Type"              : {
+        "Kind" : "String",
+        "TypeName" : "System.String",
+        "ElementType" : null,
+        "EnumValues"  : [
+        ],
+        "EnumNumericValues" : {
+        }
+      },
+      "Required"          : false,
+      "Unique"            : false,
+      "ReadOnly"          : false,
+      "Minimum"           : null,
+      "Maximum"           : null,
+      "ReferenceTypeName" : "",
+      "ReferenceFieldName" : "",
+      "Fields"             : [
+      ]
+    },
+    {
+      "Name" : "m_DisplayName",
+      "BindingMemberName" : "",
+      "DisplayName"       : "Display Name",
+      "Tooltip"           : "",
+      "Type"              : {
+        "Kind" : "String",
+        "TypeName" : "System.String",
+        "ElementType" : null,
+        "EnumValues"  : [
+        ],
+        "EnumNumericValues" : {
+        }
+      },
+      "Required"          : false,
+      "Unique"            : false,
+      "ReadOnly"          : false,
+      "Minimum"           : null,
+      "Maximum"           : null,
+      "ReferenceTypeName" : "",
+      "ReferenceFieldName" : "",
+      "Fields"             : [
+      ]
+    },
+    {
+      "Name" : "m_BatchId",
+      "BindingMemberName" : "",
+      "DisplayName"       : "Batch Id",
+      "Tooltip"           : "",
+      "Type"              : {
+        "Kind" : "String",
+        "TypeName" : "System.String",
+        "ElementType" : null,
+        "EnumValues"  : [
+        ],
+        "EnumNumericValues" : {
+        }
+      },
+      "Required"          : false,
+      "Unique"            : false,
+      "ReadOnly"          : false,
+      "Minimum"           : null,
+      "Maximum"           : null,
+      "ReferenceTypeName" : "",
+      "ReferenceFieldName" : "",
+      "Fields"             : [
+      ]
+    },
+    {
+      "Name" : "m_RewardGrants",
+      "BindingMemberName" : "",
+      "DisplayName"       : "Reward Grants",
+      "Tooltip"           : "",
+      "Type"              : {
+        "Kind" : "Array",
+        "TypeName" : "Hearthstone.Editor.InitialStageEntryAsset+RewardGrantEntry[]",
+        "ElementType" : {
+          "Kind" : "Object",
+          "TypeName" : "Hearthstone.Editor.InitialStageEntryAsset+RewardGrantEntry",
+          "ElementType" : null,
+          "EnumValues"  : [
+          ],
+          "EnumNumericValues" : {
+          }
+        },
+        "EnumValues"  : [
+        ],
+        "EnumNumericValues" : {
+        }
+      },
+      "Required"          : false,
+      "Unique"            : false,
+      "ReadOnly"          : false,
+      "Minimum"           : null,
+      "Maximum"           : null,
+      "ReferenceTypeName" : "",
+      "ReferenceFieldName" : "",
+      "Fields"             : [
+      ]
+    }
+  ]
+}

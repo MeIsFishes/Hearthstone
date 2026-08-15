@@ -1,6 +1,8 @@
 title: 怪物战斗词条与融合继承
-state: In Design
+state: Completed
 priority: P1
+plan: AutoDoc/DesignPlan/Plan/monster-combat-keywords-plan.md
+review: AutoDoc/DesignPlan/Review/monster-combat-keywords-review.md
 
 ## 1. 需求简述
 

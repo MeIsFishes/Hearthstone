@@ -27,6 +27,7 @@ namespace Hearthstone
             m_View.Interactor.Wrapper.ExtraInfo = new PreparationInteractorData
             {
                 CardNumber = 0,
+                Source = EPreparationCardSource.BattleSlot,
                 SourceSlot = slot,
                 TargetSlot = slot,
             };
@@ -43,7 +44,11 @@ namespace Hearthstone
             data.CardNumber = occupied ? m_CardNumber : 0;
             SetDraggingEnabled(occupied);
             if (occupied == false)
+            {
+                if (m_View.KeywordText != null)
+                    m_View.KeywordText.text = string.Empty;
                 return;
+            }
 
             var instance = runState.CardInstances[m_CardNumber];
             var card = DataApi.GetData<BattleCardCsvData>(m_CardNumber);
@@ -51,6 +56,8 @@ namespace Hearthstone
             m_View.CardFrame.sprite = ResourceApi.LoadSprite(CardFrameKey);
             m_View.ArtworkArea.sprite = card == null ? null : ResourceApi.LoadSprite(card.ArtworkKey);
             m_View.NameText.text = type == null ? string.Empty : type.DisplayName;
+            if (m_View.KeywordText != null)
+                m_View.KeywordText.text = BattleKeywordRules.FormatDisplayText(instance.Keywords);
             m_View.AttackText.text = instance.Attack.ToString();
             m_View.HealthText.text = instance.MaxHealth.ToString();
         }

@@ -26,7 +26,10 @@ namespace Hearthstone
 
                 CreateTitle(root.transform);
                 view.RewardText = CreateReward(root.transform);
-                view.BattleSlotList = CreateBattleSlots(root.transform);
+                CreateContinue(root.transform, view);
+                CreateTabs(root.transform, view);
+                CreateBattleOperation(root.transform, view);
+                CreateFusionOperation(root.transform, view);
                 CreatePool(root.transform, view);
 
                 PreparationUiBuilderUtility.SavePrefab(root, PrefabPath, false);
@@ -52,17 +55,120 @@ namespace Hearthstone
         private static TextMeshProUGUI CreateReward(Transform parent)
         {
             var panel = PreparationUiBuilderUtility.CreateUiObject("RewardPanel", parent);
-            PreparationUiBuilderUtility.SetRect(panel, new Vector2(0f, 1f), new Vector2(310f, 100f), new Vector2(205f, -170f));
+            PreparationUiBuilderUtility.SetRect(panel, new Vector2(0f, 1f), new Vector2(310f, 90f), new Vector2(200f, -135f));
             PreparationUiBuilderUtility.AddImage(panel, PreparationUiBuilderUtility.LoadSprite("PreparationRewardPanel"));
             var text = PreparationUiBuilderUtility.CreateUiObject("RewardText", panel.transform);
             PreparationUiBuilderUtility.Stretch(text, 15f, 10f, 15f, 10f);
             return PreparationUiBuilderUtility.AddText(text, "本轮获得 5 张卡", 30f);
         }
 
-        private static UiList CreateBattleSlots(Transform parent)
+        private static void CreateContinue(Transform parent, PreparationView view)
         {
-            var header = PreparationUiBuilderUtility.CreateUiObject("BattleSlotHeader", parent);
-            PreparationUiBuilderUtility.SetRect(header, new Vector2(0.5f, 1f), new Vector2(800f, 55f), new Vector2(0f, -125f));
+            var idle = PreparationUiBuilderUtility.LoadSprite("PreparationContinueButtonIdle");
+            var highlighted = PreparationUiBuilderUtility.LoadSprite("PreparationContinueButtonHighlighted");
+            var pressed = PreparationUiBuilderUtility.LoadSprite("PreparationContinueButtonPressed");
+            var waiting = PreparationUiBuilderUtility.LoadSprite("PreparationContinueButtonWaiting");
+
+            var root = PreparationUiBuilderUtility.CreateUiObject("ContinueButton", parent);
+            PreparationUiBuilderUtility.SetRect(
+                root,
+                new Vector2(1f, 1f),
+                new Vector2(350f, 144f),
+                new Vector2(-220f, -120f));
+            var image = PreparationUiBuilderUtility.AddImage(root, idle, true);
+            var button = root.AddComponent<Button>();
+            button.targetGraphic = image;
+            button.transition = Selectable.Transition.SpriteSwap;
+            button.spriteState = new SpriteState
+            {
+                highlightedSprite = highlighted,
+                pressedSprite = pressed,
+                selectedSprite = highlighted,
+                disabledSprite = waiting,
+            };
+
+            var mainLabel = PreparationUiBuilderUtility.CreateUiObject("MainLabel", root.transform);
+            PreparationUiBuilderUtility.SetRect(
+                mainLabel,
+                new Vector2(0.5f, 0.5f),
+                new Vector2(240f, 50f),
+                new Vector2(0f, 19f));
+            var mainText = PreparationUiBuilderUtility.AddText(mainLabel, "继续", 36f);
+
+            var auxiliaryLabel = PreparationUiBuilderUtility.CreateUiObject("AuxiliaryLabel", root.transform);
+            PreparationUiBuilderUtility.SetRect(
+                auxiliaryLabel,
+                new Vector2(0.5f, 0.5f),
+                new Vector2(240f, 34f),
+                new Vector2(0f, -27f));
+            var auxiliaryText = PreparationUiBuilderUtility.AddText(auxiliaryLabel, "下一关", 22f);
+            auxiliaryText.color = new Color(1f, 0.82f, 0.45f, 0.95f);
+
+            var blocker = PreparationUiBuilderUtility.CreateUiObject("ContinueWaitingInputBlocker", root.transform);
+            PreparationUiBuilderUtility.Stretch(blocker);
+            var blockerImage = PreparationUiBuilderUtility.AddImage(blocker, null, true);
+            blockerImage.color = new Color(1f, 1f, 1f, 0.001f);
+            var attemptListener = blocker.AddComponent<UiEventListener>();
+            blocker.SetActive(false);
+
+            view.ContinueButton = button;
+            view.ContinueButtonImage = image;
+            view.ContinueMainText = mainText;
+            view.ContinueAuxiliaryText = auxiliaryText;
+            view.ContinueWaitingInputBlocker = blocker;
+            view.ContinueWaitingAttemptListener = attemptListener;
+        }
+
+        private static void CreateTabs(Transform parent, PreparationView view)
+        {
+            var idleSprite = PreparationUiBuilderUtility.LoadSprite("PreparationTabIdle");
+            var selectedSprite = PreparationUiBuilderUtility.LoadSprite("PreparationTabSelected");
+            view.BattleTabButton = CreateTab(
+                parent,
+                "BattleTab",
+                "出战",
+                new Vector2(-215f, -135f),
+                selectedSprite,
+                out var battleImage);
+            view.FusionTabButton = CreateTab(
+                parent,
+                "FusionTab",
+                "融合",
+                new Vector2(215f, -135f),
+                idleSprite,
+                out var fusionImage);
+            view.BattleTabImage = battleImage;
+            view.FusionTabImage = fusionImage;
+        }
+
+        private static Button CreateTab(
+            Transform parent,
+            string name,
+            string label,
+            Vector2 position,
+            Sprite sprite,
+            out Image image)
+        {
+            var tab = PreparationUiBuilderUtility.CreateUiObject(name, parent);
+            PreparationUiBuilderUtility.SetRect(tab, new Vector2(0.5f, 1f), new Vector2(400f, 76f), position);
+            image = PreparationUiBuilderUtility.AddImage(
+                tab,
+                sprite,
+                true);
+            var button = tab.AddComponent<Button>();
+            button.targetGraphic = image;
+            var text = PreparationUiBuilderUtility.CreateUiObject("Label", tab.transform);
+            PreparationUiBuilderUtility.Stretch(text, 20f, 8f, 20f, 8f);
+            PreparationUiBuilderUtility.AddText(text, label, 32f);
+            return button;
+        }
+
+        private static void CreateBattleOperation(Transform parent, PreparationView view)
+        {
+            var root = PreparationUiBuilderUtility.CreateUiObject("BattleOperation", parent);
+            PreparationUiBuilderUtility.SetRect(root, new Vector2(0.5f, 1f), new Vector2(1200f, 330f), new Vector2(0f, -300f));
+            var header = PreparationUiBuilderUtility.CreateUiObject("BattleSlotHeader", root.transform);
+            PreparationUiBuilderUtility.SetRect(header, new Vector2(0.5f, 1f), new Vector2(800f, 50f), new Vector2(0f, -70f));
             var lineSprite = PreparationUiBuilderUtility.LoadSprite("PreparationSectionLine");
             var left = PreparationUiBuilderUtility.CreateUiObject("LeftLine", header.transform);
             PreparationUiBuilderUtility.SetRect(left, new Vector2(0f, 0.5f), new Vector2(280f, 55f), new Vector2(140f, 0f));
@@ -74,13 +180,81 @@ namespace Hearthstone
             PreparationUiBuilderUtility.SetRect(text, new Vector2(0.5f, 0.5f), new Vector2(220f, 55f), Vector2.zero);
             PreparationUiBuilderUtility.AddText(text, "战斗槽位", 34f);
 
-            var listObject = PreparationUiBuilderUtility.CreateUiObject("BattleSlotList", parent);
-            PreparationUiBuilderUtility.SetRect(listObject, new Vector2(0.5f, 1f), new Vector2(720f, 330f), new Vector2(0f, -320f));
+            var listObject = PreparationUiBuilderUtility.CreateUiObject("BattleSlotList", root.transform);
+            PreparationUiBuilderUtility.SetRect(listObject, new Vector2(0.5f, 1f), new Vector2(720f, 285f), new Vector2(0f, -180f));
             var list = listObject.AddComponent<UiList>();
             list.ArragementType = UiList.EArrangement.ConstantSlot;
             list.ConstantSlotDirection = UiList.EDirection.Horizontal;
             list.ConstantSlotSize = new Vector2(240f, 330f);
-            return list;
+            view.BattleOperationRoot = root;
+            view.BattleSlotList = list;
+        }
+
+        private static void CreateFusionOperation(Transform parent, PreparationView view)
+        {
+            var root = PreparationUiBuilderUtility.CreateUiObject("FusionOperation", parent);
+            PreparationUiBuilderUtility.SetRect(root, new Vector2(0.5f, 1f), new Vector2(1480f, 330f), new Vector2(0f, -300f));
+            var hitImage = PreparationUiBuilderUtility.AddImage(root, null, true);
+            hitImage.color = new Color(1f, 1f, 1f, 0.001f);
+            var areaInteractor = root.AddComponent<UiInteractor>();
+            areaInteractor.TransformOverride = root.transform;
+            areaInteractor.AutoInitUiDragable = false;
+
+            var title = PreparationUiBuilderUtility.CreateUiObject("Title", root.transform);
+            PreparationUiBuilderUtility.SetRect(title, new Vector2(0f, 1f), new Vector2(850f, 46f), new Vector2(425f, -70f));
+            PreparationUiBuilderUtility.AddText(title, "融合素材", 32f);
+
+            var listObject = PreparationUiBuilderUtility.CreateUiObject("FusionSlotList", root.transform);
+            PreparationUiBuilderUtility.SetRect(listObject, new Vector2(0f, 1f), new Vector2(800f, 285f), new Vector2(420f, -180f));
+            var list = listObject.AddComponent<UiList>();
+            list.ArragementType = UiList.EArrangement.ConstantSlot;
+            list.ConstantSlotDirection = UiList.EDirection.Horizontal;
+            list.ConstantSlotSize = new Vector2(200f, 285f);
+
+            var sumPanel = PreparationUiBuilderUtility.CreateUiObject("FusionSumPanel", root.transform);
+            PreparationUiBuilderUtility.SetRect(sumPanel, new Vector2(1f, 0.5f), new Vector2(480f, 230f), new Vector2(-250f, 0f));
+            PreparationUiBuilderUtility.AddImage(
+                sumPanel,
+                PreparationUiBuilderUtility.LoadSprite("PreparationFusionSumPanel"));
+            var expression = PreparationUiBuilderUtility.CreateUiObject("Expression", sumPanel.transform);
+            PreparationUiBuilderUtility.SetRect(expression, new Vector2(0.5f, 1f), new Vector2(420f, 50f), new Vector2(0f, -50f));
+            var expressionText = PreparationUiBuilderUtility.AddText(expression, "0", 28f);
+            var result = PreparationUiBuilderUtility.CreateUiObject("Result", sumPanel.transform);
+            PreparationUiBuilderUtility.SetRect(result, new Vector2(0.5f, 1f), new Vector2(420f, 50f), new Vector2(0f, -98f));
+            var resultText = PreparationUiBuilderUtility.AddText(result, "合计 0 / 99", 27f);
+            view.FusionUnderTargetColor = new Color(1f, 0.76f, 0.28f, 1f);
+            view.FusionExactTargetColor = new Color(0.42f, 1f, 0.48f, 1f);
+            view.FusionOverTargetColor = new Color(1f, 0.32f, 0.27f, 1f);
+
+            var buttonObject = PreparationUiBuilderUtility.CreateUiObject("FusionButton", sumPanel.transform);
+            PreparationUiBuilderUtility.SetRect(buttonObject, new Vector2(0.5f, 0f), new Vector2(320f, 80f), new Vector2(0f, 48f));
+            var buttonImage = PreparationUiBuilderUtility.AddImage(
+                buttonObject,
+                PreparationUiBuilderUtility.LoadSprite("PreparationFusionButtonEnabled"),
+                true);
+            var button = buttonObject.AddComponent<Button>();
+            button.targetGraphic = buttonImage;
+            button.transition = Selectable.Transition.SpriteSwap;
+            button.spriteState = new SpriteState
+            {
+                highlightedSprite = PreparationUiBuilderUtility.LoadSprite("PreparationFusionButtonEnabled"),
+                pressedSprite = PreparationUiBuilderUtility.LoadSprite("PreparationFusionButtonPressed"),
+                selectedSprite = PreparationUiBuilderUtility.LoadSprite("PreparationFusionButtonEnabled"),
+                disabledSprite = PreparationUiBuilderUtility.LoadSprite("PreparationFusionButtonDisabled"),
+            };
+            var buttonLabel = PreparationUiBuilderUtility.CreateUiObject("Label", buttonObject.transform);
+            PreparationUiBuilderUtility.Stretch(buttonLabel, 25f, 12f, 25f, 12f);
+            PreparationUiBuilderUtility.AddText(buttonLabel, "融合", 34f);
+            var attemptListener = buttonObject.AddComponent<UiEventListener>();
+
+            view.FusionOperationRoot = root;
+            view.FusionSlotList = list;
+            view.FusionExpressionText = expressionText;
+            view.FusionResultText = resultText;
+            view.FusionButton = button;
+            view.FusionButtonImage = buttonImage;
+            view.FusionButtonAttemptListener = attemptListener;
+            view.FusionAreaInteractor = areaInteractor;
         }
 
         private static void CreatePool(Transform parent, PreparationView view)
@@ -92,10 +266,13 @@ namespace Hearthstone
                 PreparationUiBuilderUtility.LoadSprite("PreparationCardPoolPanel"),
                 false,
                 Image.Type.Sliced);
+            var poolInteractor = panel.AddComponent<UiInteractor>();
+            poolInteractor.TransformOverride = panel.transform;
+            poolInteractor.AutoInitUiDragable = false;
 
             var label = PreparationUiBuilderUtility.CreateUiObject("PoolTitle", panel.transform);
             PreparationUiBuilderUtility.SetRect(label, new Vector2(0.5f, 1f), new Vector2(400f, 55f), new Vector2(0f, -35f));
-            PreparationUiBuilderUtility.AddText(label, "卡池 1-98", 36f);
+            PreparationUiBuilderUtility.AddText(label, "卡池 1-99", 36f);
 
             var scrollObject = PreparationUiBuilderUtility.CreateUiObject("ScrollRect", panel.transform);
             PreparationUiBuilderUtility.SetRect(scrollObject, new Vector2(0.5f, 0.5f), new Vector2(1510f, 500f), new Vector2(0f, -25f));
@@ -175,6 +352,7 @@ namespace Hearthstone
             view.CardPoolScrollRect = scrollRect;
             view.CardPoolList = poolList;
             view.CardPoolScrollbar = scrollbar;
+            view.CardPoolInteractor = poolInteractor;
         }
 
         private static void CreateScrollArrow(

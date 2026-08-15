@@ -27,7 +27,7 @@
 2. 用 ASCII 路径的 `powershell.exe` 作为**诊断探针的启动器**；在 PowerShell 子进程内部通过 `$env:APPDATA` 和 `Join-Path` 解析 `uvx.exe`，避免由 SDK 直接传递含中文的可执行文件路径。
 3. 先发现实际 Scripts 目录和 Python 版本，再构造相对 `$env:APPDATA` 的路径；不得盲目硬编码 `Python312` 或复制某台机器的用户目录。
 4. 给子进程传入 `PYTHONUTF8=1`、`PYTHONIOENCODING=utf-8` 和有效的 `SystemRoot`。
-5. 该 PowerShell 包装仅用于标准 SDK 只读探针。Codex 正式 MCP 配置仍以项目规则和 `codex mcp get` 的实际启动结果为准；不得为了绕过当前会话而另建长期代理层。
+5. 该 PowerShell 包装仅用于标准 SDK 只读探针。Codex 正式 MCP 配置仍以实际配置、用户本次明确要求和 `codex mcp get` 的启动结果为准；项目不提供默认实现或版本，不得为了绕过当前会话而另建长期代理层。
 
 若项目使用 Codely Bridge 且当前环境没有 Codely/Codex 客户端适配工具，不适用此探针；应报告“Editor Bridge 可用但客户端适配工具未暴露”，而不是自行实现私有 TCP 客户端。
 

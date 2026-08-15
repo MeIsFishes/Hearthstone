@@ -27,6 +27,11 @@ namespace Hearthstone
                 PreparationUiBuilderUtility.AddImage(
                     empty,
                     PreparationUiBuilderUtility.LoadSprite("PreparationPoolEmptySlot"));
+                var emptyAttempt = PreparationUiBuilderUtility.CreateUiObject("EmptyAttempt", empty.transform);
+                PreparationUiBuilderUtility.Stretch(emptyAttempt);
+                var emptyAttemptImage = PreparationUiBuilderUtility.AddImage(emptyAttempt, null, true);
+                emptyAttemptImage.color = new Color(1f, 1f, 1f, 0.001f);
+                var emptyAttemptListener = emptyAttempt.AddComponent<UiEventListener>();
 
                 var owned = PreparationUiBuilderUtility.CreateUiObject("OwnedState", root.transform);
                 PreparationUiBuilderUtility.Stretch(owned, 4f, 4f, 4f, 4f);
@@ -45,6 +50,13 @@ namespace Hearthstone
                 var nameObject = PreparationUiBuilderUtility.CreateUiObject("Name", owned.transform);
                 PreparationUiBuilderUtility.SetRect(nameObject, new Vector2(0.5f, 0f), new Vector2(120f, 30f), new Vector2(0f, 45f));
                 var nameText = PreparationUiBuilderUtility.AddText(nameObject, string.Empty, 18f);
+                var keywordObject = PreparationUiBuilderUtility.CreateUiObject("Keywords", owned.transform);
+                PreparationUiBuilderUtility.SetRect(keywordObject, new Vector2(0.5f, 0f), new Vector2(140f, 24f), new Vector2(0f, 20f));
+                var keywordText = PreparationUiBuilderUtility.AddText(keywordObject, string.Empty, 13f);
+                keywordText.enableAutoSizing = true;
+                keywordText.enableWordWrapping = false;
+                keywordText.fontSizeMin = 8f;
+                keywordText.fontSizeMax = 13f;
 
                 var attack = CreateStat(owned.transform, "Attack", new Vector2(1f, 0f), new Vector2(-25f, 25f),
                     "Assets/Resources/Art/BattleCards/UI/AttackBadgeFrame.png");
@@ -62,6 +74,27 @@ namespace Hearthstone
                 var number = PreparationUiBuilderUtility.AddText(numberText, "01", 20f);
                 number.color = Color.white;
 
+                var materialSelected = PreparationUiBuilderUtility.CreateUiObject("MaterialSelected", root.transform);
+                PreparationUiBuilderUtility.SetRect(
+                    materialSelected,
+                    new Vector2(1f, 1f),
+                    new Vector2(78f, 78f),
+                    new Vector2(-34f, -34f));
+                PreparationUiBuilderUtility.AddImage(
+                    materialSelected,
+                    PreparationUiBuilderUtility.LoadSprite("PreparationMaterialSelected"));
+                var materialSelectedLabel = PreparationUiBuilderUtility.CreateUiObject(
+                    "MaterialSelectedLabel",
+                    materialSelected.transform);
+                PreparationUiBuilderUtility.Stretch(materialSelectedLabel, 3f, 3f, 3f, 3f);
+                var materialSelectedText = PreparationUiBuilderUtility.AddText(
+                    materialSelectedLabel,
+                    "素材\n已选",
+                    17f);
+                materialSelectedText.color = Color.white;
+                materialSelectedText.lineSpacing = -18f;
+                materialSelected.SetActive(false);
+
                 var dragable = root.AddComponent<UiDragable>();
                 dragable.TurnBackWhenDragEnd = true;
                 dragable.AlwaysRelativeOffset = false;
@@ -71,17 +104,21 @@ namespace Hearthstone
 
                 view.EmptyState = empty;
                 view.OwnedState = owned;
+                view.MaterialSelectedState = materialSelected;
+                view.MaterialSelectedText = materialSelectedText;
                 view.ArtworkArea = artworkImage;
                 view.CardFrame = frameImage;
                 view.CardNumberBadge = badgeImage;
                 view.CardNumberText = number;
                 view.NameText = nameText;
+                view.KeywordText = keywordText;
                 view.AttackText = attack;
                 view.HealthText = health;
                 view.Dragable = dragable;
                 view.Interactor = interactor;
+                view.EmptyAttemptListener = emptyAttemptListener;
 
-                PreparationUiBuilderUtility.SavePrefab(root, PrefabPath, true);
+                PreparationUiBuilderUtility.SavePrefab(root, PrefabPath, false);
             }
             finally
             {

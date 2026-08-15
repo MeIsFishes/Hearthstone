@@ -103,7 +103,7 @@ namespace Hearthstone.Tests
         }
 
         [Test]
-        public void BattleCardPrefabUsesInsetNarrowFramesForEveryCombatState()
+        public void BattleCardPrefabUsesFullCardFramesForEveryCombatState()
         {
             var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(
                 "Assets/Resources/Ui/BattleCardItem.prefab");
@@ -118,13 +118,41 @@ namespace Hearthstone.Tests
             Assert.AreSame(view.CardFrame.sprite, view.AttackerHighlight.sprite);
             Assert.AreSame(view.CardFrame.sprite, view.TargetHighlight.sprite);
 
-            AssertFrameFitsCardBody(view.CardFrame.rectTransform);
-            AssertFrameFitsCardBody(view.AttackerHighlight.rectTransform);
-            AssertFrameFitsCardBody(view.TargetHighlight.rectTransform);
+            AssertFrameCoversEntireCard(view.CardFrame.rectTransform);
+            AssertFrameCoversEntireCard(view.AttackerHighlight.rectTransform);
+            AssertFrameCoversEntireCard(view.TargetHighlight.rectTransform);
             AssertFramesRenderBelowCardMarkers(view);
             Assert.NotNull(view.ArtworkArea);
             Assert.AreEqual(Image.Type.Simple, view.ArtworkArea.type);
             Assert.IsTrue(view.ArtworkArea.preserveAspect);
+        }
+
+        [Test]
+        public void PreparationCardPrefabsKeepArtworkAspectAndCoverTheWholeCardWithTheFrame()
+        {
+            var poolPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(
+                "Assets/Resources/Ui/PreparationCardItem.prefab");
+            Assert.NotNull(poolPrefab);
+            var poolView = poolPrefab.GetComponent<PreparationCardItemView>();
+            Assert.NotNull(poolView);
+            Assert.IsTrue(poolView.ArtworkArea.preserveAspect);
+            AssertFrameCoversEntireCard(poolView.CardFrame.rectTransform);
+
+            var slotPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(
+                "Assets/Resources/Ui/PreparationSlotItem.prefab");
+            Assert.NotNull(slotPrefab);
+            var slotView = slotPrefab.GetComponent<PreparationSlotItemView>();
+            Assert.NotNull(slotView);
+            Assert.IsTrue(slotView.ArtworkArea.preserveAspect);
+            AssertFrameCoversEntireCard(slotView.CardFrame.rectTransform);
+
+            var fusionPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(
+                "Assets/Resources/Ui/PreparationFusionSlotItem.prefab");
+            Assert.NotNull(fusionPrefab);
+            var fusionView = fusionPrefab.GetComponent<PreparationFusionSlotItemView>();
+            Assert.NotNull(fusionView);
+            Assert.IsTrue(fusionView.ArtworkArea.preserveAspect);
+            AssertFrameCoversEntireCard(fusionView.CardFrame.rectTransform);
         }
 
         [Test]
@@ -225,7 +253,19 @@ namespace Hearthstone.Tests
             Assert.AreEqual(5, DataApi.GetData<BattleCardCsvData>(40).CardTypeId);
             Assert.AreNotEqual(5, DataApi.GetData<BattleCardCsvData>(93).CardTypeId);
             Assert.AreNotEqual(5, DataApi.GetData<BattleCardCsvData>(98).CardTypeId);
-            Assert.IsNull(DataApi.GetData<BattleCardCsvData>(99));
+            var fusionCard = DataApi.GetData<BattleCardCsvData>(RunCardRules.FusionResultCardNumber);
+            Assert.NotNull(fusionCard);
+            Assert.AreEqual(6, fusionCard.CardTypeId);
+            Assert.AreEqual("FusionCard_099", fusionCard.ArtworkKey);
+            Assert.NotNull(ResourceApi.LoadSprite("FusionCard_099"));
+
+            var fusionType = DataApi.GetData<BattleCardTypeCsvData>(6);
+            Assert.NotNull(fusionType);
+            Assert.AreEqual("融合造物", fusionType.DisplayName);
+            Assert.AreEqual(1, fusionType.MinHealth);
+            Assert.AreEqual(1, fusionType.MaxHealth);
+            Assert.AreEqual(0, fusionType.MinAttack);
+            Assert.AreEqual(0, fusionType.MaxAttack);
 
             var otherAverageHealth = 0d;
             var otherAverageAttack = 0d;
@@ -258,8 +298,14 @@ namespace Hearthstone.Tests
             {
                 var playerNumber = BattleRules.GetCardNumber(EBattleSide.Player, slot);
                 var enemyNumber = BattleRules.GetCardNumber(EBattleSide.Enemy, slot);
-                lineupTypes.Add(DataApi.GetData<BattleCardCsvData>(playerNumber).CardTypeId);
-                lineupTypes.Add(DataApi.GetData<BattleCardCsvData>(enemyNumber).CardTypeId);
+                Assert.That(playerNumber, Is.InRange(RunCardRules.FirstCardNumber, RunCardRules.LastOrdinaryCardNumber));
+                Assert.That(enemyNumber, Is.InRange(RunCardRules.FirstCardNumber, RunCardRules.LastOrdinaryCardNumber));
+                var playerType = DataApi.GetData<BattleCardCsvData>(playerNumber).CardTypeId;
+                var enemyType = DataApi.GetData<BattleCardCsvData>(enemyNumber).CardTypeId;
+                Assert.That(playerType, Is.InRange(1, 5));
+                Assert.That(enemyType, Is.InRange(1, 5));
+                lineupTypes.Add(playerType);
+                lineupTypes.Add(enemyType);
             }
 
             CollectionAssert.AreEquivalent(new[] { 1, 2, 3, 4, 5 }, lineupTypes);
@@ -362,12 +408,12 @@ namespace Hearthstone.Tests
             }
         }
 
-        private static void AssertFrameFitsCardBody(RectTransform frame)
+        private static void AssertFrameCoversEntireCard(RectTransform frame)
         {
             Assert.AreEqual(Vector2.zero, frame.anchorMin);
             Assert.AreEqual(Vector2.one, frame.anchorMax);
             Assert.AreEqual(Vector2.zero, frame.anchoredPosition);
-            Assert.AreEqual(new Vector2(-20f, -12f), frame.sizeDelta);
+            Assert.AreEqual(Vector2.zero, frame.sizeDelta);
         }
 
         private static void AssertFramesRenderBelowCardMarkers(BattleCardItemView view)

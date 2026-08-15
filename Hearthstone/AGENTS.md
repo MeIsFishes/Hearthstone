@@ -8,27 +8,7 @@
 
 即使你处于 plan mode，修改用户或 skill 明确列出的文件、任务检查清单、任务报告，以及 `AutoDoc/` 下的文件，始终是被允许的。
 
-执行项目任务时无需修改 `.meta` 文件；不要创建、编辑或删除任何 `.meta` 文件。
-
-# Unity Editor 操作通道 / 可选 MCP for Unity
-
-读取或修改 Unity Editor 实时状态（Scene、Prefab、GameObject、组件、Console、Play Mode、Build Settings、烘焙或 Unity 资产）时，不强制使用 MCP。可以根据任务和当前环境使用 Unity Editor 正常操作、项目约定的 Editor API/Editor 脚本（包括适用 UI 流程中的 `UiBuilder`），或当前会话正式暴露且项目允许的自动化通道。Unity MCP 不可用本身不构成一般 Unity 任务的硬阻塞；应改用任务允许的其他通道，并如实记录实际操作与验收方式。
-
-无论选择哪种通道，都不得手写 Scene、Prefab 或 `.asset` YAML，不得自行调用 Editor Bridge 私有协议或擅自改用桌面 UI 自动化；Unity 资产仍须遵循项目既有 GameStage、ECS、UI、资源导出和 Editor 配置源流程。纯源码、普通文本配置和只读文件检查仍按本项目既有文件与 skill 规则执行。
-
-当用户明确要求使用 Unity MCP，或任务已经选择 MCP 作为本次操作通道时，本项目只允许 CoplayDev 官方开源 `MCP for Unity` `v10.0.0`。Unity 包由 `Packages/manifest.json` 通过官方 Git 仓库固定版本加载，包名为 `com.coplaydev.unity-mcp`；Codex 侧使用名为 `unityMCP` 的标准 MCP 服务配置。不得同时启用 Codely Bridge 或其他 Unity MCP 实现。
-
-`MCP for Unity` 由 Unity Editor 包和独立 Python MCP Server 共同组成。Server 固定使用 `mcpforunityserver==10.0.0`，入口为 `mcp-for-unity --transport stdio`；Windows 环境必须传入 `PYTHONUTF8=1`、`PYTHONIOENCODING=utf-8` 和有效的 `SystemRoot`。`unityMCP` 配置优先使用 `uvx.exe` 的绝对路径，避免依赖当前 Codex 进程的旧 PATH 快照。
-
-只有 Unity 包已解析、MCP Server 完成 initialize 和工具清单读取、Server 已发现当前 Editor 实例、端到端只读调用成功，并且 Codex 当前会话已实际加载 `unityMCP` 工具时，才能声称 Unity MCP 已连接；不得仅因包、配置、进程或端口存在就声称链路可用。
-
-选择 MCP 通道后：
-
-1. 先确认目标 Unity Editor 正在运行、`com.coplaydev.unity-mcp` 已解析且没有新增编译错误，并通过 `codex mcp get unityMCP` 核对 Server 的命令、固定版本、stdio 与环境配置。
-2. 使用当前会话暴露的 MCP for Unity 工具执行操作；连接失效且存在刷新、重连或实例选择工具时，先刷新并选择当前项目实例后重试。需要启动 Editor Bridge 且 Editor 状态安全时，只使用包提供的官方入口，例如 `MCPForUnity.Editor.McpCiBoot.StartStdioForCi`。
-3. 恢复或通过 MCP 验收时至少完成 `manage_scene(action="get_active")` 与 `read_console(action="get", types=["error"])` 两个只读调用。标准 MCP SDK 只读探针仅可用于诊断和验收，不得用于 Unity 资产写操作。
-4. 当前会话没有暴露 `unityMCP` 工具、MCP Server 无法连接或重试仍失败时，明确报告该通道不可用，不得声称已经热更新。若用户或适用 skill 没有强制本次必须使用 MCP，改用项目允许的非 MCP 通道继续；若本次明确要求 MCP，则要求重载或新建 Codex 会话，或报告阻塞。
-5. 通过 MCP for Unity 修改 Unity 资产时，MCP 只作为操作通道，不改变任何框架边界。
+执行项目任务时无需修改 `.meta` 文件；不要创建、编辑或删除任何 `.meta` 文件，但上传 git 时，上传 `.meta` 文件是必要的。
 
 # Checklist And End-of-Task Audit
 

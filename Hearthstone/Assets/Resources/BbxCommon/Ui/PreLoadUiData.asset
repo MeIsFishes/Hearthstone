@@ -23,3 +23,6 @@ MonoBehaviour:
     - Key: Hearthstone.PreparationSlotItemController
       Value:
         UiViewPrefabPath: Ui/PreparationSlotItem
+    - Key: Hearthstone.PreparationFusionSlotItemController
+      Value:
+        UiViewPrefabPath: Ui/PreparationFusionSlotItem

@@ -2,7 +2,7 @@
 
 不要直接开始工作，先阅读 `.codex/private-skills/project-state-preflight/SKILL.md`，再按用户请求类型和本文件中的主代理规则决定后续流程。
 
-Unity Editor 实时操作不强制使用 MCP。只有用户明确要求 MCP、适用 skill 明确要求本次步骤通过 MCP 执行，或主代理已经选择 MCP 作为本次操作通道时，若当前会话没有暴露 `unityMCP` 工具，或 MCP Server 启动、握手、实例发现、工具调用失败，才读取 `.codex/private-skills/recover-unity-mcp/SKILL.md`。一般 Unity 任务不得仅因 MCP 不可用而阻塞，应改用项目允许且当前环境正式提供的其他 Unity Editor 操作通道，并如实记录操作与验收方式。
+项目不要求使用 MCP 操作 Unity，也不要求主代理检查、安装、配置或恢复 Unity MCP。Unity Editor 实时操作应根据任务和当前环境使用项目允许的可用通道，并如实记录操作与验收方式；不得仅因 MCP 不可用而阻塞一般 Unity 任务。只有用户在当次请求中明确要求使用或诊断 Unity MCP 时，才读取 `.codex/private-skills/recover-unity-mcp/SKILL.md`。
 
 主代理相关 skill 索引：
 
@@ -58,7 +58,7 @@ Unity Editor 实时操作不强制使用 MCP。只有用户明确要求 MCP、�
    desc: 进入指定游戏内容时，通过框架 StageGroup 配置参数并直接启动。
    path: `.codex/private-skills/test-game-content/SKILL.md`
 18. name: `recover-unity-mcp`
-   desc: 已明确选用 Unity MCP 且链路失败时，按证据诊断恢复并验证。
+   desc: 仅在用户当次明确要求时诊断和恢复 Unity MCP。
    path: `.codex/private-skills/recover-unity-mcp/SKILL.md`
 
 ## Subagent 使用规则

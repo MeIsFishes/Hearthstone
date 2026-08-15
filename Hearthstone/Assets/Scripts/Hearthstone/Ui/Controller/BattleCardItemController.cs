@@ -14,6 +14,7 @@ namespace Hearthstone
         private BattleCardRawComponent m_Card;
         private BattleSessionSingletonRawComponent m_Session;
         private ListenableItemListener m_HealthListener;
+        private ListenableItemListener m_AttackListener;
         private ListenableItemListener m_AliveListener;
         private ListenableItemListener m_AttackerListener;
         private ListenableItemListener m_TargetListener;
@@ -23,6 +24,9 @@ namespace Hearthstone
             m_HealthListener = ModelWrapper.CreateVariableDirtyListener<int>(
                 EControllerLifeCycle.Init,
                 RefreshHealth);
+            m_AttackListener = ModelWrapper.CreateVariableDirtyListener<int>(
+                EControllerLifeCycle.Init,
+                RefreshAttack);
             m_AliveListener = ModelWrapper.CreateVariableDirtyListener<bool>(
                 EControllerLifeCycle.Init,
                 RefreshAlive);
@@ -50,6 +54,8 @@ namespace Hearthstone
             m_BoundEntity = entity;
             m_Card = card;
             m_Session = EcsApi.GetSingletonRawComponent<BattleSessionSingletonRawComponent>();
+            m_Card.SyncAttackValue();
+            m_AttackListener.RebindTarget(m_Card.AttackValue);
             m_HealthListener.RebindTarget(m_Card.CurrentHealth);
             m_AliveListener.RebindTarget(m_Card.IsAlive);
             if (m_Session != null)
@@ -68,6 +74,7 @@ namespace Hearthstone
         private void Unbind()
         {
             m_HealthListener.RebindTarget(null);
+            m_AttackListener.RebindTarget(null);
             m_AliveListener.RebindTarget(null);
             m_AttackerListener.RebindTarget(null);
             m_TargetListener.RebindTarget(null);
@@ -83,13 +90,36 @@ namespace Hearthstone
                     m_View.SkillDescriptionText.text = string.Empty;
                     m_View.SkillDescriptionText.gameObject.SetActive(false);
                 }
+                if (m_View.KeywordText != null)
+                {
+                    m_View.KeywordText.text = string.Empty;
+                    m_View.KeywordText.gameObject.SetActive(false);
+                }
                 if (m_View.ArtworkArea != null)
                 {
                     m_View.ArtworkArea.sprite = null;
                     m_View.ArtworkArea.gameObject.SetActive(false);
                 }
+                if (m_View.CardFrame != null)
+                    m_View.CardFrame.gameObject.SetActive(false);
+                if (m_View.AttackText != null)
+                {
+                    m_View.AttackText.text = string.Empty;
+                    m_View.AttackText.transform.parent.gameObject.SetActive(false);
+                }
+                if (m_View.HealthText != null)
+                {
+                    m_View.HealthText.text = string.Empty;
+                    m_View.HealthText.transform.parent.gameObject.SetActive(false);
+                }
                 if (m_View.CardNumberBadge != null)
                     m_View.CardNumberBadge.gameObject.SetActive(false);
+                if (m_View.DeadOverlay != null)
+                    m_View.DeadOverlay.gameObject.SetActive(false);
+                if (m_View.AttackerHighlight != null)
+                    m_View.AttackerHighlight.gameObject.SetActive(false);
+                if (m_View.TargetHighlight != null)
+                    m_View.TargetHighlight.gameObject.SetActive(false);
             }
         }
 
@@ -102,6 +132,7 @@ namespace Hearthstone
                 m_View.CardBackground.color = Color.clear;
             if (m_View.CardFrame != null)
             {
+                m_View.CardFrame.gameObject.SetActive(true);
                 var frameKey = m_Card.Side == EBattleSide.Player
                     ? PlayerCardFrameArtworkKey
                     : EnemyCardFrameArtworkKey;
@@ -115,9 +146,12 @@ namespace Hearthstone
                 if (frameSprite == null)
                     DebugApi.LogError($"Battle card frame artwork '{frameKey}' is missing.");
             }
-            m_View.transform.localRotation = Quaternion.identity;
             if (m_View.AttackText != null)
-                m_View.AttackText.text = m_Card.Attack.ToString();
+                m_View.AttackText.transform.parent.gameObject.SetActive(true);
+            if (m_View.HealthText != null)
+                m_View.HealthText.transform.parent.gameObject.SetActive(true);
+            m_View.transform.localRotation = Quaternion.identity;
+            RefreshAttack(m_Card.Attack);
 
             RefreshCardNumber();
 
@@ -131,6 +165,12 @@ namespace Hearthstone
         {
             if (m_View.HealthText != null)
                 m_View.HealthText.text = health.ToString();
+        }
+
+        private void RefreshAttack(int attack)
+        {
+            if (m_View.AttackText != null)
+                m_View.AttackText.text = attack.ToString();
         }
 
         private void RefreshPresentation()
@@ -154,6 +194,17 @@ namespace Hearthstone
                 m_View.SkillDescriptionText.text = typeConfig.DisplayName;
                 m_View.SkillDescriptionText.gameObject.SetActive(true);
             }
+
+            var keywordText = BattleKeywordRules.FormatDisplayText(m_Card.Keywords);
+            if (m_View.KeywordText != null)
+            {
+                m_View.KeywordText.text = keywordText;
+                m_View.KeywordText.gameObject.SetActive(string.IsNullOrEmpty(m_View.KeywordText.text) == false);
+            }
+
+            DebugApi.Log(
+                $"[BattleKeyword] Presentation Side={m_Card.Side} Slot={m_Card.SlotIndex} " +
+                $"Card={m_Card.CardNumber} Keywords={m_Card.Keywords} Text='{keywordText}'");
 
             if (m_View.ArtworkArea != null)
             {

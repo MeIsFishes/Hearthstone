@@ -1,0 +1,28 @@
+# 去除 Unity MCP 操作要求检查清单
+
+- [通过] 用户要求：去掉项目中使用 MCP 操作 Unity 的要求。
+  - 证据：`AGENTS.md` 明确项目不要求 MCP，且删除固定实现、版本、配置、恢复和验收流程。
+- [通过] 搜索项目级代理规则与 skill，定位所有把 MCP 作为 Unity 操作要求、前置条件、固定实现或恢复门槛的内容。
+  - 证据：使用 `rg` 与 `git grep` 检查 `AGENTS.md`、主代理、底层 skill、已跟踪项目文本和历史临时文档；生效约束集中于根规则、主代理、`bbxcommon-ui` 与 `recover-unity-mcp`。
+- [通过] 修改相关规则，使 Unity 操作不再要求 MCP；不得引入新的强制 MCP 约束。
+  - 证据：主代理仅在用户当次明确要求时路由恢复 skill；`bbxcommon-ui` 不再检查、优先或恢复 MCP；恢复 skill 不再允许 skill 或代理自行选择 MCP。
+- [通过] 保留非 MCP Unity 操作仍须遵循的项目框架、资产流程与安全边界。
+  - 证据：`AGENTS.md` 继续禁止手写 Scene、Prefab、`.asset` YAML、私有 Bridge 协议和未经允许的桌面自动化，并保留 GameStage、ECS、UI、资源导出和 Editor 配置源边界。
+- [通过] 检查未误改无关文件、未创建或修改 `.meta` 文件。
+  - 证据：本任务差异限定为 6 个规则/skill 文件及任务文档；`git status --short -- "*.meta"` 无输出。工作区其他既有修改未触碰。
+- [通过] 框架边界审计：规则修改不得绕过项目既有 GameStage、ECS、UI、资源导出和 Editor 配置源流程。
+  - 证据：根规则和 UI skill 均继续要求正常 Editor/API 通道、UiBuilder 一一对应、UiSceneExporter 导出和禁止手写资产。
+- [不适用] 玩家视角设计文档：读取基础文档 skill，核对是否受本次代理规则修改影响。
+  - 证据：已完整读取 `design-doc-format`；本次没有改变任何玩家可见界面、入口、操作、反馈或功能边界，无需修改 `AutoDoc/Design/`。
+- [不适用] 美术文档：读取基础文档 skill，核对是否受本次代理规则修改影响。
+  - 证据：已完整读取 `art-doc-writer`；本次没有改变 2D 资产、UI 视觉、风格或生成规格，无需修改 `AutoDoc/Art/`。
+- [不适用] 程序文档：读取基础文档 skill，核对是否受本次代理规则修改影响。
+  - 证据：已完整读取 `program-doc-format`；本次没有改变玩法模块、运行时 UI 或 GameStage 代码/配置，无需修改 `AutoDoc/Program/`。
+- [通过] Skill 编辑审计：保持 `bbxcommon-ui` 既有名称、目录、frontmatter 与主代理关联有效，不建立平行 skill 或索引。
+  - 证据：两个被编辑 skill 均保留原目录和英文小写连字符名称；frontmatter 正则验证通过，`recover-unity-mcp` description 长度为 21，不超过 40 字。
+- [通过] Skill 内容审计：移除 MCP 强制/优先逻辑后，Builder、UiScene 与资产导出流程仍完整且引用路径可访问。
+  - 证据：`bbxcommon-ui` §2.4 与 §2.7 仍保留 Editor 状态保护、Build 入口、Prefab 校验和 UiSceneExporter 流程；脚本检查未发现缺失相对引用。
+- [通过] 验证：复查相关文本与差异，确认不再存在项目级“使用 MCP 操作 Unity”的要求。
+  - 证据：`git diff --check` 通过；根规则无 CoplayDev、v10、服务配置或 MCP 专属调用，UI skill 无 `unityMCP`、`execute_code`、`manage_scene`、`read_console` 或恢复入口。现有 `Packages/` MCP 包作为可选能力保留，未误判为操作要求。
+- [通过] 结束审计：逐项写入证据，执行一次 `AutoDoc/CleanupTempDocs.bat`，并创建对应报告。
+  - 证据：清理脚本仅执行一次并以退出码 0 完成；清理后 `AutoDoc/Temp/` 有 91 个 Markdown 文件，低于清理阈值，未删除文件；随后创建同任务报告。

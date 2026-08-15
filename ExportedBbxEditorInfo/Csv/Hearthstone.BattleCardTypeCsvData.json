@@ -1,0 +1,156 @@
+
+{
+  "TypeName" : "BattleCardTypeCsvData",
+  "FullTypeName" : "Hearthstone.BattleCardTypeCsvData",
+  "DataGroup"    : "GameEngineDefault",
+  "DataLoadType" : "Override",
+  "TableNames"   : [
+    "BattleCardTypeCsvData"
+  ],
+  "Columns"      : [
+    {
+      "Name" : "CardTypeId",
+      "BindingMemberName" : "CardTypeId",
+      "DisplayName"       : "Card Type Id",
+      "Tooltip"           : "",
+      "Type"              : {
+        "Kind" : "Int32",
+        "TypeName" : "System.Int32",
+        "ElementType" : null,
+        "EnumValues"  : [
+        ],
+        "EnumNumericValues" : {
+        }
+      },
+      "Required"          : false,
+      "Unique"            : false,
+      "ReadOnly"          : false,
+      "Minimum"           : null,
+      "Maximum"           : null,
+      "ReferenceTypeName" : "",
+      "ReferenceFieldName" : "",
+      "Fields"             : [
+      ]
+    },
+    {
+      "Name" : "DisplayName",
+      "BindingMemberName" : "DisplayName",
+      "DisplayName"       : "Display Name",
+      "Tooltip"           : "",
+      "Type"              : {
+        "Kind" : "String",
+        "TypeName" : "System.String",
+        "ElementType" : null,
+        "EnumValues"  : [
+        ],
+        "EnumNumericValues" : {
+        }
+      },
+      "Required"          : false,
+      "Unique"            : false,
+      "ReadOnly"          : false,
+      "Minimum"           : null,
+      "Maximum"           : null,
+      "ReferenceTypeName" : "",
+      "ReferenceFieldName" : "",
+      "Fields"             : [
+      ]
+    },
+    {
+      "Name" : "MinHealth",
+      "BindingMemberName" : "MinHealth",
+      "DisplayName"       : "Min Health",
+      "Tooltip"           : "",
+      "Type"              : {
+        "Kind" : "Int32",
+        "TypeName" : "System.Int32",
+        "ElementType" : null,
+        "EnumValues"  : [
+        ],
+        "EnumNumericValues" : {
+        }
+      },
+      "Required"          : false,
+      "Unique"            : false,
+      "ReadOnly"          : false,
+      "Minimum"           : null,
+      "Maximum"           : null,
+      "ReferenceTypeName" : "",
+      "ReferenceFieldName" : "",
+      "Fields"             : [
+      ]
+    },
+    {
+      "Name" : "MaxHealth",
+      "BindingMemberName" : "MaxHealth",
+      "DisplayName"       : "Max Health",
+      "Tooltip"           : "",
+      "Type"              : {
+        "Kind" : "Int32",
+        "TypeName" : "System.Int32",
+        "ElementType" : null,
+        "EnumValues"  : [
+        ],
+        "EnumNumericValues" : {
+        }
+      },
+      "Required"          : false,
+      "Unique"            : false,
+      "ReadOnly"          : false,
+      "Minimum"           : null,
+      "Maximum"           : null,
+      "ReferenceTypeName" : "",
+      "ReferenceFieldName" : "",
+      "Fields"             : [
+      ]
+    },
+    {
+      "Name" : "MinAttack",
+      "BindingMemberName" : "MinAttack",
+      "DisplayName"       : "Min Attack",
+      "Tooltip"           : "",
+      "Type"              : {
+        "Kind" : "Int32",
+        "TypeName" : "System.Int32",
+        "ElementType" : null,
+        "EnumValues"  : [
+        ],
+        "EnumNumericValues" : {
+        }
+      },
+      "Required"          : false,
+      "Unique"            : false,
+      "ReadOnly"          : false,
+      "Minimum"           : null,
+      "Maximum"           : null,
+      "ReferenceTypeName" : "",
+      "ReferenceFieldName" : "",
+      "Fields"             : [
+      ]
+    },
+    {
+      "Name" : "MaxAttack",
+      "BindingMemberName" : "MaxAttack",
+      "DisplayName"       : "Max Attack",
+      "Tooltip"           : "",
+      "Type"              : {
+        "Kind" : "Int32",
+        "TypeName" : "System.Int32",
+        "ElementType" : null,
+        "EnumValues"  : [
+        ],
+        "EnumNumericValues" : {
+        }
+      },
+      "Required"          : false,
+      "Unique"            : false,
+      "ReadOnly"          : false,
+      "Minimum"           : null,
+      "Maximum"           : null,
+      "ReferenceTypeName" : "",
+      "ReferenceFieldName" : "",
+      "Fields"             : [
+      ]
+    }
+  ]
+}

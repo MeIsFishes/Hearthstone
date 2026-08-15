@@ -1,0 +1,84 @@
+
+{
+  "TypeName" : "BattleCardCsvData",
+  "FullTypeName" : "Hearthstone.BattleCardCsvData",
+  "DataGroup"    : "GameEngineDefault",
+  "DataLoadType" : "Override",
+  "TableNames"   : [
+    "BattleCardCsvData"
+  ],
+  "Columns"      : [
+    {
+      "Name" : "CardNumber",
+      "BindingMemberName" : "CardNumber",
+      "DisplayName"       : "Card Number",
+      "Tooltip"           : "",
+      "Type"              : {
+        "Kind" : "Int32",
+        "TypeName" : "System.Int32",
+        "ElementType" : null,
+        "EnumValues"  : [
+        ],
+        "EnumNumericValues" : {
+        }
+      },
+      "Required"          : false,
+      "Unique"            : false,
+      "ReadOnly"          : false,
+      "Minimum"           : null,
+      "Maximum"           : null,
+      "ReferenceTypeName" : "",
+      "ReferenceFieldName" : "",
+      "Fields"             : [
+      ]
+    },
+    {
+      "Name" : "CardTypeId",
+      "BindingMemberName" : "CardTypeId",
+      "DisplayName"       : "Card Type Id",
+      "Tooltip"           : "",
+      "Type"              : {
+        "Kind" : "Int32",
+        "TypeName" : "System.Int32",
+        "ElementType" : null,
+        "EnumValues"  : [
+        ],
+        "EnumNumericValues" : {
+        }
+      },
+      "Required"          : false,
+      "Unique"            : false,
+      "ReadOnly"          : false,
+      "Minimum"           : null,
+      "Maximum"           : null,
+      "ReferenceTypeName" : "",
+      "ReferenceFieldName" : "",
+      "Fields"             : [
+      ]
+    },
+    {
+      "Name" : "ArtworkKey",
+      "BindingMemberName" : "ArtworkKey",
+      "DisplayName"       : "Artwork Key",
+      "Tooltip"           : "",
+      "Type"              : {
+        "Kind" : "String",
+        "TypeName" : "System.String",
+        "ElementType" : null,
+        "EnumValues"  : [
+        ],
+        "EnumNumericValues" : {
+        }
+      },
+      "Required"          : false,
+      "Unique"            : false,
+      "ReadOnly"          : false,
+      "Minimum"           : null,
+      "Maximum"           : null,
+      "ReferenceTypeName" : "",
+      "ReferenceFieldName" : "",
+      "Fields"             : [
+      ]
+    }
+  ]
+}

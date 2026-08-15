@@ -1,0 +1,23 @@
+
+{
+  "Assets" : [
+    {
+      "Guid" : "f4356d24160ac094f85940c469932e22",
+      "FileId" : 11400000,
+      "AssetPath" : "Assets/Resources/Editor/InitialStageEntry.asset",
+      "TypeName"  : "Hearthstone.Editor.InitialStageEntryAsset",
+      "Name"      : "InitialStageEntry",
+      "LoadingType" : "GroupedByName",
+      "GroupName"   : "GameStageEditorEntries"
+    },
+    {
+      "Guid" : "17bec110037166c408c0098c6735651b",
+      "FileId" : 11400000,
+      "AssetPath" : "Assets/Resources/Editor/PreparationStageEntry.asset",
+      "TypeName"  : "Hearthstone.Editor.PreparationStageEntryAsset",
+      "Name"      : "PreparationStageEntry",
+      "LoadingType" : "GroupedByName",
+      "GroupName"   : "GameStageEditorEntries"
+    }
+  ]
+}

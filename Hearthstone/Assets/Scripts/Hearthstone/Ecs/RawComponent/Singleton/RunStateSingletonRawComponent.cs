@@ -9,9 +9,14 @@ namespace Hearthstone
         public int CardNumber { get; }
         public int Attack { get; }
         public int MaxHealth { get; }
+        public EBattleKeyword Keywords { get; }
         public bool IsValid => CardNumber != 0;
 
-        public RunCardInstanceData(int cardNumber, int attack, int maxHealth)
+        public RunCardInstanceData(
+            int cardNumber,
+            int attack,
+            int maxHealth,
+            EBattleKeyword? keywords = null)
         {
             if (cardNumber < RunCardRules.FirstCardNumber || cardNumber > RunCardRules.LastCardNumber)
                 throw new ArgumentOutOfRangeException(nameof(cardNumber));
@@ -22,11 +27,15 @@ namespace Hearthstone
             CardNumber = cardNumber;
             Attack = attack;
             MaxHealth = maxHealth;
+            Keywords = BattleKeywordRules.Normalize(keywords ?? ResolveInitialKeywords(cardNumber));
         }
 
         public bool Equals(RunCardInstanceData other)
         {
-            return CardNumber == other.CardNumber && Attack == other.Attack && MaxHealth == other.MaxHealth;
+            return CardNumber == other.CardNumber &&
+                   Attack == other.Attack &&
+                   MaxHealth == other.MaxHealth &&
+                   Keywords == other.Keywords;
         }
 
         public override bool Equals(object obj)
@@ -41,8 +50,18 @@ namespace Hearthstone
                 var hashCode = CardNumber;
                 hashCode = (hashCode * 397) ^ Attack;
                 hashCode = (hashCode * 397) ^ MaxHealth;
+                hashCode = (hashCode * 397) ^ (int)Keywords;
                 return hashCode;
             }
+        }
+
+        private static EBattleKeyword ResolveInitialKeywords(int cardNumber)
+        {
+            var cardConfig = DataApi.GetData<BattleCardCsvData>(cardNumber);
+            if (cardConfig == null)
+                return EBattleKeyword.None;
+            var typeConfig = DataApi.GetData<BattleCardTypeCsvData>(cardConfig.CardTypeId);
+            return typeConfig == null ? EBattleKeyword.None : typeConfig.InitialKeyword;
         }
     }
 
@@ -50,7 +69,8 @@ namespace Hearthstone
     {
         public readonly RunCardInstanceData[] CardInstances = new RunCardInstanceData[RunCardRules.CardStorageLength];
         public readonly int[] BattleSlotCardNumbers = new int[RunCardRules.BattleSlotCount];
-        public readonly HashSet<string> AppliedRewardBatchIds = new HashSet<string>(StringComparer.Ordinal);
+        public readonly Dictionary<string, string> AppliedRewardBatchPayloadFingerprints =
+            new Dictionary<string, string>(StringComparer.Ordinal);
         public readonly ListenableVariable<int> Revision = new ListenableVariable<int>(0);
 
         public bool HasCard(int cardNumber)
@@ -76,7 +96,7 @@ namespace Hearthstone
             Revision.MakeInvalid();
             Array.Clear(CardInstances, 0, CardInstances.Length);
             Array.Clear(BattleSlotCardNumbers, 0, BattleSlotCardNumbers.Length);
-            AppliedRewardBatchIds.Clear();
+            AppliedRewardBatchPayloadFingerprints.Clear();
             Revision.SetValue(0);
         }
     }
@@ -85,6 +105,8 @@ namespace Hearthstone
     {
         public string BatchId;
         public readonly RunCardInstanceData[] RewardCards = new RunCardInstanceData[RunCardRules.RewardGrantCount];
+        public readonly int[] FusionSlotCardNumbers = new int[RunCardRules.FusionSlotCount];
+        public readonly ListenableVariable<int> FusionRevision = new ListenableVariable<int>(0);
         public bool WasNewlyApplied;
 
         public void Initialize(PreparationRewardBatchStartupData batch, bool wasNewlyApplied)
@@ -96,12 +118,17 @@ namespace Hearthstone
                 var grant = batch.Grants[index];
                 RewardCards[index] = new RunCardInstanceData(grant.CardNumber, grant.Attack, grant.MaxHealth);
             }
+            Array.Clear(FusionSlotCardNumbers, 0, FusionSlotCardNumbers.Length);
+            FusionRevision.SetValue(0);
         }
 
         protected override void OnSingletonCollect()
         {
+            FusionRevision.MakeInvalid();
             BatchId = null;
             Array.Clear(RewardCards, 0, RewardCards.Length);
+            Array.Clear(FusionSlotCardNumbers, 0, FusionSlotCardNumbers.Length);
+            FusionRevision.SetValue(0);
             WasNewlyApplied = false;
         }
     }

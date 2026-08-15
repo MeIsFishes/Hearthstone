@@ -1,0 +1,87 @@
+
+{
+  "TypeName" : "PlaceholderSettingsData",
+  "FullTypeName" : "Hearthstone.PlaceholderSettingsData",
+  "ScriptGuid"   : "56432d9de839c3e4b8a0e53ba0b07c4f",
+  "BaseTypeName" : "BbxCommon.BbxScriptableObject",
+  "MenuName"     : "Hearthstone/Placeholder Settings",
+  "DefaultFileName" : "PlaceholderSettingsData",
+  "Fields"          : [
+    {
+      "Name" : "LoadingType",
+      "BindingMemberName" : "",
+      "DisplayName"       : "Loading Type",
+      "Tooltip"           : "",
+      "Type"              : {
+        "Kind" : "Enum",
+        "TypeName" : "BbxCommon.BbxScriptableObject+ELoadingType",
+        "ElementType" : null,
+        "EnumValues"  : [
+          "AutoLoading",
+          "GroupedByName"
+        ],
+        "EnumNumericValues" : {
+          "AutoLoading" : 0,
+          "GroupedByName" : 1
+        }
+      },
+      "Required"          : false,
+      "Unique"            : false,
+      "ReadOnly"          : false,
+      "Minimum"           : null,
+      "Maximum"           : null,
+      "ReferenceTypeName" : "",
+      "ReferenceFieldName" : "",
+      "Fields"             : [
+      ]
+    },
+    {
+      "Name" : "GroupName",
+      "BindingMemberName" : "",
+      "DisplayName"       : "Group Name",
+      "Tooltip"           : "",
+      "Type"              : {
+        "Kind" : "String",
+        "TypeName" : "System.String",
+        "ElementType" : null,
+        "EnumValues"  : [
+        ],
+        "EnumNumericValues" : {
+        }
+      },
+      "Required"          : false,
+      "Unique"            : false,
+      "ReadOnly"          : false,
+      "Minimum"           : null,
+      "Maximum"           : null,
+      "ReferenceTypeName" : "",
+      "ReferenceFieldName" : "",
+      "Fields"             : [
+      ]
+    },
+    {
+      "Name" : "ProjectDisplayName",
+      "BindingMemberName" : "",
+      "DisplayName"       : "Project Display Name",
+      "Tooltip"           : "",
+      "Type"              : {
+        "Kind" : "String",
+        "TypeName" : "System.String",
+        "ElementType" : null,
+        "EnumValues"  : [
+        ],
+        "EnumNumericValues" : {
+        }
+      },
+      "Required"          : false,
+      "Unique"            : false,
+      "ReadOnly"          : false,
+      "Minimum"           : null,
+      "Maximum"           : null,
+      "ReferenceTypeName" : "",
+      "ReferenceFieldName" : "",
+      "Fields"             : [
+      ]
+    }
+  ]
+}

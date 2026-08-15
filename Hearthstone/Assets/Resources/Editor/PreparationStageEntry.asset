@@ -15,20 +15,20 @@ MonoBehaviour:
   LoadingType: 1
   GroupName: GameStageEditorEntries
   m_DisplayName: Preparation Stage
-  m_BatchId: preparation-isolated-001
+  m_BatchId: fusion-acceptance-001
   m_RewardGrants:
-  - CardNumber: 2
-    Attack: 5
+  - CardNumber: 14
+    Attack: 2
     MaxHealth: 3
-  - CardNumber: 3
-    Attack: 4
-    MaxHealth: 4
-  - CardNumber: 5
+  - CardNumber: 20
     Attack: 3
-    MaxHealth: 5
-  - CardNumber: 6
-    Attack: 5
     MaxHealth: 4
-  - CardNumber: 7
-    Attack: 6
+  - CardNumber: 30
+    Attack: 2
+    MaxHealth: 3
+  - CardNumber: 35
+    Attack: 4
+    MaxHealth: 5
+  - CardNumber: 54
+    Attack: 4
     MaxHealth: 2

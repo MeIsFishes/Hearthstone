@@ -1,28 +1,29 @@
 # Unity MCP 故障矩阵
 
-只读取并执行与当前证据匹配的分支。A 至 H 主要针对标准 MCP for Unity；Codely Bridge 适配器未暴露时使用 I 分支。命令示例面向 Windows PowerShell；路径和版本以项目规则为准。
+只读取并执行与当前证据匹配的分支。A 至 H 主要针对标准 MCP for Unity；Codely Bridge 适配器未暴露时使用 I 分支。命令示例面向 Windows PowerShell；服务名、路径、实现和版本以实际配置与用户本次明确要求为准，项目不提供默认值。
 
 ## A. 当前会话没有 Unity MCP 工具
 
-证据：本次已经明确选择 Unity MCP 通道，并检查当前运行环境提供的完整工具目录，既没有直接 Unity 工具，也没有可发现的延迟 Unity 工具。一般 Unity Editor 任务未选择 MCP 时不进入本分支；仅在顶层提示或初始 schema 列表中没有看到 `unityMCP`，也不构成本分支证据。
+证据：用户本次已经明确要求使用或恢复 Unity MCP，并且当前运行环境的完整工具目录既没有直接 Unity 工具，也没有可发现的延迟 Unity 工具。一般 Unity Editor 任务不进入本分支；仅在顶层提示或初始 schema 列表中没有看到 Unity MCP，也不构成本分支证据。
 
 1. 先检查环境实际提供的完整工具发现机制：有 `tool_search` 时搜索 `unityMCP`；有延迟工具目录时枚举它；有 `functions.exec` / `ALL_TOOLS` 时筛选 `mcp__unityMCP__*`。这些机制并非每个客户端都有，只使用当前环境正式提供的入口。
 2. 如果发现延迟工具，读取 `manage_scene` 与 `read_console` 的实际 schema；环境支持 MCP resources 时先读取 `unityMCP` 的 instances/editor state，再执行两项只读调用。成功则退出本分支，结论应为“工具可用但未在顶层展开”，不得重载、重装或继续按缺失处理。
 3. 完整目录确实没有 Unity 工具时，运行 `codex mcp list` 和 `codex mcp get unityMCP`。
-4. 若未注册，先完成 B、C 分支，再用绝对 `uvx.exe` 路径注册。
+4. 若未注册，先识别用户要求的实际实现及其依赖；只有用户本次明确要求安装或注册时，才完成匹配的 B、C 分支并写入精确配置。
 5. 若已经启用，确认当前会话是否早于配置创建。Codex 工具目录可能在会话启动时冻结；继续发送消息或刷新环境信息不构成热加载。按 H 分支验通后端后，启动新会话验证，当前会话要求用户重载。
 6. 不得为了让旧会话出现工具而编写私有适配器或直接调用 Unity Socket。
 
-推荐 stdio 注册形态：
+仅当用户明确要求注册一个已确认使用 `uvx` 与 stdio 的标准实现时，可按实际值构造下列形态；占位符不得直接执行：
 
 ```powershell
 $uvx = '<absolute-path-to-uvx.exe>'
-codex mcp add unityMCP `
+$serverSpec = '<server-package-and-version>'
+codex mcp add <service-name> `
   --env "SystemRoot=$env:SystemRoot" `
   --env 'PYTHONUTF8=1' `
   --env 'PYTHONIOENCODING=utf-8' `
-  --env 'UNITY_MCP_DEFAULT_INSTANCE=<project-name-or-Name@hash>' `
-  -- $uvx --from 'mcpforunityserver==10.0.0' mcp-for-unity --transport stdio
+  --env '<instance-environment-variable>=<project-name-or-instance-id>' `
+  -- $uvx --from $serverSpec <server-entry> --transport stdio
 ```
 
 已存在错误配置时先用 `codex mcp remove unityMCP` 精确移除该项；不要重写整个用户 `config.toml`。
@@ -31,13 +32,8 @@ codex mcp add unityMCP `
 
 证据：`manifest.json` 没有指定包、`packages-lock.json` 仍是旧实现、PackageCache 不存在，或 Editor 日志报告 UPM 错误。
 
-1. 核对固定依赖：
-
-```json
-"com.coplaydev.unity-mcp": "https://github.com/CoplayDev/unity-mcp.git?path=/MCPForUnity#v10.0.0"
-```
-
-2. 让 Unity Package Manager 正常解析；不要复制 Git 包到 `Assets/`。
+1. 从用户本次要求和现有配置确认包名、来源与版本；项目不提供固定依赖。若项目尚未配置该包，未经用户明确授权不得自行选型或安装。
+2. 对已经确认的依赖，让 Unity Package Manager 正常解析；不要复制 Git 包到 `Assets/`。
 3. 等待脚本编译结束，检查 `error CS`、Package Manager Error 和异常。
 4. 仅当旧 Codely 目录、状态文件或锁记录仍真实存在时处理旧实现；删除前遵循项目的精确目标与授权规则。
 
@@ -46,7 +42,7 @@ codex mcp add unityMCP `
 证据：Unity 设置窗口或日志明确找不到 `uv/uvx`。
 
 1. 先运行 `Get-Command uv,uvx`；再检查用户 Python Scripts 目录，不要仅凭当前进程 PATH 失败判定未安装。
-2. 未安装时执行：
+2. 未安装时先报告缺失；只有用户本次明确授权安装该运行时时才执行：
 
 ```powershell
 python -m pip install --user --upgrade uv
@@ -119,7 +115,7 @@ read_console(action="get", types=["error"], count="5")
 
 ## I. Codely Bridge 正常但客户端适配工具未暴露
 
-证据：项目规则指定 Codely；Unity 已解析指定包，项目状态文件和 Editor Bridge 状态正常，但当前代理工具清单没有 Codely/Codex Unity Tools。
+证据：当前实际配置或用户本次要求使用 Codely；Unity 已解析对应包，项目状态文件和 Editor Bridge 状态正常，但当前代理工具清单没有 Codely/Codex Unity Tools。
 
 1. 核对 Unity Editor 正在运行、指定 Codely 包已经解析、项目根目录状态文件存在，并只从脱敏日志中确认 Bridge 已启动。
 2. Codely Editor 侧 TCP Bridge 不是可直接注册给 Codex 的标准 MCP Server。当前运行环境没有正式客户端适配工具时，必须报告“Bridge 正常、客户端适配层未暴露”。

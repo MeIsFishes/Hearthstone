@@ -1,11 +1,11 @@
 ---
 name: recover-unity-mcp
-description: 已选用Unity MCP且链路失败时诊断恢复。
+description: 用户明确要求时诊断恢复Unity MCP。
 ---
 
 # 恢复 Unity MCP
 
-本 skill 只在用户明确要求使用 Unity MCP、适用 skill 明确要求当前步骤通过 MCP 执行，或代理已经选择 MCP 作为本次操作通道时使用。一般 Unity Editor 任务不强制使用 MCP；若任务允许项目约定的其他 Editor 操作通道，不得仅因 MCP 不可用而触发恢复或判定整个任务阻塞。
+本 skill 只在用户当次明确要求使用、诊断或恢复 Unity MCP 时使用。项目 skill 和代理不得自行把 MCP 选为强制或优先通道，也不得仅因 MCP 不可用而触发本 skill 或判定一般 Unity Editor 任务阻塞。
 
 ## 恢复目标
 
@@ -13,7 +13,7 @@ description: 已选用Unity MCP且链路失败时诊断恢复。
 
 ## 执行顺序
 
-1. 先读取项目根目录 `AGENTS.md`，确认项目指定的 Unity MCP 实现、固定版本、允许的传输和资产操作边界。项目规则优先于本 skill 的示例版本。
+1. 先读取项目根目录 `AGENTS.md`，确认 Unity 资产操作边界；再从现有 MCP 配置、`Packages/manifest.json` 和 `Packages/packages-lock.json` 识别实际实现、版本与传输。项目不指定 Unity MCP 实现或版本，不得把本 skill 的示例或历史配置当作项目要求。
 2. 保护 Editor 状态。先确认 Unity 是否由用户运行、是否有未保存 Scene/Prefab/Asset；未经许可不得关闭、重启或强制终止用户正在使用的 Editor。
 3. 记录原始证据：当前会话工具清单、`codex mcp list/get`、Unity 进程、`Packages/manifest.json`、`Packages/packages-lock.json`、Editor 日志、`uv/uvx` 路径与版本。Editor 日志只提取与本次故障相关的行并脱敏；不得回显许可证、访问令牌或其他凭据。先诊断再修改。
 4. 判断故障层级：
@@ -41,24 +41,18 @@ description: 已选用Unity MCP且链路失败时诊断恢复。
 
 排查记录至少写明：检查的是顶层展示还是完整工具目录、是否发现延迟工具、`codex mcp get` 结果、initialize / `tools/list` 结果、实例发现结果、两项只读调用结果。工具数量和具体注入位置属于运行环境实现细节，不得硬编码为永久断言。
 
-## MCP for Unity 示例
+## 实现识别
 
-仅当项目规则明确采用 CoplayDev MCP for Unity 时，才使用以下链路作为核对示例；版本变化时同时核对项目规则、Unity 包与 Python Server：
+从当前项目和 Codex 的实际配置读取 Unity 包来源与版本、MCP 服务名、Server 包与版本、入口、传输及所需环境变量。项目不提供默认实现或固定值；不得为了套用故障矩阵中的命令示例而安装、替换或升级现有实现。任何安装、实现切换或版本变更都必须来自用户本次明确要求，并先核对影响范围。
 
-- Unity 包：`com.coplaydev.unity-mcp`，固定 `v10.0.0`。
-- Codex MCP 名称：`unityMCP`。
-- Python Server：`mcpforunityserver==10.0.0`，入口 `mcp-for-unity`。
-- 默认传输：stdio；Unity Editor 侧由官方 `StdioBridgeHost` 提供连接，默认端口 `6400`。
-- Windows 编码环境：`PYTHONUTF8=1`、`PYTHONIOENCODING=utf-8`。
-
-不要把这些示例值覆盖到 Codely Bridge、其他版本或 HTTP 传输的项目中。Codely Editor 侧是 TCP Bridge；若当前运行环境没有提供相应客户端适配工具，包与 Bridge 正常也不等于 Codex 已获得可调用工具。
+Codely Editor 侧是 TCP Bridge；若当前运行环境没有提供相应客户端适配工具，包与 Bridge 正常也不等于 Codex 已获得可调用工具。
 
 ## 验证闭环
 
 按顺序取得证据，全部通过后才能报告恢复成功：
 
 1. Unity 包已从 `manifest.json` 解析进 `packages-lock.json`，Editor 日志没有包解析或新增编译错误。
-2. 项目指定实现所需的运行时可被新启动的进程发现。仅在实现依赖 `uv/uvx` 时检查 Windows 用户 PATH 与当前 Codex、Unity 进程的旧 PATH 快照；MCP 配置使用绝对 `uvx.exe` 且实际启动成功时，不得仅因当前进程 `Get-Command uv` 失败而重复安装或改坏健康配置。
+2. 实际配置所需的运行时可被新启动的进程发现。仅在实现依赖 `uv/uvx` 时检查 Windows 用户 PATH 与当前 Codex、Unity 进程的旧 PATH 快照；MCP 配置使用绝对 `uvx.exe` 且实际启动成功时，不得仅因当前进程 `Get-Command uv` 失败而重复安装或改坏健康配置。
 3. 标准 MCP 实现通过 `codex mcp get <name>` 确认服务启用、命令和版本；Codely 等需要客户端适配器的实现则确认当前运行环境实际暴露了对应工具，不能用 Editor 包存在替代这一证据。
 4. 受支持的新客户端会话完成握手和工具清单读取；不要要求工具数量永久固定。
 5. Server 能发现当前 Unity 实例，并成功执行 `manage_scene(action="get_active")`。
@@ -74,6 +68,6 @@ description: 已选用Unity MCP且链路失败时诊断恢复。
 - 只读探针可执行 initialize、`tools/list`、`manage_scene(action="get_active")`、`read_console` 和不落盘的 `validate_script`；其他工具必须先确认没有副作用。在本次 MCP 恢复流程内，任何 Scene、Prefab、GameObject、组件、Play Mode、Build Settings 或资产修改都必须等待当前代理会话获得项目允许的 Unity MCP 工具。若任务允许其他 Editor 操作通道，可以退出恢复流程并改按对应项目规则执行，但不得把非 MCP 操作表述为 MCP 已恢复。
 - 无论是否使用 MCP，都不得手写 Scene、Prefab 或 `.asset` YAML。
 - 不得创建、运行或保留与恢复链路无关的 gameplay Harness 来证明 MCP 可用；源码测试与 MCP 端到端验收是两类不同证据。
-- 不得让 Codely Bridge、另一套 Unity MCP 与项目指定实现并存。发现旧实现时先确认精确目标和删除授权，再按项目规则移除。
+- 不得擅自安装另一套 Unity MCP 与当前实际配置并存。发现旧实现时先确认精确目标和删除授权；项目不要求代理主动清理或切换实现。
 - `user cancelled MCP tool call` 表示工具调用经过了 MCP 层但被审批策略阻止，不等于握手失败；不要因此重装服务。
 - 无法在不丢失用户 Editor 状态的情况下恢复时，报告已确认的断点和所需用户动作，停止破坏性尝试。

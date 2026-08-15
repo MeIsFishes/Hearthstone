@@ -1,0 +1,11 @@
+
+{
+  "TypeName" : "LocKeyCsvData",
+  "FullTypeName" : "BbxCommon.LocKeyCsvData",
+  "DataGroup"    : "",
+  "DataLoadType" : "Addition",
+  "TableNames"   : [
+  ],
+  "Columns"      : [
+  ]
+}
