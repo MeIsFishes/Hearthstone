@@ -6,7 +6,7 @@
 
 `RunStateSingletonRawComponent` 是唯一权威状态，使用编号索引数组保存 `1~99` 的持有卡实例，以长度为 3 的数组保存战斗阵容，并用 BatchId 到 canonical payload 指纹的账本记录已经应用的奖励。卡实例保存永久攻击力和永久最大生命；`Revision` 在一次有效整局写入后递增，供界面监听。
 
-正式战斗启动数据为 `BattleStageStartupData`，其中携带关卡号、一个 `PreparationRewardBatchStartupData`，并可携带显式验收 Scenario 或 Continue 点击瞬间的三槽防御性阵容快照。正常 Continue 保持 `Scenario=null`，Battle hidden commit 从快照创建 0～3 张玩家 Entity，不重读可变的 Run battle slots。奖励批次包含非空 BatchId 和恰好 5 个编号互异的 `RewardCardGrantStartupData`；每个 grant 包含卡牌编号、永久攻击力和永久最大生命。构造与跨 Stage 传递均使用防御性深拷贝。
+正式战斗启动数据为 `BattleStageStartupData`，其中携带关卡号、一个 `PreparationRewardBatchStartupData`，并可携带显式验收 Scenario 或 Continue 点击瞬间的三槽防御性阵容快照。正常 Continue 保持 `Scenario=null`，BattleStage 的初始化 LoadItem 从快照创建 0～3 张玩家 Entity，不重读可变的 Run battle slots。奖励批次包含非空 BatchId 和恰好 5 个编号互异的 `RewardCardGrantStartupData`；每个 grant 包含卡牌编号、永久攻击力和永久最大生命。构造与跨 Stage 传递均使用防御性深拷贝。
 
 ## 2. 奖励应用
 
@@ -31,9 +31,9 @@
 
 首次进入战斗时，旧默认我方编号 `{4,1,40}` 仅初始化一次并持久化到 Run state。之后玩家战斗 Entity 始终从 Run state 的三个槽位实例创建，当前生命以永久最大生命初始化；因此 99 号卡使用融合得到的永久攻血，不读取类型 6 的随机范围。敌方继续只从 `1~98` 的既有编号与类型 `1~5` 配置随机生成攻血。
 
-`BattleResultPreparationStageListener` 监听战斗结果。结果第一次离开 `InProgress` 时，监听器先设置本场切换标记，再把 Battle session 中的奖励批次交给正式 `EnterPreparationStageGroup()`，在同一次 Play 会话内自动进入备战。备战页的 Continue Button 调用 `TryEnterNextBattleStageGroup()`：它从 `BattleProgressionCsvData` 读取下一关固定结算奖励、捕获当前三槽与永久卡牌值，并只提交一次正式 Battle StageGroup 事务。
+`BattleResultPreparationStageListener` 监听战斗结果。结果第一次离开 `InProgress` 时，监听器先设置本场切换标记，再把 Battle session 中的奖励批次交给正式 `EnterPreparationStageGroup()`，在同一次 Play 会话内自动进入备战。备战页的 Continue Button 调用 `TryEnterNextBattleStageGroup()`：它从 `BattleProgressionCsvData` 读取下一关固定结算奖励、捕获当前三槽与永久卡牌值，并只发起一次正式 Battle StageGroup 切换。
 
-`HearthstoneStageGroupTransitionCoordinator` 明确记录 requested、loading、active 三种状态。相同 Group/完整 canonical key 在加载期间会被合并；Battle key 包含关卡号、奖励 payload、Scenario 或 Continue 三槽快照。冲突请求只保留最新请求，并在统一事务结果回调后再提交下一完整 StageGroup；失败恢复原 Active Group 与 Idle 按钮状态，允许同一目标重试。
+`HearthstoneStageGroupTransitionCoordinator` 明确记录 requested、loading、active 三种状态。相同 Group/完整 canonical key 在加载期间会被合并；Battle key 包含关卡号、奖励 payload、Scenario 或 Continue 三槽快照。冲突请求只保留最新请求，并在当前 StageGroup 加载完成后再提交下一完整 StageGroup。底层沿用 `GameEngineBase` 的普通切换顺序：反向卸载不再需要的业务 Stage，再正向加载目标 Stage。
 
 ## 5. 主要文件
 

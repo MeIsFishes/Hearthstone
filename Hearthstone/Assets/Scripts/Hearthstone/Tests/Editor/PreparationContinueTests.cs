@@ -52,7 +52,7 @@ namespace Hearthstone.Tests
         }
 
         [Test]
-        public void Coordinator_DeduplicatesPendingAndAllowsRetryAfterFailure()
+        public void Coordinator_DeduplicatesPendingRequestUntilCompletion()
         {
             var coordinator = new HearthstoneStageGroupTransitionCoordinator();
             Assert.IsTrue(coordinator.Request(EHearthstoneStageGroup.Preparation, "prep"));
@@ -62,11 +62,12 @@ namespace Hearthstone.Tests
             Assert.IsTrue(coordinator.Request(EHearthstoneStageGroup.Battle, "battle-2"));
             Assert.IsFalse(coordinator.Request(EHearthstoneStageGroup.Battle, "battle-2"));
             Assert.IsTrue(coordinator.TryBeginTransition(out group, out key));
-            coordinator.FailTransition(group, key);
+            coordinator.CompleteTransition(group, key);
 
-            Assert.AreEqual(EHearthstoneStageGroup.Preparation, coordinator.ActiveGroup);
+            Assert.AreEqual(EHearthstoneStageGroup.Battle, coordinator.ActiveGroup);
             Assert.AreEqual(EStageGroupTransitionPhase.Active, coordinator.Phase);
-            Assert.IsTrue(coordinator.Request(EHearthstoneStageGroup.Battle, "battle-2"));
+            Assert.IsFalse(coordinator.Request(EHearthstoneStageGroup.Battle, "battle-2"));
+            Assert.IsFalse(coordinator.TryBeginTransition(out _, out _));
         }
 
         private static PreparationRewardBatchStartupData CreateRewardBatch()

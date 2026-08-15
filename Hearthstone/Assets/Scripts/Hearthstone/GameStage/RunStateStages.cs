@@ -14,18 +14,8 @@ namespace Hearthstone
             return stage;
         }
 
-        public sealed class InitializeRunStateRuntime : ITransactionalStageLoad
+        public sealed class InitializeRunStateRuntime : IStageLoad
         {
-            public void Validate(GameStage stage, GameStageTransitionContext context)
-            {
-                if (EcsApi.GetSingletonRawComponent<RunStateSingletonRawComponent>() != null)
-                    throw new InvalidOperationException("RunStateSingletonRawComponent already exists.");
-                if (EcsApi.GetSingletonRawComponent<RunProgressionSingletonRawComponent>() != null)
-                    throw new InvalidOperationException("RunProgressionSingletonRawComponent already exists.");
-            }
-
-            public void Prepare(GameStage stage, GameStageTransitionContext context) { }
-
             public void Load(GameStage stage)
             {
                 if (EcsApi.GetSingletonRawComponent<RunStateSingletonRawComponent>() != null)
@@ -51,8 +41,6 @@ namespace Hearthstone
                 EcsApi.RemoveSingletonRawComponent<RunProgressionSingletonRawComponent>();
                 EcsApi.RemoveSingletonRawComponent<RunStateSingletonRawComponent>();
             }
-
-            public void Rollback(GameStage stage, GameStageTransitionContext context) => Unload(stage);
         }
     }
 }

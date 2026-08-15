@@ -84,23 +84,6 @@ namespace Hearthstone
                 : EStageGroupTransitionPhase.Requested;
         }
 
-        public void FailTransition(EHearthstoneStageGroup group, string key)
-        {
-            if (!IsLoading || m_LoadingGroup != group ||
-                !string.Equals(m_LoadingKey, key, StringComparison.Ordinal))
-            {
-                throw new InvalidOperationException("Failed stage group does not match the loading request.");
-            }
-
-            m_LoadingGroup = EHearthstoneStageGroup.None;
-            m_LoadingKey = null;
-            RequestedGroup = ActiveGroup;
-            RequestedKey = ActiveKey;
-            Phase = ActiveGroup == EHearthstoneStageGroup.None
-                ? EStageGroupTransitionPhase.None
-                : EStageGroupTransitionPhase.Active;
-        }
-
         private bool MatchesActive(EHearthstoneStageGroup group, string key)
         {
             return ActiveGroup == group && string.Equals(ActiveKey, key, StringComparison.Ordinal);
@@ -121,7 +104,6 @@ namespace Hearthstone
         private readonly HearthstoneStageGroupTransitionCoordinator m_StageGroupCoordinator = new();
         private EHearthstoneStageGroup m_LoadingGroup;
         private string m_LoadingRequestKey;
-        private long m_LoadingFrameworkAttemptId;
         private BattleStageStartupData m_LoadingBattleStartupData;
         private PreparationContinueTransactionSnapshot m_ContinueSnapshot;
         private long m_NextContinueAttemptId;
@@ -240,38 +222,19 @@ namespace Hearthstone
             TrySubmitRequestedStageGroup();
         }
 
-        protected override void OnStageTransitionCompleted(
-            GameStageTransitionResult result,
-            IReadOnlyList<GameStage> activeStages)
+        protected override void OnStageLoadingCompleted(IReadOnlyList<GameStage> activeStages)
         {
             if (!m_StageGroupCoordinator.IsLoading)
                 return;
-            if (result.AttemptId != m_LoadingFrameworkAttemptId)
-                return;
+            if (!ContainsStage(activeStages, m_LoadingStage))
+                throw new InvalidOperationException("The requested Hearthstone stage group did not become active.");
 
-            if (result.IsCommitted)
-            {
-                if (!ContainsStage(activeStages, m_LoadingStage))
-                    throw new InvalidOperationException("The requested Hearthstone stage group did not become active.");
-                m_StageGroupCoordinator.CompleteTransition(m_LoadingGroup, m_LoadingRequestKey);
-                CommitProgressionAfterTransition(result);
-            }
-            else
-            {
-                m_StageGroupCoordinator.FailTransition(m_LoadingGroup, m_LoadingRequestKey);
-                var continueState = EcsApi.GetSingletonRawComponent<PreparationContinueSingletonRawComponent>();
-                continueState?.State.SetValue(EPreparationContinueState.Idle);
-                DebugApi.LogError(
-                    $"[PreparationContinue] Action=RolledBack Result={EPreparationContinueResult.TargetLoadFailed} " +
-                    $"AttemptId={CurrentContinueAttemptId} FrameworkAttemptId={result.AttemptId} " +
-                    $"FailurePhase={result.FailurePhase} Failure={result.Failure?.Message} " +
-                    $"RollbackErrors={result.RollbackErrors.Count}");
-            }
+            m_StageGroupCoordinator.CompleteTransition(m_LoadingGroup, m_LoadingRequestKey);
+            CommitProgressionAfterStageLoad();
             m_LoadingStage = null;
             m_LoadingBattleStartupData = null;
             m_LoadingGroup = EHearthstoneStageGroup.None;
             m_LoadingRequestKey = null;
-            m_LoadingFrameworkAttemptId = 0;
             TrySubmitRequestedStageGroup();
         }
 
@@ -290,14 +253,14 @@ namespace Hearthstone
                     m_BattleStage = BattleStages.CreateBattleStage(this, m_RequestedBattleStartupData.CreateSnapshot());
                     m_LoadingBattleStartupData = m_RequestedBattleStartupData.CreateSnapshot();
                     m_LoadingStage = m_BattleStage;
-                    m_LoadingFrameworkAttemptId = StageWrapper.SetActiveGameStage(m_RunStateStage, m_BattleStage);
+                    StageWrapper.SetActiveGameStage(m_RunStateStage, m_BattleStage);
                     break;
                 case EHearthstoneStageGroup.Preparation:
                     if (m_RequestedPreparationBatch == null)
                         throw new InvalidOperationException("Requested Preparation batch is missing.");
                     m_PreparationStage = PreparationStages.CreatePreparationStage(this, m_RequestedPreparationBatch.CreateSnapshot());
                     m_LoadingStage = m_PreparationStage;
-                    m_LoadingFrameworkAttemptId = StageWrapper.SetActiveGameStage(m_RunStateStage, m_PreparationStage);
+                    StageWrapper.SetActiveGameStage(m_RunStateStage, m_PreparationStage);
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(group));
@@ -371,7 +334,7 @@ namespace Hearthstone
             return result;
         }
 
-        private void CommitProgressionAfterTransition(GameStageTransitionResult result)
+        private void CommitProgressionAfterStageLoad()
         {
             var progression = EcsApi.GetSingletonRawComponent<RunProgressionSingletonRawComponent>();
             if (progression == null)
@@ -383,14 +346,11 @@ namespace Hearthstone
             if (progression.CurrentBattleNumber != battleNumber)
                 progression.CommitBattle(battleNumber);
 
-            var resultValue = result.Status == EGameStageTransitionStatus.CommittedWithCleanupErrors
-                ? EPreparationContinueResult.CommittedWithCleanupErrors
-                : EPreparationContinueResult.Committed;
             DebugApi.Log(
-                $"[PreparationContinue] Action=TransitionSettled Result={resultValue} AttemptId={CurrentContinueAttemptId} " +
-                $"FrameworkAttemptId={result.AttemptId} Group={m_LoadingGroup} BattleNumber={progression.CurrentBattleNumber} " +
+                $"[PreparationContinue] Action=StageGroupLoaded Result={EPreparationContinueResult.Committed} " +
+                $"AttemptId={CurrentContinueAttemptId} Group={m_LoadingGroup} BattleNumber={progression.CurrentBattleNumber} " +
                 $"BattleStageCreationCount={progression.BattleStageCreationCount} ProgressionRevision={progression.Revision} " +
-                $"CleanupErrors={result.CleanupErrors.Count}");
+                $"RequestedKey={m_LoadingRequestKey}");
         }
     }
 }

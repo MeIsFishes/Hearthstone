@@ -9,9 +9,7 @@ namespace Hearthstone
         InvalidStage,
         InvalidRuntimeState,
         InvalidProgressionConfig,
-        TargetLoadFailed,
         Committed,
-        CommittedWithCleanupErrors,
     }
 
     public sealed class PreparationContinueTransactionSnapshot

@@ -177,8 +177,7 @@ namespace BbxCommon
             public GameStage CreateStage<T>(string stageName) where T : GameStage, new() => m_Ref.CreateStage<T>(stageName);
             public void LoadStage(GameStage stage) => m_Ref.LoadStage(stage);
             public void UnloadStage(GameStage stage) => m_Ref.UnloadStage(stage);
-            public long SetActiveGameStage(params GameStage[] stages) => m_Ref.SetActiveGameStage(stages);
-            public GameStageTransitionResult LastTransitionResult => m_Ref.m_LastStageTransitionResult;
+            public void SetActiveGameStage(params GameStage[] stages) => m_Ref.SetActiveGameStage(stages);
         }
         #endregion
 
@@ -211,18 +210,6 @@ namespace BbxCommon
         /// appended to the operation list that has just completed.
         /// </summary>
         protected virtual void OnStageLoadingCompleted(IReadOnlyList<GameStage> activeStages) { }
-
-        /// <summary>
-        /// Called exactly once for every settled transition attempt, including rollback.
-        /// The compatibility callback above is invoked only for committed results.
-        /// </summary>
-        protected virtual void OnStageTransitionCompleted(
-            GameStageTransitionResult result,
-            IReadOnlyList<GameStage> activeStages)
-        {
-            if (result.IsCommitted)
-                OnStageLoadingCompleted(activeStages);
-        }
 
         private void Update()
         {
@@ -358,13 +345,28 @@ namespace BbxCommon
         #endregion
 
         #region GameStage
+        private enum EOperateStage
+        {
+            Load,
+            Unload,
+        }
+
+        private struct OperateStage
+        {
+            public GameStage Stage;
+            public EOperateStage OperateType;
+
+            public OperateStage(GameStage stage, EOperateStage operateType)
+            {
+                Stage = stage;
+                OperateType = operateType;
+            }
+        }
+
         private List<GameStage> m_EnabledStages = new();
-        private List<GameStage> m_RequestedStages = new();
+        private List<OperateStage> m_OperateStages = new();
         // Framework systems must remain active while business stages are swapped.
         private GameStage m_GameEngineStage;
-        private long m_NextStageTransitionAttemptId;
-        private long m_PendingStageTransitionAttemptId;
-        private GameStageTransitionResult m_LastStageTransitionResult;
 
         List<GameStage> IGameEngine.GetEnabledGameStage()
         {
@@ -402,7 +404,7 @@ namespace BbxCommon
             return false;
         }
 
-        public GameStage CreateStage(string stageName)
+    public GameStage CreateStage(string stageName)
         {
             return new GameStage(stageName, m_EcsWorld);
         }
@@ -419,78 +421,31 @@ namespace BbxCommon
 
         private void LoadStage(GameStage stage)
         {
-            if (stage == null)
-                throw new ArgumentNullException(nameof(stage));
-            var requested = GetMutableRequestedStageSnapshot();
-            if (!requested.Contains(stage))
-                requested.Add(stage);
-            QueueStageSet(requested);
+            m_OperateStages.Add(new OperateStage(stage, EOperateStage.Load));
+            m_StageIsDirty = true;
         }
 
         private void UnloadStage(GameStage stage)
         {
-            if (stage == null)
-                throw new ArgumentNullException(nameof(stage));
-            if (ReferenceEquals(stage, m_GameEngineStage))
-                throw new InvalidOperationException("The framework Game Engine Stage cannot be unloaded explicitly.");
-            var requested = GetMutableRequestedStageSnapshot();
-            requested.Remove(stage);
-            QueueStageSet(requested);
-        }
-
-        private long SetActiveGameStage(params GameStage[] stages)
-        {
-            if (stages == null)
-                throw new ArgumentNullException(nameof(stages));
-
-            var requested = new List<GameStage>(stages.Length + 1);
-            if (m_GameEngineStage != null)
-                requested.Add(m_GameEngineStage);
-            for (int i = 0; i < stages.Length; i++)
-            {
-                var stage = stages[i];
-                if (stage == null)
-                    throw new ArgumentException("A stage group cannot contain null.", nameof(stages));
-                if (!requested.Contains(stage))
-                    requested.Add(stage);
-                else if (!ReferenceEquals(stage, m_GameEngineStage))
-                    throw new ArgumentException($"Stage '{stage.StageName}' is duplicated in the requested group.", nameof(stages));
-            }
-
-            return QueueStageSet(requested);
-        }
-
-        private List<GameStage> GetMutableRequestedStageSnapshot()
-        {
-            if (m_StageIsDirty && m_RequestedStages.Count > 0)
-                return new List<GameStage>(m_RequestedStages);
-            return new List<GameStage>(m_EnabledStages);
-        }
-
-        private long QueueStageSet(List<GameStage> stages)
-        {
-            if (StageSetsEqual(m_RequestedStages, stages) && (m_StageIsDirty || m_IsLoading))
-                return m_PendingStageTransitionAttemptId;
-            if (!m_IsLoading && StageSetsEqual(m_EnabledStages, stages))
-                return m_LastStageTransitionResult?.AttemptId ?? 0;
-
-            m_RequestedStages.Clear();
-            m_RequestedStages.AddRange(stages);
-            m_PendingStageTransitionAttemptId = ++m_NextStageTransitionAttemptId;
+            m_OperateStages.Add(new OperateStage(stage, EOperateStage.Unload));
             m_StageIsDirty = true;
-            return m_PendingStageTransitionAttemptId;
         }
 
-        private static bool StageSetsEqual(IReadOnlyList<GameStage> left, IReadOnlyList<GameStage> right)
+        private void SetActiveGameStage(params GameStage[] stages)
         {
-            if (left.Count != right.Count)
-                return false;
-            for (int i = 0; i < left.Count; i++)
+            for (int i = m_EnabledStages.Count - 1; i >= 0; i--)
             {
-                if (!ReferenceEquals(left[i], right[i]))
-                    return false;
+                if (ReferenceEquals(m_EnabledStages[i], m_GameEngineStage))
+                    continue;
+
+                if (System.Array.IndexOf(stages, m_EnabledStages[i]) < 0)
+                    UnloadStage(m_EnabledStages[i]);
             }
-            return true;
+            foreach (var stage in stages)
+            {
+                if (!stage.Loaded)
+                    LoadStage(stage);
+            }
         }
 
         private void OnAwakeStage()
@@ -503,213 +458,97 @@ namespace BbxCommon
         {
             m_IsLoading = true;
             m_LoadingController?.Show();
-            var targetStages = new List<GameStage>(m_RequestedStages);
-            var attemptId = m_PendingStageTransitionAttemptId;
-            var oldStages = new List<GameStage>(m_EnabledStages);
-            var stagesToLoad = new List<GameStage>();
-            var stagesToUnload = new List<GameStage>();
-            var contexts = new Dictionary<GameStage, GameStageTransitionContext>();
-            var preparedStages = new List<GameStage>();
-            var suspendedStages = new List<GameStage>();
-            var rollbackErrors = new List<Exception>();
-            var cleanupErrors = new List<Exception>();
-            Exception failure = null;
-            var phase = EGameStageTransitionPhase.Validate;
-            var failurePhase = EGameStageTransitionPhase.None;
-            bool published = false;
-
-            for (int i = 0; i < targetStages.Count; i++)
+            var loadingTimeData = DataApi.GetData<LoadingTimeData>();
+            if (loadingTimeData == null)
             {
-                if (!targetStages[i].Loaded)
-                    stagesToLoad.Add(targetStages[i]);
+                loadingTimeData = Resources.Load<LoadingTimeData>(BbxVar.ExportLoadingTimeDataPath);
+#if UNITY_EDITOR
+                if (loadingTimeData == null)
+                {
+                    loadingTimeData = ResourceApi.EditorOperation.LoadOrCreateAssetInResources<LoadingTimeData>(
+                        BbxVar.ExportLoadingTimeDataPath);
+                }
+#endif
+                if (loadingTimeData == null)
+                {
+                    throw new InvalidOperationException(
+                        $"Required loading-time data was not found at Resources/{BbxVar.ExportLoadingTimeDataPath}.");
+                }
+                DataApi.SetData(loadingTimeData);
             }
-            for (int i = oldStages.Count - 1; i >= 0; i--)
+            SetStageLoadingWeight();
+            // unload stage
+            for (int i = 0; i < m_OperateStages.Count; i++)
             {
-                if (!targetStages.Contains(oldStages[i]) && !ReferenceEquals(oldStages[i], m_GameEngineStage))
-                    stagesToUnload.Add(oldStages[i]);
-            }
-
-            // Transitions away from an active business group use the strict contract. The
-            // initial engine/bootstrap load stays compatible, but uses this same scheduler.
-            bool strict = false;
-            for (int i = 0; i < oldStages.Count; i++)
-            {
-                if (!ReferenceEquals(oldStages[i], m_GameEngineStage))
+                if (m_OperateStages[i].OperateType == EOperateStage.Unload)
                 {
-                    strict = true;
-                    break;
-                }
-            }
-
-            LoadingTimeData loadingTimeData = null;
-            try
-            {
-                loadingTimeData = EnsureLoadingTimeData();
-                SetStageLoadingWeight(stagesToLoad, stagesToUnload, loadingTimeData);
-
-                phase = EGameStageTransitionPhase.Validate;
-                for (int i = 0; i < stagesToLoad.Count; i++)
-                {
-                    var context = new GameStageTransitionContext(attemptId, strict)
-                    {
-                        Phase = phase,
-                    };
-                    contexts.Add(stagesToLoad[i], context);
-                    stagesToLoad[i].ValidateTransition(context);
-                }
-
-                phase = EGameStageTransitionPhase.Prepare;
-                for (int i = 0; i < stagesToLoad.Count; i++)
-                {
-                    var stage = stagesToLoad[i];
-                    contexts[stage].Phase = phase;
-                    preparedStages.Add(stage);
-                    stage.PrepareTransition(contexts[stage]);
-                }
-
-                phase = EGameStageTransitionPhase.SuspendOld;
-                for (int i = 0; i < stagesToUnload.Count; i++)
-                {
-                    var suspendErrors = new List<Exception>();
-                    stagesToUnload[i].Suspend(suspendErrors);
-                    suspendedStages.Add(stagesToUnload[i]);
-                    if (suspendErrors.Count > 0)
-                        throw new AggregateException($"Stage '{stagesToUnload[i].StageName}' could not be suspended.", suspendErrors);
-                }
-
-                phase = EGameStageTransitionPhase.CommitTargetHidden;
-                for (int i = 0; i < stagesToLoad.Count; i++)
-                {
-                    var stage = stagesToLoad[i];
-                    contexts[stage].Phase = phase;
-                    await stage.CommitTransitionHidden(contexts[stage]);
-                }
-
-                phase = EGameStageTransitionPhase.PublishTarget;
-                for (int i = 0; i < stagesToLoad.Count; i++)
-                {
-                    var stage = stagesToLoad[i];
-                    contexts[stage].Phase = phase;
-                    stage.PublishTransition(contexts[stage]);
-                }
-
-                // Publication of the entire group is atomic from the engine's public view.
-                m_EnabledStages.Clear();
-                m_EnabledStages.AddRange(targetStages);
-                published = true;
-                for (int i = 0; i < stagesToLoad.Count; i++)
-                    stagesToLoad[i].CompleteTransition(contexts[stagesToLoad[i]]);
-
-                phase = EGameStageTransitionPhase.UnloadOld;
-                for (int i = 0; i < stagesToUnload.Count; i++)
-                {
-                    var stage = stagesToUnload[i];
+                    var stage = m_OperateStages[i].Stage;
                     var key = stage.StageName + ".Unload";
                     var sampler = DebugApi.BeginSample(key);
-                    try { stage.UnloadBestEffort(cleanupErrors); }
-                    finally { sampler.EndSample(); }
-                    if (loadingTimeData != null)
-                    {
-                        GameEngineFacade.SetLoadingWeight(loadingTimeData.GetLoadingTime(key));
+                    stage.UnloadStage();
+                    m_EnabledStages.Remove(stage);
+                    sampler.EndSample();
+                    GameEngineFacade.SetLoadingWeight(loadingTimeData.GetLoadingTime(key));
 #if UNITY_EDITOR
-                        loadingTimeData.SetLoadingTime(key, sampler.TimeNs);
+                    loadingTimeData.SetLoadingTime(key, sampler.TimeNs);
 #endif
-                    }
                     await UniTask.NextFrame();
                 }
             }
-            catch (Exception exception)
+            // load stage
+            for (int i = 0; i < m_OperateStages.Count; i++)
             {
-                DebugApi.LogException(exception);
-                if (published)
+                if (m_OperateStages[i].OperateType == EOperateStage.Load)
                 {
-                    // Publication is the commit point. Never report rollback or revive a
-                    // potentially half-destroyed old group after crossing it.
-                    cleanupErrors.Add(exception);
-                }
-                else
-                {
-                    failure = exception;
-                    failurePhase = phase;
-                    for (int i = preparedStages.Count - 1; i >= 0; i--)
+                    try
                     {
-                        var stage = preparedStages[i];
-                        stage.RollbackTransition(contexts[stage], rollbackErrors);
+                        await m_OperateStages[i].Stage.LoadStage();
                     }
-                    for (int i = suspendedStages.Count - 1; i >= 0; i--)
-                        suspendedStages[i].Resume(rollbackErrors);
+                    catch (Exception e)
+                    {
+                        DebugApi.LogException(e);
+                    }
+                    m_EnabledStages.Add(m_OperateStages[i].Stage);
                 }
             }
-
-            var result = new GameStageTransitionResult
-            {
-                AttemptId = attemptId,
-                Status = failure != null
-                    ? EGameStageTransitionStatus.RolledBack
-                    : cleanupErrors.Count > 0
-                        ? EGameStageTransitionStatus.CommittedWithCleanupErrors
-                        : EGameStageTransitionStatus.Committed,
-                FailurePhase = failurePhase,
-                Failure = failure,
-                RollbackErrors = rollbackErrors.ToArray(),
-                CleanupErrors = cleanupErrors.ToArray(),
-            };
-            m_LastStageTransitionResult = result;
-
+            m_OperateStages.Clear();
             m_LoadingController?.Hide();
 #if UNITY_EDITOR
-            if (loadingTimeData != null)
-                ResourceApi.EditorOperation.SetDirtyAndSave(loadingTimeData);
+            ResourceApi.EditorOperation.SetDirtyAndSave(loadingTimeData);
 #endif
             m_IsLoading = false;
-            OnStageTransitionCompleted(result, m_EnabledStages);
+            OnStageLoadingCompleted(m_EnabledStages);
             if (m_StageIsDirty)
                 OnUpdateStage();
         }
 
-        private LoadingTimeData EnsureLoadingTimeData()
+        private void SetStageLoadingWeight()
         {
+            if (m_OperateStages.Count == 0)
+            {
+                return;
+            }
+
             var loadingTimeData = DataApi.GetData<LoadingTimeData>();
-            if (loadingTimeData != null)
-                return loadingTimeData;
-
-            loadingTimeData = Resources.Load<LoadingTimeData>(BbxVar.ExportLoadingTimeDataPath);
-#if UNITY_EDITOR
-            if (loadingTimeData == null)
-            {
-                loadingTimeData = ResourceApi.EditorOperation.LoadOrCreateAssetInResources<LoadingTimeData>(
-                    BbxVar.ExportLoadingTimeDataPath);
-            }
-#endif
-            if (loadingTimeData == null)
-            {
-                throw new InvalidOperationException(
-                    $"Required loading-time data was not found at Resources/{BbxVar.ExportLoadingTimeDataPath}.");
-            }
-            DataApi.SetData(loadingTimeData);
-            return loadingTimeData;
-        }
-
-        private void SetStageLoadingWeight(
-            IReadOnlyList<GameStage> stagesToLoad,
-            IReadOnlyList<GameStage> stagesToUnload,
-            LoadingTimeData loadingTimeData)
-        {
             long totalLoadingTime = 0;
-            foreach (var stage in stagesToLoad)
+            foreach (var operate in m_OperateStages)
             {
-                foreach (var pair in loadingTimeData.LoadingItemTimeDic)
+                var stage = operate.Stage;
+                if (operate.OperateType == EOperateStage.Load)
                 {
-                    if (pair.Key.StartsWith(stage.StageName + ".Load"))
-                        totalLoadingTime += pair.Value;
+                    foreach (var pair in loadingTimeData.LoadingItemTimeDic)
+                    {
+                        if (pair.Key.StartsWith(stage.StageName + ".Load"))
+                            totalLoadingTime += pair.Value;
+                    }
                 }
-            }
-            foreach (var stage in stagesToUnload)
-            {
-                foreach (var pair in loadingTimeData.LoadingItemTimeDic)
+                else if (operate.OperateType == EOperateStage.Unload)
                 {
-                    if (pair.Key.StartsWith(stage.StageName + ".Unload"))
-                        totalLoadingTime += pair.Value;
+                    foreach (var pair in loadingTimeData.LoadingItemTimeDic)
+                    {
+                        if (pair.Key.StartsWith(stage.StageName + ".Unload"))
+                            totalLoadingTime += pair.Value;
+                    }
                 }
             }
             GameEngineFacade.SetTotalLoadingWeight(totalLoadingTime);

@@ -48,19 +48,8 @@ namespace Hearthstone
             stage.SetUiScene(uiScene, uiSceneAsset);
         }
 
-        public sealed class InitializeBattleRuntime : ITransactionalStageLoad
+        public sealed class InitializeBattleRuntime : IStageLoad
         {
-            public void Validate(GameStage stage, GameStageTransitionContext context)
-            {
-                var startupData = stage.GetStageData(BattleStartupDataKey) as BattleStageStartupData;
-                if (startupData == null)
-                    throw new InvalidOperationException("BattleStage startup data is missing or invalid.");
-                if (startupData.BattleNumber <= 0)
-                    throw new InvalidOperationException("BattleStage battle number must be positive.");
-            }
-
-            public void Prepare(GameStage stage, GameStageTransitionContext context) { }
-
             public void Load(GameStage stage)
             {
                 var startupData = stage.GetStageData(BattleStartupDataKey) as BattleStageStartupData;
@@ -107,8 +96,6 @@ namespace Hearthstone
                 DestroyCards(session.EnemyCards);
                 EcsApi.RemoveSingletonRawComponent<BattleSessionSingletonRawComponent>();
             }
-
-            public void Rollback(GameStage stage, GameStageTransitionContext context) => Unload(stage);
 
             private static void EnsureInitialPlayerLineup(
                 RunStateSingletonRawComponent runState,

@@ -46,23 +46,8 @@ namespace Hearthstone
             stage.SetUiScene(engine.GetOrCreateUiScene<PreparationUiScene>(), asset);
         }
 
-        public sealed class InitializePreparationRuntime : ITransactionalStageLoad
+        public sealed class InitializePreparationRuntime : IStageLoad
         {
-            private GameStageTransitionContext m_TransitionContext;
-
-            public void Validate(GameStage stage, GameStageTransitionContext context)
-            {
-                var batch = stage.GetStageData(PreparationStartupDataKey) as PreparationRewardBatchStartupData;
-                if (batch == null)
-                    throw new InvalidOperationException("PreparationStage reward batch is missing or invalid.");
-                ValidateGrantReferences(batch);
-            }
-
-            public void Prepare(GameStage stage, GameStageTransitionContext context)
-            {
-                m_TransitionContext = context ?? throw new ArgumentNullException(nameof(context));
-            }
-
             public void Load(GameStage stage)
             {
                 var batch = stage.GetStageData(PreparationStartupDataKey) as PreparationRewardBatchStartupData;
@@ -78,27 +63,13 @@ namespace Hearthstone
                 if (EcsApi.GetSingletonRawComponent<PreparationContinueSingletonRawComponent>() != null)
                     throw new InvalidOperationException("Preparation continue state already exists.");
 
-                var runStateBefore = RunStateValueSnapshot.Capture(runState);
-                ERewardBatchApplyResult result;
-                PreparationSessionSingletonRawComponent session = null;
-                try
-                {
-                    result = RunCardRules.ApplyRewardBatch(runState, batch);
-                    session = EcsApi.AddSingletonRawComponent<PreparationSessionSingletonRawComponent>();
-                    if (session == null)
-                        throw new InvalidOperationException("Unable to create PreparationSessionSingletonRawComponent.");
-                    session.Initialize(batch, result == ERewardBatchApplyResult.Applied);
-                    if (EcsApi.AddSingletonRawComponent<PreparationContinueSingletonRawComponent>() == null)
-                        throw new InvalidOperationException("Unable to create PreparationContinueSingletonRawComponent.");
-                    m_TransitionContext?.RegisterCompensation(() => runStateBefore.Restore(runState));
-                }
-                catch
-                {
-                    EcsApi.RemoveSingletonRawComponent<PreparationContinueSingletonRawComponent>();
-                    EcsApi.RemoveSingletonRawComponent<PreparationSessionSingletonRawComponent>();
-                    runStateBefore.Restore(runState);
-                    throw;
-                }
+                var result = RunCardRules.ApplyRewardBatch(runState, batch);
+                var session = EcsApi.AddSingletonRawComponent<PreparationSessionSingletonRawComponent>();
+                if (session == null)
+                    throw new InvalidOperationException("Unable to create PreparationSessionSingletonRawComponent.");
+                session.Initialize(batch, result == ERewardBatchApplyResult.Applied);
+                if (EcsApi.AddSingletonRawComponent<PreparationContinueSingletonRawComponent>() == null)
+                    throw new InvalidOperationException("Unable to create PreparationContinueSingletonRawComponent.");
                 DebugApi.Log(
                     $"[PreparationContinue] StageInitialize Stage=PreparationStage " +
                     $"StageId={RuntimeHelpers.GetHashCode(stage)} SessionId={RuntimeHelpers.GetHashCode(session)} " +
@@ -139,13 +110,6 @@ namespace Hearthstone
                     return;
                 }
                 EcsApi.RemoveSingletonRawComponent<PreparationSessionSingletonRawComponent>();
-            }
-
-            public void Rollback(GameStage stage, GameStageTransitionContext context)
-            {
-                EcsApi.RemoveSingletonRawComponent<PreparationContinueSingletonRawComponent>();
-                EcsApi.RemoveSingletonRawComponent<PreparationSessionSingletonRawComponent>();
-                m_TransitionContext = null;
             }
 
             private static string FormatRewardCards(PreparationSessionSingletonRawComponent session)
@@ -196,36 +160,6 @@ namespace Hearthstone
                 }
             }
 
-            private sealed class RunStateValueSnapshot
-            {
-                private readonly RunCardInstanceData[] m_Cards;
-                private readonly int[] m_BattleSlots;
-                private readonly System.Collections.Generic.Dictionary<string, string> m_AppliedBatches;
-                private readonly int m_Revision;
-
-                private RunStateValueSnapshot(RunStateSingletonRawComponent runState)
-                {
-                    m_Cards = (RunCardInstanceData[])runState.CardInstances.Clone();
-                    m_BattleSlots = (int[])runState.BattleSlotCardNumbers.Clone();
-                    m_AppliedBatches = new System.Collections.Generic.Dictionary<string, string>(
-                        runState.AppliedRewardBatchPayloadFingerprints,
-                        StringComparer.Ordinal);
-                    m_Revision = runState.Revision.Value;
-                }
-
-                internal static RunStateValueSnapshot Capture(RunStateSingletonRawComponent runState) =>
-                    new RunStateValueSnapshot(runState);
-
-                internal void Restore(RunStateSingletonRawComponent runState)
-                {
-                    Array.Copy(m_Cards, runState.CardInstances, m_Cards.Length);
-                    Array.Copy(m_BattleSlots, runState.BattleSlotCardNumbers, m_BattleSlots.Length);
-                    runState.AppliedRewardBatchPayloadFingerprints.Clear();
-                    foreach (var pair in m_AppliedBatches)
-                        runState.AppliedRewardBatchPayloadFingerprints.Add(pair.Key, pair.Value);
-                    runState.Revision.SetValue(m_Revision);
-                }
-            }
         }
     }
 }
