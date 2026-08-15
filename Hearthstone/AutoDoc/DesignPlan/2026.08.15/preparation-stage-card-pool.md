@@ -1,6 +1,8 @@
 title: 备战阶段卡池编成
-state: In Design
+state: Completed
 priority: P0
+plan: AutoDoc/DesignPlan/Plan/preparation-stage-card-pool-plan.md
+review: AutoDoc/DesignPlan/Review/preparation-stage-card-pool-review.md
 
 ## 1. 需求简述
 

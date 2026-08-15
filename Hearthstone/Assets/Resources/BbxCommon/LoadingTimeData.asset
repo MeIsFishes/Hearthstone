@@ -36,3 +36,27 @@ MonoBehaviour:
       Value: 10600
     - Key: BattleStage.Load.Other
       Value: 33200
+    - Key: RunStateStage.Load.InitializeRunStateRuntime
+      Value: 2093900
+    - Key: RunStateStage.Load.Scene
+      Value: 500
+    - Key: RunStateStage.Load.UI
+      Value: 200
+    - Key: RunStateStage.Load.Data
+      Value: 7000
+    - Key: RunStateStage.Load.Other
+      Value: 18900
+    - Key: BattleStage.Unload
+      Value: 1212300
+    - Key: PreparationStage.Load.InitializePreparationRuntime
+      Value: 404700
+    - Key: PreparationStage.Load.Scene
+      Value: 1100
+    - Key: PreparationStage.Load.UI
+      Value: 22149200
+    - Key: PreparationStage.Load.Data
+      Value: 10600
+    - Key: PreparationStage.Load.Other
+      Value: 27300
+    - Key: PreparationStage.Unload
+      Value: 111628000

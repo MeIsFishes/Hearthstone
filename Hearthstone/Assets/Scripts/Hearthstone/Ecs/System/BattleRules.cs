@@ -7,7 +7,7 @@ namespace Hearthstone
     /// </summary>
     public static class BattleRules
     {
-        public const int CardsPerSide = 3;
+        public const int CardsPerSide = RunCardRules.BattleSlotCount;
         public const int DefaultCardNumber = 1;
         public const float ActionInterval = 0.75f;
         public const string CardEntityGroup = "BattleCard";

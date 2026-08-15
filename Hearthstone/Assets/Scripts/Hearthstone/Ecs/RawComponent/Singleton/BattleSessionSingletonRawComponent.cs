@@ -28,9 +28,13 @@ namespace Hearthstone
         public Unity.Mathematics.Random TargetRandom;
         public float ActionCountdown;
         public int ActionIndex;
+        public PreparationRewardBatchStartupData PendingPreparationRewardBatch;
+        public bool PreparationTransitionRequested;
 
-        public void Initialize(uint randomSeed)
+        public void Initialize(uint randomSeed, PreparationRewardBatchStartupData rewardBatch)
         {
+            if (rewardBatch == null)
+                throw new ArgumentNullException(nameof(rewardBatch));
             Array.Clear(PlayerCards, 0, PlayerCards.Length);
             Array.Clear(EnemyCards, 0, EnemyCards.Length);
             PlayerAttackCursor = 0;
@@ -43,6 +47,8 @@ namespace Hearthstone
             TargetRandom = new Unity.Mathematics.Random(RandomSeed);
             ActionCountdown = BattleRules.ActionInterval;
             ActionIndex = 0;
+            PendingPreparationRewardBatch = rewardBatch.CreateSnapshot();
+            PreparationTransitionRequested = false;
         }
 
         public Entity[] GetCards(EBattleSide side)
@@ -81,6 +87,8 @@ namespace Hearthstone
             TargetRandom = default;
             ActionCountdown = 0f;
             ActionIndex = 0;
+            PendingPreparationRewardBatch = null;
+            PreparationTransitionRequested = false;
         }
     }
 }

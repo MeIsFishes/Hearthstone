@@ -29,6 +29,11 @@ namespace BbxCommon.Ui
         [Button("Pre-UiInit")]
         private void PreUiInit()
         {
+            UiApi.EditorOperation.PreInitializeView(this);
+        }
+
+        internal void EditorPreInitialize()
+        {
             var uiPreInitRemoves = GetComponentsInChildren<IUiPreInitRemove>();
             foreach (var item in uiPreInitRemoves)
             {
@@ -112,7 +117,7 @@ namespace BbxCommon.Ui
         [Button("Export as Pre-load")]
         private void ExportAsPreLoadUi()
         {
-            UiApi.ExportPreLoadUiController(this);
+            UiApi.EditorOperation.ExportPreloadedView(this);
         }
 #endif
 

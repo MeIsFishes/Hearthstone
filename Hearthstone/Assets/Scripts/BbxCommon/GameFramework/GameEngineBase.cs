@@ -204,6 +204,13 @@ namespace BbxCommon
 
         protected virtual void OnAwake() { }
 
+        /// <summary>
+        /// Called after one queued stage-operation batch has fully settled.
+        /// New stage-group requests made here are queued as a later batch instead of being
+        /// appended to the operation list that has just completed.
+        /// </summary>
+        protected virtual void OnStageLoadingCompleted(IReadOnlyList<GameStage> activeStages) { }
+
         private void Update()
         {
             OnUpdateStage();
@@ -510,6 +517,7 @@ namespace BbxCommon
             ResourceApi.EditorOperation.SetDirtyAndSave(loadingTimeData);
 #endif
             m_IsLoading = false;
+            OnStageLoadingCompleted(m_EnabledStages);
             if (m_StageIsDirty)
                 OnUpdateStage();
         }

@@ -281,6 +281,41 @@ namespace BbxCommon.Ui
 
 #if UNITY_EDITOR
         /// <summary>
+        /// Supported strongly typed editor operations for repeatable UI builders.
+        /// </summary>
+        public static class EditorOperation
+        {
+            /// <summary>
+            /// Runs UI pre-initialization on a temporary scene or prefab-building instance.
+            /// Persistent prefab assets are rejected because pre-initialization may remove helper components.
+            /// </summary>
+            public static void PreInitializeView(UiViewBase uiView)
+            {
+                if (uiView == null)
+                    throw new ArgumentNullException(nameof(uiView));
+                if (EditorUtility.IsPersistent(uiView))
+                    throw new InvalidOperationException("UI pre-initialization requires a non-persistent builder instance.");
+                uiView.EditorPreInitialize();
+            }
+
+            /// <summary>
+            /// Exports the controller mapping from a saved prefab asset in a Resources folder.
+            /// </summary>
+            public static void ExportPreloadedView(UiViewBase uiView)
+            {
+                if (uiView == null)
+                    throw new ArgumentNullException(nameof(uiView));
+                var prefabPath = PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(uiView.gameObject);
+                if (!EditorUtility.IsPersistent(uiView) || string.IsNullOrEmpty(prefabPath))
+                {
+                    throw new InvalidOperationException(
+                        "Preloaded UI export requires the root view loaded from a saved prefab asset.");
+                }
+                ExportPreLoadUiController(uiView);
+            }
+        }
+
+        /// <summary>
         /// Returns a detached snapshot of the generated preload mappings for editor validation.
         /// Callers cannot mutate the serialized preload dictionary through this API.
         /// </summary>

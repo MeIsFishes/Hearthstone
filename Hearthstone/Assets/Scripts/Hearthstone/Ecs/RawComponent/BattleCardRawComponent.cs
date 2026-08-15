@@ -48,6 +48,24 @@ namespace Hearthstone
             IsAlive.SetValue(true);
         }
 
+        public void InitializePlayer(int slotIndex, RunCardInstanceData instance)
+        {
+            if (instance.IsValid == false)
+                throw new ArgumentException("Player card instance is invalid.", nameof(instance));
+
+            CardNumber = instance.CardNumber;
+            var cardConfig = DataApi.GetData<BattleCardCsvData>(CardNumber);
+            if (cardConfig == null)
+                throw new InvalidOperationException($"Battle card configuration {CardNumber} is missing.");
+            CardTypeId = cardConfig.CardTypeId;
+            Side = EBattleSide.Player;
+            SlotIndex = slotIndex;
+            Attack = instance.Attack;
+            MaxHealth = instance.MaxHealth;
+            CurrentHealth.SetValue(MaxHealth);
+            IsAlive.SetValue(true);
+        }
+
         public void SetCurrentHealth(int health)
         {
             var clampedHealth = health;

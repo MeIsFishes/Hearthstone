@@ -51,7 +51,7 @@
 
 ### 2.3 不同Controller之间的跳转关系
 
-当前没有页面跳转。`BattleUiScene` 创建 `BattleController` 后，后者在两个 `UiList` 中创建卡牌条目 Controller；Stage 卸载时整页与条目按 UI 框架生命周期关闭并回池。
+`BattleUiScene` 创建 `BattleController` 后，后者在两个 `UiList` 中创建卡牌条目 Controller。战斗结果首次终结时由 StageListener 切换 GameStage Group，并非由 UI Controller 发起；BattleStage 卸载时整页与条目按 UI 框架生命周期关闭并回池，随后 PreparationStage 打开备战页。
 
 ## 3. 所属GameStage
 

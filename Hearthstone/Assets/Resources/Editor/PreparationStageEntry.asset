@@ -1,0 +1,34 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 35cd19dc58285684f83da4537e5fbf95, type: 3}
+  m_Name: PreparationStageEntry
+  m_EditorClassIdentifier: 
+  LoadingType: 1
+  GroupName: GameStageEditorEntries
+  m_DisplayName: Preparation Stage
+  m_BatchId: preparation-isolated-001
+  m_RewardGrants:
+  - CardNumber: 2
+    Attack: 5
+    MaxHealth: 3
+  - CardNumber: 3
+    Attack: 4
+    MaxHealth: 4
+  - CardNumber: 5
+    Attack: 3
+    MaxHealth: 5
+  - CardNumber: 6
+    Attack: 5
+    MaxHealth: 4
+  - CardNumber: 7
+    Attack: 6
+    MaxHealth: 2

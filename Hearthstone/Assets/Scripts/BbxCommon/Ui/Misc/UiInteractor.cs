@@ -80,6 +80,7 @@ namespace BbxCommon.Ui
 
         void IUiDestroy.OnUiDestroy(UiControllerBase uiController)
         {
+            SetTouching(null);
             UninitUiDragable();
             m_RaycastTargets.Clear();
         }
@@ -139,35 +140,36 @@ namespace BbxCommon.Ui
         private void OnDrag(PointerEventData eventData)
         {
             var results = SimplePool<List<RaycastResult>>.Alloc();
-            EventSystem.current.RaycastAll(eventData, results);
+            var eventSystem = EventSystem.current;
+            if (eventSystem != null)
+                eventSystem.RaycastAll(eventData, results);
+            UiInteractor touching = null;
             foreach (var result in results)
             {
                 if (result.gameObject == this.gameObject)   // search for the first other interactor
                     continue;
                 if (result.gameObject.TryGetComponent<UiInteractor>(out var uiInteractor))
                 {
-                    if (m_Touching != uiInteractor)
-                    {
-                        m_Touching?.InteractorTouchEnd(this);
-                        m_Touching = uiInteractor;
-                        uiInteractor.InteractorTouch(this);
-                    }
+                    touching = uiInteractor;
                     break;
                 }
             }
+            SetTouching(touching);
             results.CollectToPool();
         }
 
         private void OnDragEnd(PointerEventData eventData)
         {
             var results = SimplePool<List<RaycastResult>>.Alloc();
-            EventSystem.current.RaycastAll(eventData, results);
-            foreach (var result in results)
+            try
             {
-                if (m_RaycastTargets.Contains(result.gameObject))
-                    continue;
-                else
+                var eventSystem = EventSystem.current;
+                if (eventSystem != null)
+                    eventSystem.RaycastAll(eventData, results);
+                foreach (var result in results)
                 {
+                    if (m_RaycastTargets.Contains(result.gameObject))
+                        continue;
                     var responder = result.gameObject.GetComponentInParent<UiInteractor>();
                     // invoke both interactors
                     if (responder != null)
@@ -178,7 +180,22 @@ namespace BbxCommon.Ui
                     break;
                 }
             }
-            results.CollectToPool();
+            finally
+            {
+                SetTouching(null);
+                results.CollectToPool();
+            }
+        }
+
+        private void SetTouching(UiInteractor touching)
+        {
+            if (m_Touching == touching)
+                return;
+            if (m_Touching != null)
+                m_Touching.InteractorTouchEnd(this);
+            m_Touching = touching;
+            if (m_Touching != null)
+                m_Touching.InteractorTouch(this);
         }
         #endregion
     }
