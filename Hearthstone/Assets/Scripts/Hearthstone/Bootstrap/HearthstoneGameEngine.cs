@@ -112,6 +112,8 @@ namespace Hearthstone
 
         protected override void OnAwake()
         {
+            SetLoadingUi<LoadingController>();
+
             RegisterSystemOrder(
                 typeof(InputSystem),
                 typeof(BattleSystem),

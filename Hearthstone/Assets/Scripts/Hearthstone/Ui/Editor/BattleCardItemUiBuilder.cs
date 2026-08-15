@@ -1,4 +1,5 @@
 using System;
+using BbxCommon.Ui;
 using TMPro;
 using UnityEditor;
 using UnityEngine;
@@ -38,8 +39,10 @@ namespace Hearthstone
                 ConfigureKeywordArea(view);
                 ConfigureBadge(view.HealthText, healthBadge, Vector2.zero, new Vector2(30f, 30f), "HealthBadge");
                 ConfigureBadge(view.AttackText, attackBadge, new Vector2(1f, 0f), new Vector2(-30f, 30f), "AttackBadge");
+                ConfigurePreparationFeatures(root, view);
                 ConfigureLayerOrder(view);
 
+                UiApi.EditorOperation.PreInitializeView(view);
                 PrefabUtility.SaveAsPrefabAsset(root, PrefabPath);
             }
             finally
@@ -131,9 +134,118 @@ namespace Hearthstone
             view.TargetHighlight.transform.SetAsLastSibling();
             if (view.DeadOverlay != null)
                 view.DeadOverlay.transform.SetAsLastSibling();
+            if (view.PreparationEmptyState != null)
+                view.PreparationEmptyState.transform.SetAsLastSibling();
             view.HealthText.transform.parent.SetAsLastSibling();
             view.AttackText.transform.parent.SetAsLastSibling();
             view.CardNumberBadge.transform.SetAsLastSibling();
+            if (view.PreparationMaterialSelectedState != null)
+                view.PreparationMaterialSelectedState.transform.SetAsLastSibling();
+        }
+
+        private static void ConfigurePreparationFeatures(GameObject root, BattleCardItemView view)
+        {
+            view.CardBackground.raycastTarget = true;
+
+            var emptyState = FindOrCreate(root.transform, "PreparationEmptyState");
+            Stretch((RectTransform)emptyState.transform, 5f);
+            var emptyImage = GetOrAdd<Image>(emptyState);
+            emptyImage.sprite = LoadSprite(
+                "Assets/Resources/Art/Preparation/UI/PreparationPoolEmptySlot.png",
+                "Preparation pool empty slot");
+            emptyImage.type = Image.Type.Simple;
+            emptyImage.preserveAspect = true;
+            emptyImage.raycastTarget = false;
+
+            var emptyAttempt = FindOrCreate(emptyState.transform, "EmptyAttempt");
+            Stretch((RectTransform)emptyAttempt.transform, 0f);
+            var emptyAttemptImage = GetOrAdd<Image>(emptyAttempt);
+            emptyAttemptImage.sprite = null;
+            emptyAttemptImage.color = new Color(1f, 1f, 1f, 0.001f);
+            emptyAttemptImage.raycastTarget = true;
+            var emptyAttemptListener = GetOrAdd<UiEventListener>(emptyAttempt);
+
+            var materialSelected = FindOrCreate(root.transform, "PreparationMaterialSelected");
+            SetRect(
+                (RectTransform)materialSelected.transform,
+                new Vector2(1f, 1f),
+                new Vector2(98f, 98f),
+                new Vector2(-42.5f, -42.5f));
+            var materialImage = GetOrAdd<Image>(materialSelected);
+            materialImage.sprite = LoadSprite(
+                "Assets/Resources/Art/Preparation/UI/PreparationMaterialSelected.png",
+                "Preparation material selected marker");
+            materialImage.type = Image.Type.Simple;
+            materialImage.preserveAspect = true;
+            materialImage.raycastTarget = false;
+
+            var materialLabel = FindOrCreate(materialSelected.transform, "Label");
+            Stretch((RectTransform)materialLabel.transform, 4f);
+            var materialText = GetOrAdd<TextMeshProUGUI>(materialLabel);
+            materialText.font = view.SkillDescriptionText.font;
+            materialText.fontSharedMaterial = view.SkillDescriptionText.fontSharedMaterial;
+            materialText.text = "素材\n已选";
+            materialText.fontSize = 21f;
+            materialText.fontStyle = FontStyles.Bold;
+            materialText.alignment = TextAlignmentOptions.Center;
+            materialText.color = Color.white;
+            materialText.lineSpacing = -18f;
+            materialText.raycastTarget = false;
+
+            var dragable = GetOrAdd<UiDragable>(root);
+            dragable.TurnBackWhenDragEnd = true;
+            dragable.AlwaysRelativeOffset = false;
+            var interactor = GetOrAdd<UiInteractor>(root);
+            interactor.TransformOverride = root.transform;
+            interactor.AutoInitUiDragable = true;
+            interactor.UiDragableRef = dragable;
+
+            emptyState.SetActive(false);
+            materialSelected.SetActive(false);
+            view.PreparationEmptyState = emptyState;
+            view.PreparationMaterialSelectedState = materialSelected;
+            view.PreparationDragable = dragable;
+            view.PreparationInteractor = interactor;
+            view.PreparationEmptyAttemptListener = emptyAttemptListener;
+        }
+
+        private static GameObject FindOrCreate(Transform parent, string name)
+        {
+            var child = parent.Find(name);
+            if (child != null)
+                return child.gameObject;
+            var gameObject = new GameObject(name, typeof(RectTransform));
+            gameObject.transform.SetParent(parent, false);
+            return gameObject;
+        }
+
+        private static T GetOrAdd<T>(GameObject gameObject) where T : Component
+        {
+            var component = gameObject.GetComponent<T>();
+            return component == null ? gameObject.AddComponent<T>() : component;
+        }
+
+        private static void Stretch(RectTransform rectTransform, float inset)
+        {
+            rectTransform.anchorMin = Vector2.zero;
+            rectTransform.anchorMax = Vector2.one;
+            rectTransform.offsetMin = new Vector2(inset, inset);
+            rectTransform.offsetMax = new Vector2(-inset, -inset);
+            rectTransform.localScale = Vector3.one;
+        }
+
+        private static void SetRect(
+            RectTransform rectTransform,
+            Vector2 anchor,
+            Vector2 size,
+            Vector2 anchoredPosition)
+        {
+            rectTransform.anchorMin = anchor;
+            rectTransform.anchorMax = anchor;
+            rectTransform.pivot = new Vector2(0.5f, 0.5f);
+            rectTransform.sizeDelta = size;
+            rectTransform.anchoredPosition = anchoredPosition;
+            rectTransform.localScale = Vector3.one;
         }
 
         private static void ConfigureBadge(

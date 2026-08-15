@@ -128,15 +128,20 @@ namespace Hearthstone.Tests
         }
 
         [Test]
-        public void PreparationCardPrefabsKeepArtworkAspectAndCoverTheWholeCardWithTheFrame()
+        public void PreparationPoolUsesSharedBattleCardAndSlotsMatchItsAspectRatio()
         {
-            var poolPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(
-                "Assets/Resources/Ui/PreparationCardItem.prefab");
-            Assert.NotNull(poolPrefab);
-            var poolView = poolPrefab.GetComponent<PreparationCardItemView>();
-            Assert.NotNull(poolView);
-            Assert.IsTrue(poolView.ArtworkArea.preserveAspect);
-            AssertFrameCoversEntireCard(poolView.CardFrame.rectTransform);
+            var sharedPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(
+                "Assets/Resources/Ui/BattleCardItem.prefab");
+            Assert.NotNull(sharedPrefab);
+            var sharedView = sharedPrefab.GetComponent<BattleCardItemView>();
+            Assert.NotNull(sharedView);
+            Assert.NotNull(sharedView.PreparationEmptyState);
+            Assert.NotNull(sharedView.PreparationMaterialSelectedState);
+            Assert.NotNull(sharedView.PreparationDragable);
+            Assert.NotNull(sharedView.PreparationInteractor);
+            Assert.NotNull(sharedView.PreparationEmptyAttemptListener);
+            var sharedSize = ((RectTransform)sharedPrefab.transform).sizeDelta;
+            var sharedAspect = sharedSize.x / sharedSize.y;
 
             var slotPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(
                 "Assets/Resources/Ui/PreparationSlotItem.prefab");
@@ -145,6 +150,8 @@ namespace Hearthstone.Tests
             Assert.NotNull(slotView);
             Assert.IsTrue(slotView.ArtworkArea.preserveAspect);
             AssertFrameCoversEntireCard(slotView.CardFrame.rectTransform);
+            var slotSize = ((RectTransform)slotPrefab.transform).sizeDelta;
+            Assert.AreEqual(sharedAspect, slotSize.x / slotSize.y, 0.0001f);
 
             var fusionPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(
                 "Assets/Resources/Ui/PreparationFusionSlotItem.prefab");
@@ -153,6 +160,16 @@ namespace Hearthstone.Tests
             Assert.NotNull(fusionView);
             Assert.IsTrue(fusionView.ArtworkArea.preserveAspect);
             AssertFrameCoversEntireCard(fusionView.CardFrame.rectTransform);
+            var fusionSize = ((RectTransform)fusionPrefab.transform).sizeDelta;
+            Assert.AreEqual(sharedAspect, fusionSize.x / fusionSize.y, 0.0001f);
+
+            var preparationPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(
+                "Assets/Resources/Ui/PreparationView.prefab");
+            Assert.NotNull(preparationPrefab);
+            var preparationView = preparationPrefab.GetComponent<PreparationView>();
+            Assert.NotNull(preparationView);
+            var poolSlotSize = preparationView.CardPoolList.ConstantSlotSize;
+            Assert.AreEqual(sharedAspect, poolSlotSize.x / poolSlotSize.y, 0.0001f);
         }
 
         [Test]

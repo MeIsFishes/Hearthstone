@@ -132,10 +132,10 @@ namespace Hearthstone
             m_View.CardPoolList.ItemWrapper.ClearItems();
             for (var cardNumber = RunCardRules.FirstCardNumber; cardNumber <= RunCardRules.LastCardNumber; cardNumber++)
             {
-                var item = m_View.CardPoolList.ItemWrapper.AddItem<PreparationCardItemController>();
+                var item = m_View.CardPoolList.ItemWrapper.AddItem<BattleCardItemController>();
                 if (item == null)
-                    throw new InvalidOperationException("PreparationCardItemController preload mapping is missing.");
-                item.Bind(this, cardNumber);
+                    throw new InvalidOperationException("BattleCardItemController preload mapping is missing.");
+                item.BindPreparation(this, cardNumber);
             }
 
             m_View.BattleSlotList.ItemWrapper.ClearItems();
@@ -161,7 +161,7 @@ namespace Hearthstone
             if (m_RunState == null)
                 return;
             for (var index = 0; index < m_View.CardPoolList.ItemWrapper.Count; index++)
-                m_View.CardPoolList.ItemWrapper.GetItem<PreparationCardItemController>(index).Refresh(
+                m_View.CardPoolList.ItemWrapper.GetItem<BattleCardItemController>(index).RefreshPreparation(
                     m_RunState,
                     m_Session,
                     m_Tab == EOperationTab.Fusion);

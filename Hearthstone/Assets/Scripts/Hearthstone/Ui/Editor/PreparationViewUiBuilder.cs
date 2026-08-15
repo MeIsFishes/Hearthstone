@@ -181,11 +181,11 @@ namespace Hearthstone
             PreparationUiBuilderUtility.AddText(text, "战斗槽位", 34f);
 
             var listObject = PreparationUiBuilderUtility.CreateUiObject("BattleSlotList", root.transform);
-            PreparationUiBuilderUtility.SetRect(listObject, new Vector2(0.5f, 1f), new Vector2(720f, 285f), new Vector2(0f, -180f));
+            PreparationUiBuilderUtility.SetRect(listObject, new Vector2(0.5f, 1f), new Vector2(720f, 320f), new Vector2(0f, -170f));
             var list = listObject.AddComponent<UiList>();
             list.ArragementType = UiList.EArrangement.ConstantSlot;
             list.ConstantSlotDirection = UiList.EDirection.Horizontal;
-            list.ConstantSlotSize = new Vector2(240f, 330f);
+            list.ConstantSlotSize = new Vector2(240f, 320f);
             view.BattleOperationRoot = root;
             view.BattleSlotList = list;
         }
@@ -205,11 +205,11 @@ namespace Hearthstone
             PreparationUiBuilderUtility.AddText(title, "融合素材", 32f);
 
             var listObject = PreparationUiBuilderUtility.CreateUiObject("FusionSlotList", root.transform);
-            PreparationUiBuilderUtility.SetRect(listObject, new Vector2(0f, 1f), new Vector2(800f, 285f), new Vector2(420f, -180f));
+            PreparationUiBuilderUtility.SetRect(listObject, new Vector2(0f, 1f), new Vector2(800f, 276f), new Vector2(420f, -180f));
             var list = listObject.AddComponent<UiList>();
             list.ArragementType = UiList.EArrangement.ConstantSlot;
             list.ConstantSlotDirection = UiList.EDirection.Horizontal;
-            list.ConstantSlotSize = new Vector2(200f, 285f);
+            list.ConstantSlotSize = new Vector2(200f, 276f);
 
             var sumPanel = PreparationUiBuilderUtility.CreateUiObject("FusionSumPanel", root.transform);
             PreparationUiBuilderUtility.SetRect(sumPanel, new Vector2(1f, 0.5f), new Vector2(480f, 230f), new Vector2(-250f, 0f));

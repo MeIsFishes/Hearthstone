@@ -110,7 +110,7 @@ Controller 不直接向 ECS 数据字段挂裸 delegate。需要响应 Model 时
 2. 每个 Prefab 必须对应一个独立 Builder，类名使用 `<Prefab名>UiBuilder`。可以复用纯 Editor 辅助函数，但不得用一个多用途 Builder 通过参数或分支维护多个 Prefab；Prefab 与最终构建入口必须保持一一对应。
 3. Builder 提供可由动态 C# 直接调用的公开静态入口，统一命名为 `public static void Build()`；入口应可重复执行，明确创建或更新目标 Prefab，保存序列化引用，并清理临时对象。产物仍放在该 UI 类型规定的 `Assets/Resources/` 路径。
 4. Builder 及其入口不得添加 `[MenuItem]`，也不得使用 `InitializeOnLoad`、资源导入回调等方式自动执行，不在 Unity 项目菜单栏注册任何临时或永久菜单项。
-5. 执行 Builder 时使用当前环境正式提供且项目允许的 Unity Editor 操作通道，直接调用 Builder 的完整类型名和 `Build()`，例如当前项目沿用 `Hearthstone` 命名空间时调用 `Hearthstone.ExampleUiBuilder.Build();`；目录层级不强制增加同名命名空间。项目不要求使用 MCP，也不优先使用 MCP；不得仅因 MCP 不可用而中断 Builder 流程或添加临时菜单入口。
+5. 执行 Builder 时使用当前环境正式提供且项目允许的 Unity Editor 操作通道，直接调用 Builder 的完整类型名和 `Build()`，例如当前项目沿用 `Hearthstone` 命名空间时调用 `Hearthstone.ExampleUiBuilder.Build();`；目录层级不强制增加同名命名空间。执行 Builder 前先在全部可用工具中查找 Unity MCP；若发现，则使用 MCP 启动 Builder，但 MCP 只用于启动 Builder，后续核验、UiScene 与导出流程可以不走 MCP；若未发现，则继续使用当前环境其他正式提供且项目允许的 Unity Editor 操作通道。不得仅因 MCP 不可用而中断 Builder 流程或添加临时菜单入口。
 6. 当前环境没有可执行 Builder 的允许通道时，应如实记录未完成项；不得用手写 Prefab YAML、自动菜单项、初始化回调或其他平行配置源替代 Builder 执行。
 7. Builder 只负责 Editor 期的静态层级、组件、资源引用、布局和序列化字段，不得把运行时初始化、事件、数据监听、动画或玩法逻辑塞进 Builder 或 View。动态重复条目、对象池、UiScene Group 和导出资产仍分别遵循本 skill 的既有流程。
 8. 构建后重新加载目标 Prefab，核对根 View 类型、完整层级、组件和序列化引用；若 Prefab 属于 UiScene，再继续实例化到 UI 编辑场景并通过 `UiSceneExporter` 导出。UiBuilder 不能替代 UI 编辑场景或 `UiSceneAsset` 导出配置源。

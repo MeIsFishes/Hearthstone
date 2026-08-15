@@ -252,10 +252,9 @@ namespace Hearthstone.Tests
         }
 
         [Test]
-        public void FourExclusiveCardPrefabsExposeKeywordText()
+        public void SharedBattleCardAndPreparationSlotsExposeKeywordText()
         {
             AssertKeywordText<BattleCardItemView>("Assets/Resources/Ui/BattleCardItem.prefab", view => view.KeywordText);
-            AssertKeywordText<PreparationCardItemView>("Assets/Resources/Ui/PreparationCardItem.prefab", view => view.KeywordText);
             AssertKeywordText<PreparationSlotItemView>("Assets/Resources/Ui/PreparationSlotItem.prefab", view => view.KeywordText);
             AssertKeywordText<PreparationFusionSlotItemView>("Assets/Resources/Ui/PreparationFusionSlotItem.prefab", view => view.KeywordText);
         }

@@ -13,7 +13,9 @@ namespace Hearthstone
             var root = PreparationUiBuilderUtility.CreateUiObject("PreparationFusionSlotItem", null);
             try
             {
-                ((RectTransform)root.transform).sizeDelta = new Vector2(190f, 285f);
+                ((RectTransform)root.transform).sizeDelta = new Vector2(
+                    190f,
+                    190f * RunCardRules.CardAspectHeight / RunCardRules.CardAspectWidth);
                 var hitArea = PreparationUiBuilderUtility.AddImage(root, null, true);
                 hitArea.color = new Color(1f, 1f, 1f, 0.001f);
                 var view = root.AddComponent<PreparationFusionSlotItemView>();

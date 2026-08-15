@@ -22,9 +22,9 @@
 | Controller | View Prefab | 职责 |
 | --- | --- | --- |
 | `BattleController` | `Assets/Resources/Ui/BattleView.prefab` | 创建双方卡牌列表，显示无阵营文字标记的战斗状态和胜负结果 |
-| `BattleCardItemController` | `Assets/Resources/Ui/BattleCardItem.prefab` | 绑定单张卡牌数据，刷新阵营卡框、名称、怪物原画、编号灰底框、攻血数值、高亮和死亡遮罩，并确保回池与换绑后的根节点保持正向、原画引用清空 |
+| `BattleCardItemController` | `Assets/Resources/Ui/BattleCardItem.prefab` | 绑定战斗 Entity 时刷新阵营卡框、名称、原画、编号、攻血、高亮和死亡遮罩；同一 Controller/Prefab 也可绑定备战卡池编号，并确保两种上下文换绑时完整清理状态 |
 
-`BattleCardItemController` 通过 Pre-load 映射 `Hearthstone.BattleCardItemController → Ui/BattleCardItem` 由 `UiList.AddItem<BattleCardItemController>()` 创建和回收。Entity 仅作为玩法数据句柄，不作为 UI View 或 Controller。
+`BattleCardItemController` 通过唯一 Pre-load 映射 `Hearthstone.BattleCardItemController → Ui/BattleCardItem` 由 `UiList.AddItem<BattleCardItemController>()` 创建和回收。战斗双方列表与备战卡池使用同一映射和同一对象池；战斗 Entity 仅作为玩法数据句柄，不作为 UI View 或 Controller。
 
 `BattleView.prefab` 的根尺寸为 `1920 × 1080`，`BoardBackground` 拉伸覆盖完整界面并使用 `BattleBoardBackground.png`。敌方与玩家列表分别位于 `y = 224` 与 `y = -224`，列表尺寸均为 `900 × 360`，通过 `UiList.AreaFit` 和 `278 × 360` 槽位水平排列三张卡牌。Prefab 不再包含 `TitleText`、`EnemyLabel` 或 `PlayerLabel`；中央 `TurnText` 只显示“战斗进行中”，结果文本只显示“胜利”或“失败”。
 
@@ -34,7 +34,7 @@
 
 左上角 `58 × 38` 的 `CardNumberBadge` 与其 TMP 子文本已经固化在 Prefab 静态层级并由 View 持有序列化引用，不再由 Controller 运行时创建。左下 `HealthBadge` 使用 `60 × 60` 的 `HealthDropBadge.png`，锚点为左下、中心位置 `(30, 30)`；右下 `AttackBadge` 使用 `60 × 60` 的无剑 `AttackBadgeFrame.png`，锚点为右下、中心位置 `(-30, 30)`。两个徽章分别比主体窄框向左右露出 `10`、向下露出 `6`；数值使用 `30` 号白色粗体 TMP，并通过深色 `Outline` 增强对比度。敌我双方 View 根节点保持单位旋转，不再使用方形阵营底色；池化换绑或关闭时恢复单位旋转、清空名称、隐藏编号并移除原画 Sprite。
 
-该静态布局与三张相关 Sprite 的 Single/Alpha/Mipmap/WrapMode 导入约束由一一对应的 `BattleCardItemUiBuilder.Build()` 维护。
+该静态布局、三张相关 Sprite 的 Single/Alpha/Mipmap/WrapMode 导入约束，以及备战卡池需要的空态、素材角标和拖拽组件，都由一一对应的 `BattleCardItemUiBuilder.Build()` 维护。战斗绑定会关闭空态、素材角标和全部备战交互，保持原有战斗表现。
 
 `BattleView.prefab` 与 `BattleCardItem.prefab` 中的 7 个 TMP 文本统一引用 `Assets/Resources/Fonts/NotoSansSC-Dynamic SDF.asset`。该字体资产使用 Dynamic population 与 Multi Atlas，预置当前战斗中文字符，并允许技能说明在运行时补充其他简体中文字形；源字体为同目录的 `NotoSansSC-VF.ttf`。
 

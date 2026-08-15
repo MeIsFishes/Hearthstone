@@ -99,8 +99,8 @@ namespace Hearthstone
         public const int CardStorageLength = LastCardNumber + 1;
         public const int CardsPerRow = 7;
         public const int CardRowCount = 15;
-        public const int CardAspectWidth = 2;
-        public const int CardAspectHeight = 3;
+        public const int CardAspectWidth = 25;
+        public const int CardAspectHeight = 36;
         public const int RewardGrantCount = 5;
         public const int FusionSlotCount = 4;
         public const int FusionMinimumMaterialCount = 2;
