@@ -1,4 +1,8 @@
-BattleNumber,SettlementRewardBatchId,RewardCardNumbers,RewardAttacks,RewardMaxHealths
-// Unique battle number,Unique settlement reward batch id,Exactly five unique ordinary card numbers,Exact permanent attacks,Exact permanent max health values
-// Associated: BattleCardCsvData
-2,battle-002-reward-001,8;9;10;11;12,3;2;3;4;4,4;5;6;7;2
+BattleNumber,UnlockSlotCount,DrawCardCount
+// Sequential battle round number,Number of additional battle slots unlocked before this round,Number of random ordinary cards drawn before this round
+// Associated: None
+1,3,3
+2,1,3
+3,0,3
+4,1,4
+5,1,4

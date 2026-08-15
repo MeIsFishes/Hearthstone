@@ -1,7 +1,7 @@
-Keyword,DisplayName,DisplayOrder,DamageNumerator,DamageDenominator,BlastDistance,AttackGain,HealthGain,SuppressCounterDamage
-// Unique single keyword flag,Chinese display name,Stable display order,Damage scale numerator,Damage scale denominator,Adjacent slot distance,Attack gain per trigger,Health gain per trigger,Whether counter damage is suppressed
+Keyword,DisplayName,Description,DisplayOrder,DamageNumerator,DamageDenominator,BlastDistance,AttackGain,HealthGain,SuppressCounterDamage
+// Unique single keyword flag,Chinese display name,Player-facing rule description,Stable display order,Damage scale numerator,Damage scale denominator,Adjacent slot distance,Attack gain per trigger,Health gain per trigger,Whether counter damage is suppressed
 // Associated: BattleCardTypeCsvData
-Taunt,嘲讽,0,1,1,0,0,0,false
-LongShot,远射,1,1,2,0,0,0,true
-Blast,爆裂,2,1,2,1,0,0,false
-Charge,冲锋,3,1,1,0,1,1,false
+Taunt,嘲讽,敌方存在嘲讽单位时只能以嘲讽单位为攻击目标。,0,1,1,0,0,0,false
+LongShot,远射,攻击伤害减半并且不会受到目标反击。,1,1,2,0,0,0,true
+Blast,爆裂,攻击时对目标相邻1格内的存活单位造成主目标伤害的一半。,2,1,2,1,0,0,false
+Charge,冲锋,每次发动攻击前使己方所有存活单位的攻击和生命各提高1点。,3,1,1,0,1,1,false

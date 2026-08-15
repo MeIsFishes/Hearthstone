@@ -20,3 +20,6 @@ MonoBehaviour:
     - Key: Hearthstone.LoadingController
       Value:
         UiViewPrefabPath: Ui/LoadingView
+    - Key: Hearthstone.FusionRecommendationItemController
+      Value:
+        UiViewPrefabPath: Ui/FusionRecommendationItem

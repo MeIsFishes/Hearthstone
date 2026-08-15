@@ -12,6 +12,16 @@ namespace Hearthstone
         private const string PrefabPath = "Assets/Resources/Ui/BattleCardItem.prefab";
         private const string FullCardFramePath =
             "Assets/Resources/Art/BattleCards/UI/CardFrame-v3.png";
+        private const string TauntShieldOutlinePath =
+            "Assets/Resources/Art/BattleCards/UI/TauntShieldOutline.png";
+        private const string DamageNumberBurstPath =
+            "Assets/Resources/Art/BattleCards/UI/DamageNumberBurst.png";
+        private const string ChargeHornIconPath =
+            "Assets/Resources/Art/BattleCards/UI/ChargeHornIcon.png";
+        private const string LongShotBowIconPath =
+            "Assets/Resources/Art/BattleCards/UI/LongShotBowIcon.png";
+        private const string KeywordTooltipBackgroundPath =
+            "Assets/Resources/Art/BattleCards/UI/BattleBoardBackground.png";
         private const string AttackBadgePath =
             "Assets/Resources/Art/BattleCards/UI/AttackBadgeFrame.png";
         private const string HealthBadgePath =
@@ -20,12 +30,21 @@ namespace Hearthstone
             "Assets/Resources/Fonts/NotoSansSC-SemiBold Dynamic SDF.asset";
         private const float FrameBottomInset = 24f;
         private static readonly Vector2 ArtworkRenderSize = new Vector2(210f, 297f);
+        private static readonly Vector2 TauntShieldRenderSize = new Vector2(292f, 408f);
+        private static readonly Vector2 TauntShieldRenderPosition = new Vector2(0f, -14f);
 
         public static void Build()
         {
             var fullCardFrame = AssetDatabase.LoadAssetAtPath<Sprite>(FullCardFramePath);
             if (fullCardFrame == null)
                 throw new InvalidOperationException($"Full-card battle frame is missing at '{FullCardFramePath}'.");
+            var tauntShieldOutline = LoadSprite(TauntShieldOutlinePath, "Taunt shield outline");
+            var damageNumberBurst = LoadSprite(DamageNumberBurstPath, "Damage number burst");
+            var chargeHornIcon = LoadSprite(ChargeHornIconPath, "Charge horn icon");
+            var longShotBowIcon = LoadSprite(LongShotBowIconPath, "Long shot bow icon");
+            var keywordTooltipBackground = LoadSprite(
+                KeywordTooltipBackgroundPath,
+                "Keyword tooltip wooden background");
             var attackBadge = LoadSprite(AttackBadgePath, "Attack badge");
             var healthBadge = LoadSprite(HealthBadgePath, "Health badge");
             var chineseFont = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(ChineseFontAssetPath);
@@ -40,14 +59,22 @@ namespace Hearthstone
                     throw new InvalidOperationException("BattleCardItemView is missing from the card prefab root.");
 
                 ConfigureFont(root, chineseFont);
+                ConfigureTauntShield(root, view, tauntShieldOutline);
                 ConfigureFrame(view.CardFrame, fullCardFrame, "CardFrameOverlay");
                 ConfigureFrame(view.AttackerHighlight, fullCardFrame, "AttackerHighlight");
                 ConfigureFrame(view.TargetHighlight, fullCardFrame, "TargetHighlight");
                 ConfigureArtwork(view.ArtworkArea);
                 ConfigureKeywordArea(view);
+                ConfigureKeywordTooltip(root, view, keywordTooltipBackground);
                 ConfigureCardBasePattern(view);
                 ConfigureBadge(view.HealthText, healthBadge, Vector2.zero, new Vector2(30f, 30f), "HealthBadge");
                 ConfigureBadge(view.AttackText, attackBadge, new Vector2(1f, 0f), new Vector2(-30f, 30f), "AttackBadge");
+                ConfigureFeedbackLayers(
+                    root,
+                    view,
+                    damageNumberBurst,
+                    chargeHornIcon,
+                    longShotBowIcon);
                 ConfigureHoverInput(root, view);
                 ConfigurePreparationFeatures(root, view);
                 ConfigureLayerOrder(view);
@@ -97,6 +124,11 @@ namespace Hearthstone
             nameRect.offsetMin = new Vector2(10f, 0f);
             nameRect.offsetMax = new Vector2(-10f, -3f);
             view.SkillDescriptionText.alignment = TextAlignmentOptions.Center;
+            view.SkillDescriptionText.fontSize = 16f;
+            view.SkillDescriptionText.enableAutoSizing = true;
+            view.SkillDescriptionText.enableWordWrapping = false;
+            view.SkillDescriptionText.fontSizeMin = 11f;
+            view.SkillDescriptionText.fontSizeMax = 18f;
 
             keywordTransform.anchorMin = Vector2.zero;
             keywordTransform.anchorMax = new Vector2(1f, 0.5f);
@@ -107,15 +139,65 @@ namespace Hearthstone
                 ? view.SkillDescriptionText.fontSharedMaterial
                 : view.SkillDescriptionText.font.material;
             keywordText.text = string.Empty;
-            keywordText.fontSize = 13f;
+            keywordText.fontSize = 17f;
             keywordText.enableAutoSizing = true;
-            keywordText.enableWordWrapping = false;
-            keywordText.fontSizeMin = 8f;
-            keywordText.fontSizeMax = 13f;
-            keywordText.alignment = TextAlignmentOptions.Center;
+            keywordText.enableWordWrapping = true;
+            keywordText.fontSizeMin = 10f;
+            keywordText.fontSizeMax = 17f;
+            keywordText.overflowMode = TextOverflowModes.Overflow;
+            keywordText.alignment = TextAlignmentOptions.Top;
             keywordText.color = view.SkillDescriptionText.color;
             keywordText.raycastTarget = false;
             view.KeywordText = keywordText;
+        }
+
+        private static void ConfigureKeywordTooltip(
+            GameObject root,
+            BattleCardItemView view,
+            Sprite woodenBackground)
+        {
+            var tooltipObject = FindOrCreate(root.transform, "KeywordTooltip");
+            SetRect(
+                (RectTransform)tooltipObject.transform,
+                new Vector2(0.5f, 0.5f),
+                new Vector2(368f, 156f),
+                new Vector2(318f, 32f));
+            var background = GetOrAdd<Image>(tooltipObject);
+            background.sprite = woodenBackground;
+            background.type = Image.Type.Simple;
+            background.preserveAspect = false;
+            background.color = new Color32(184, 137, 83, 255);
+            background.raycastTarget = false;
+
+            var border = tooltipObject.GetComponent<Outline>();
+            if (border == null)
+                border = tooltipObject.AddComponent<Outline>();
+            border.effectColor = new Color32(91, 47, 24, 255);
+            border.effectDistance = new Vector2(3f, -3f);
+            border.useGraphicAlpha = true;
+
+            var textObject = FindOrCreate(tooltipObject.transform, "KeywordTooltipText");
+            Stretch((RectTransform)textObject.transform, 25f);
+            var tooltipText = GetOrAdd<TextMeshProUGUI>(textObject);
+            tooltipText.font = view.SkillDescriptionText.font;
+            tooltipText.fontSharedMaterial = view.SkillDescriptionText.fontSharedMaterial != null
+                ? view.SkillDescriptionText.fontSharedMaterial
+                : view.SkillDescriptionText.font.material;
+            tooltipText.text = string.Empty;
+            tooltipText.fontSize = 16f;
+            tooltipText.fontStyle = FontStyles.Bold;
+            tooltipText.alignment = TextAlignmentOptions.TopLeft;
+            tooltipText.color = new Color32(69, 34, 18, 255);
+            tooltipText.enableAutoSizing = false;
+            tooltipText.enableWordWrapping = true;
+            tooltipText.overflowMode = TextOverflowModes.Overflow;
+            tooltipText.lineSpacing = 3f;
+            tooltipText.richText = false;
+            tooltipText.raycastTarget = false;
+
+            tooltipObject.SetActive(false);
+            view.KeywordTooltip = tooltipObject;
+            view.KeywordTooltipText = tooltipText;
         }
 
         private static void ConfigureCardBasePattern(BattleCardItemView view)
@@ -206,8 +288,35 @@ namespace Hearthstone
             artwork.raycastTarget = false;
         }
 
+        private static void ConfigureTauntShield(
+            GameObject root,
+            BattleCardItemView view,
+            Sprite sprite)
+        {
+            var shieldObject = FindOrCreate(root.transform, "TauntShieldOutline");
+            var rectTransform = (RectTransform)shieldObject.transform;
+            rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
+            rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+            rectTransform.pivot = new Vector2(0.5f, 0.5f);
+            rectTransform.anchoredPosition = TauntShieldRenderPosition;
+            rectTransform.sizeDelta = TauntShieldRenderSize;
+            rectTransform.localRotation = Quaternion.identity;
+            rectTransform.localScale = Vector3.one;
+            rectTransform.SetAsFirstSibling();
+
+            var image = GetOrAdd<Image>(shieldObject);
+            image.sprite = sprite;
+            image.type = Image.Type.Simple;
+            image.preserveAspect = false;
+            image.raycastTarget = false;
+            image.color = Color.white;
+            shieldObject.SetActive(false);
+            view.TauntShieldOutline = image;
+        }
+
         private static void ConfigureLayerOrder(BattleCardItemView view)
         {
+            view.TauntShieldOutline.transform.SetAsFirstSibling();
             view.CardFrame.transform.SetAsLastSibling();
             view.AttackerHighlight.transform.SetAsLastSibling();
             view.TargetHighlight.transform.SetAsLastSibling();
@@ -228,6 +337,117 @@ namespace Hearthstone
                 view.PreparationMaterialSelectedState.transform.SetAsLastSibling();
             if (view.PreparationDeployedState != null)
                 view.PreparationDeployedState.transform.SetAsLastSibling();
+            view.DamagePopupBackground.transform.SetAsLastSibling();
+            view.ChargeFeedbackIcon.transform.SetAsLastSibling();
+            view.LongShotFeedbackIcon.transform.SetAsLastSibling();
+            view.KeywordTooltip.transform.SetAsLastSibling();
+        }
+
+        private static void ConfigureFeedbackLayers(
+            GameObject root,
+            BattleCardItemView view,
+            Sprite damageNumberBurst,
+            Sprite chargeHornIcon,
+            Sprite longShotBowIcon)
+        {
+            view.AttackValueOutgoingText = ConfigureOutgoingStatText(
+                view.AttackText,
+                "AttackValueOutgoingText");
+            view.HealthValueOutgoingText = ConfigureOutgoingStatText(
+                view.HealthText,
+                "HealthValueOutgoingText");
+
+            var damagePopup = FindOrCreate(root.transform, "DamagePopup");
+            SetRect(
+                (RectTransform)damagePopup.transform,
+                new Vector2(0.5f, 0.5f),
+                new Vector2(92f, 70f),
+                new Vector2(-82f, -112f));
+            var damageBackground = GetOrAdd<Image>(damagePopup);
+            ConfigureFeedbackImage(damageBackground, damageNumberBurst);
+
+            var damageTextObject = FindOrCreate(damagePopup.transform, "DamageText");
+            Stretch((RectTransform)damageTextObject.transform, 8f);
+            var damageText = GetOrAdd<TextMeshProUGUI>(damageTextObject);
+            ConfigureFeedbackText(damageText, view.HealthText, 28f);
+            damageText.text = string.Empty;
+            damageText.color = new Color32(210, 32, 32, 255);
+            ConfigureTextOutline(damageText, new Color(0.12f, 0.01f, 0.01f, 0.98f), 2f);
+
+            var chargeObject = FindOrCreate(root.transform, "ChargeFeedbackIcon");
+            SetRect(
+                (RectTransform)chargeObject.transform,
+                new Vector2(0.5f, 0.5f),
+                new Vector2(96f, 96f),
+                new Vector2(-62f, 88f));
+            var chargeImage = GetOrAdd<Image>(chargeObject);
+            ConfigureFeedbackImage(chargeImage, chargeHornIcon);
+
+            var longShotObject = FindOrCreate(root.transform, "LongShotFeedbackIcon");
+            SetRect(
+                (RectTransform)longShotObject.transform,
+                new Vector2(0.5f, 0.5f),
+                new Vector2(96f, 96f),
+                new Vector2(62f, 88f));
+            var longShotImage = GetOrAdd<Image>(longShotObject);
+            ConfigureFeedbackImage(longShotImage, longShotBowIcon);
+
+            damagePopup.SetActive(false);
+            chargeObject.SetActive(false);
+            longShotObject.SetActive(false);
+            view.DamagePopupBackground = damageBackground;
+            view.DamagePopupText = damageText;
+            view.ChargeFeedbackIcon = chargeImage;
+            view.LongShotFeedbackIcon = longShotImage;
+        }
+
+        private static TMP_Text ConfigureOutgoingStatText(TMP_Text source, string objectName)
+        {
+            if (source == null)
+                throw new InvalidOperationException($"{objectName} source text is missing.");
+
+            var textObject = FindOrCreate(source.transform.parent, objectName);
+            Stretch((RectTransform)textObject.transform, 0f);
+            var text = GetOrAdd<TextMeshProUGUI>(textObject);
+            ConfigureFeedbackText(text, source, source.fontSize);
+            text.text = string.Empty;
+            ConfigureTextOutline(text, new Color(0.04f, 0.02f, 0.01f, 0.95f), 1.5f);
+            textObject.SetActive(false);
+            return text;
+        }
+
+        private static void ConfigureFeedbackImage(Image image, Sprite sprite)
+        {
+            image.sprite = sprite;
+            image.type = Image.Type.Simple;
+            image.preserveAspect = true;
+            image.color = Color.white;
+            image.raycastTarget = false;
+        }
+
+        private static void ConfigureFeedbackText(TMP_Text text, TMP_Text source, float fontSize)
+        {
+            text.font = source.font;
+            text.fontSharedMaterial = source.fontSharedMaterial != null
+                ? source.fontSharedMaterial
+                : source.font.material;
+            text.fontSize = fontSize;
+            text.fontStyle = FontStyles.Bold;
+            text.alignment = TextAlignmentOptions.Center;
+            text.enableAutoSizing = false;
+            text.enableWordWrapping = false;
+            text.color = Color.white;
+            text.raycastTarget = false;
+        }
+
+        private static void ConfigureTextOutline(TMP_Text text, Color color, float distance)
+        {
+            var outline = text.GetComponent<Outline>();
+            if (outline == null)
+                outline = text.gameObject.AddComponent<Outline>();
+            outline.effectColor = color;
+            outline.effectDistance = new Vector2(distance, -distance);
+            outline.useGraphicAlpha = true;
         }
 
         private static void ConfigurePreparationFeatures(GameObject root, BattleCardItemView view)
@@ -256,9 +476,9 @@ namespace Hearthstone
             var battleSlotEmpty = ConfigurePreparationEmptyState(
                 root.transform,
                 "PreparationBattleSlotEmptyState",
-                "Assets/Resources/Art/Preparation/UI/PreparationBattleSlotFrame.png",
-                "Preparation battle slot frame",
-                5f);
+                "Assets/Resources/Art/Preparation/UI/PreparationPoolEmptySlot.png",
+                "Preparation pool empty slot",
+                0f);
             var fusionSlotEmpty = ConfigurePreparationEmptyState(
                 root.transform,
                 "PreparationFusionSlotEmptyState",

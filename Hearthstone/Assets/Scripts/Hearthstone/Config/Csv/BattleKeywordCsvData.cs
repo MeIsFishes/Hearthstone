@@ -7,6 +7,7 @@ namespace Hearthstone
     {
         public EBattleKeyword Keyword;
         public string DisplayName;
+        public string Description;
         public int DisplayOrder;
         public int DamageNumerator;
         public int DamageDenominator;
@@ -23,6 +24,7 @@ namespace Hearthstone
         {
             Keyword = ParseEnumFromKey<EBattleKeyword>(nameof(Keyword));
             DisplayName = GetStringFromKey(nameof(DisplayName));
+            Description = GetStringFromKey(nameof(Description));
             DisplayOrder = ParseIntFromKey(nameof(DisplayOrder));
             DamageNumerator = ParseIntFromKey(nameof(DamageNumerator));
             DamageDenominator = ParseIntFromKey(nameof(DamageDenominator));
@@ -37,6 +39,8 @@ namespace Hearthstone
                 throw new InvalidOperationException($"Battle keyword '{Keyword}' must contain exactly one known flag.");
             if (string.IsNullOrWhiteSpace(DisplayName))
                 throw new InvalidOperationException($"Battle keyword '{Keyword}' has no display name.");
+            if (string.IsNullOrWhiteSpace(Description))
+                throw new InvalidOperationException($"Battle keyword '{Keyword}' has no description.");
             if (DisplayOrder < 0)
                 throw new InvalidOperationException($"Battle keyword '{Keyword}' has an invalid display order.");
             if (DamageNumerator < 0 || DamageDenominator <= 0)

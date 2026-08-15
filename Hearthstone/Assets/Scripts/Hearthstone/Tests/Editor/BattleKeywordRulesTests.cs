@@ -10,13 +10,13 @@ namespace Hearthstone.Tests
     public sealed class BattleKeywordRulesTests
     {
         private const string DefaultKeywordCsv =
-            "Keyword,DisplayName,DisplayOrder,DamageNumerator,DamageDenominator,BlastDistance,AttackGain,HealthGain,SuppressCounterDamage\n" +
-            "// Unique single keyword flag,Chinese display name,Stable display order,Damage scale numerator,Damage scale denominator,Adjacent slot distance,Attack gain per trigger,Health gain per trigger,Whether counter damage is suppressed\n" +
+            "Keyword,DisplayName,Description,DisplayOrder,DamageNumerator,DamageDenominator,BlastDistance,AttackGain,HealthGain,SuppressCounterDamage\n" +
+            "// Unique single keyword flag,Chinese display name,Player-facing rule description,Stable display order,Damage scale numerator,Damage scale denominator,Adjacent slot distance,Attack gain per trigger,Health gain per trigger,Whether counter damage is suppressed\n" +
             "// Associated: BattleCardTypeCsvData\n" +
-            "Taunt,嘲讽,0,1,1,0,0,0,false\n" +
-            "LongShot,远射,1,1,2,0,0,0,true\n" +
-            "Blast,爆裂,2,1,2,1,0,0,false\n" +
-            "Charge,冲锋,3,1,1,0,1,1,false\n";
+            "Taunt,嘲讽,敌方存在嘲讽单位时只能以嘲讽单位为攻击目标。,0,1,1,0,0,0,false\n" +
+            "LongShot,远射,攻击伤害减半并且不会受到目标反击。,1,1,2,0,0,0,true\n" +
+            "Blast,爆裂,攻击时对目标相邻1格内的存活单位造成主目标伤害的一半。,2,1,2,1,0,0,false\n" +
+            "Charge,冲锋,每次发动攻击前使己方所有存活单位的攻击和生命各提高1点。,3,1,1,0,1,1,false\n";
 
         [SetUp]
         public void SetUp()
@@ -51,9 +51,15 @@ namespace Hearthstone.Tests
 
             Assert.AreEqual(BattleKeywordRules.AllKeywords, result);
             Assert.AreEqual(result, BattleKeywordRules.UnionKeywords(result, result));
-            Assert.AreEqual("嘲讽 · 远射\n爆裂 · 冲锋", BattleKeywordRules.FormatDisplayText(result));
+            Assert.AreEqual("嘲讽、远射、爆裂、冲锋", BattleKeywordRules.FormatDisplayText(result));
             Assert.AreEqual("嘲讽", BattleKeywordRules.FormatDisplayText(EBattleKeyword.Taunt));
             Assert.AreEqual(string.Empty, BattleKeywordRules.FormatDisplayText(EBattleKeyword.None));
+            Assert.AreEqual(
+                "远射：攻击伤害减半并且不会受到目标反击。\n" +
+                "冲锋：每次发动攻击前使己方所有存活单位的攻击和生命各提高1点。",
+                BattleKeywordRules.FormatDescriptionText(
+                    EBattleKeyword.LongShot | EBattleKeyword.Charge));
+            Assert.AreEqual(string.Empty, BattleKeywordRules.FormatDescriptionText(EBattleKeyword.None));
         }
 
         [Test]
@@ -140,13 +146,13 @@ namespace Hearthstone.Tests
         {
             DataApi.ReleaseAllData<BattleKeywordCsvData>(false);
             const string customCsv =
-                "Keyword,DisplayName,DisplayOrder,DamageNumerator,DamageDenominator,BlastDistance,AttackGain,HealthGain,SuppressCounterDamage\n" +
-                "// keyword,name,order,numerator,denominator,distance,attack gain,health gain,suppress counter\n" +
+                "Keyword,DisplayName,Description,DisplayOrder,DamageNumerator,DamageDenominator,BlastDistance,AttackGain,HealthGain,SuppressCounterDamage\n" +
+                "// keyword,name,description,order,numerator,denominator,distance,attack gain,health gain,suppress counter\n" +
                 "// Associated: BattleCardTypeCsvData\n" +
-                "Taunt,嘲讽,0,1,1,0,0,0,false\n" +
-                "LongShot,远射,1,2,3,0,0,0,false\n" +
-                "Blast,爆裂,2,1,3,2,0,0,false\n" +
-                "Charge,冲锋,3,1,1,0,2,3,false\n";
+                "Taunt,嘲讽,嘲讽说明,0,1,1,0,0,0,false\n" +
+                "LongShot,远射,远射说明,1,2,3,0,0,0,false\n" +
+                "Blast,爆裂,爆裂说明,2,1,3,2,0,0,false\n" +
+                "Charge,冲锋,冲锋说明,3,1,1,0,2,3,false\n";
             CsvApi.ReadFromString<BattleKeywordCsvData>(nameof(BattleKeywordCsvData), customCsv);
 
             var damage = BattleRules.ResolveKeywordDamage(9, 5, EBattleKeyword.LongShot | EBattleKeyword.Blast);
@@ -280,8 +286,10 @@ namespace Hearthstone.Tests
             var text = selector(view);
             Assert.NotNull(text, path);
             Assert.IsTrue(text.enableAutoSizing, path);
-            Assert.IsFalse(text.enableWordWrapping, path);
-            Assert.LessOrEqual(text.fontSizeMin, 9f, path);
+            Assert.IsTrue(text.enableWordWrapping, path);
+            Assert.LessOrEqual(text.fontSizeMin, 10f, path);
+            Assert.GreaterOrEqual(text.fontSizeMax, 17f, path);
+            Assert.AreEqual(TMPro.TextAlignmentOptions.Top, text.alignment, path);
         }
     }
 }

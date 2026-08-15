@@ -13,9 +13,15 @@ namespace Hearthstone
 
         public BattlePlayerLineupStartupData(IReadOnlyList<RunCardInstanceData> slots)
         {
-            if (slots == null || slots.Count != RunCardRules.BattleSlotCount)
-                throw new ArgumentException($"A player lineup must contain exactly {RunCardRules.BattleSlotCount} slots.", nameof(slots));
-            m_Slots = new RunCardInstanceData[RunCardRules.BattleSlotCount];
+            if (slots == null || slots.Count < RunCardRules.InitialBattleSlotCount ||
+                slots.Count > RunCardRules.MaximumBattleSlotCount)
+            {
+                throw new ArgumentException(
+                    $"A player lineup must contain between {RunCardRules.InitialBattleSlotCount} and " +
+                    $"{RunCardRules.MaximumBattleSlotCount} slots.",
+                    nameof(slots));
+            }
+            m_Slots = new RunCardInstanceData[slots.Count];
             var occupiedCards = new HashSet<int>();
             for (var slot = 0; slot < m_Slots.Length; slot++)
             {
@@ -37,13 +43,16 @@ namespace Hearthstone
 
         public static BattlePlayerLineupStartupData Capture(
             RunStateSingletonRawComponent runState,
-            IReadOnlyList<int> battleSlotCardNumbers)
+            IReadOnlyList<int> battleSlotCardNumbers,
+            int slotCount)
         {
             if (runState == null)
                 throw new ArgumentNullException(nameof(runState));
-            if (battleSlotCardNumbers == null || battleSlotCardNumbers.Count != RunCardRules.BattleSlotCount)
+            if (battleSlotCardNumbers == null || slotCount < RunCardRules.InitialBattleSlotCount ||
+                slotCount > battleSlotCardNumbers.Count ||
+                slotCount > RunCardRules.MaximumBattleSlotCount)
                 throw new ArgumentException("Battle slot snapshot has an invalid length.", nameof(battleSlotCardNumbers));
-            var slots = new RunCardInstanceData[RunCardRules.BattleSlotCount];
+            var slots = new RunCardInstanceData[slotCount];
             for (var slot = 0; slot < slots.Length; slot++)
             {
                 var cardNumber = battleSlotCardNumbers[slot];
@@ -54,6 +63,13 @@ namespace Hearthstone
                 slots[slot] = runState.CardInstances[cardNumber];
             }
             return new BattlePlayerLineupStartupData(slots);
+        }
+
+        public static BattlePlayerLineupStartupData Capture(
+            RunStateSingletonRawComponent runState,
+            IReadOnlyList<int> battleSlotCardNumbers)
+        {
+            return Capture(runState, battleSlotCardNumbers, RunCardRules.InitialBattleSlotCount);
         }
     }
 
@@ -96,21 +112,14 @@ namespace Hearthstone
         {
             if (string.IsNullOrWhiteSpace(batchId))
                 throw new ArgumentException("Reward batch id cannot be empty.", nameof(batchId));
-            if (grants == null || grants.Count != RunCardRules.RewardGrantCount)
-            {
-                throw new ArgumentException(
-                    $"A reward batch must contain exactly {RunCardRules.RewardGrantCount} grants.",
-                    nameof(grants));
-            }
+            if (grants == null)
+                throw new ArgumentNullException(nameof(grants));
 
             BatchId = batchId;
-            m_Grants = new RewardCardGrantStartupData[RunCardRules.RewardGrantCount];
-            var visited = new HashSet<int>();
+            m_Grants = new RewardCardGrantStartupData[grants.Count];
             for (var index = 0; index < m_Grants.Length; index++)
             {
                 var grant = grants[index] ?? throw new ArgumentException("Reward grant cannot be null.", nameof(grants));
-                if (visited.Add(grant.CardNumber) == false)
-                    throw new ArgumentException($"Reward card {grant.CardNumber} is duplicated.", nameof(grants));
                 m_Grants[index] = grant.CreateSnapshot();
             }
         }
@@ -126,12 +135,15 @@ namespace Hearthstone
         public static PreparationRewardBatchStartupData CreateRandom(
             string batchId,
             Predicate<int> isUnavailable,
+            int drawCount,
             ref Random random)
         {
             if (string.IsNullOrWhiteSpace(batchId))
                 throw new ArgumentException("Reward batch id cannot be empty.", nameof(batchId));
             if (random.state == 0)
                 throw new ArgumentException("Reward random state cannot be zero.", nameof(random));
+            if (drawCount < 0)
+                throw new ArgumentOutOfRangeException(nameof(drawCount));
 
             var candidates = new int[
                 RunCardRules.LastOrdinaryCardNumber - RunCardRules.FirstCardNumber + 1];
@@ -149,14 +161,14 @@ namespace Hearthstone
                 candidates[candidateCount++] = cardNumber;
             }
 
-            if (candidateCount < RunCardRules.RewardGrantCount)
+            if (candidateCount < drawCount)
             {
                 throw new InvalidOperationException(
                     $"Only {candidateCount} ordinary reward cards are available; " +
-                    $"{RunCardRules.RewardGrantCount} are required.");
+                    $"{drawCount} are required.");
             }
 
-            var grants = new RewardCardGrantStartupData[RunCardRules.RewardGrantCount];
+            var grants = new RewardCardGrantStartupData[drawCount];
             for (var index = 0; index < grants.Length; index++)
             {
                 var selectedIndex = random.NextInt(index, candidateCount);
@@ -172,6 +184,41 @@ namespace Hearthstone
                     type.RollHealth(ref random));
             }
             return new PreparationRewardBatchStartupData(batchId, grants);
+        }
+
+        public static PreparationRewardBatchStartupData CreateRandom(
+            string batchId,
+            Predicate<int> isUnavailable,
+            ref Random random)
+        {
+            return CreateRandom(batchId, isUnavailable, RunCardRules.RewardGrantCount, ref random);
+        }
+    }
+
+    public sealed class PreparationRoundStartupData
+    {
+        public int BattleNumber { get; }
+        public int UnlockedBattleSlotCount { get; }
+        public PreparationRewardBatchStartupData RewardBatch { get; }
+
+        public PreparationRoundStartupData(
+            int battleNumber,
+            int unlockedBattleSlotCount,
+            PreparationRewardBatchStartupData rewardBatch)
+        {
+            if (battleNumber <= 0)
+                throw new ArgumentOutOfRangeException(nameof(battleNumber));
+            if (unlockedBattleSlotCount < RunCardRules.InitialBattleSlotCount ||
+                unlockedBattleSlotCount > RunCardRules.MaximumBattleSlotCount)
+                throw new ArgumentOutOfRangeException(nameof(unlockedBattleSlotCount));
+            BattleNumber = battleNumber;
+            UnlockedBattleSlotCount = unlockedBattleSlotCount;
+            RewardBatch = rewardBatch?.CreateSnapshot() ?? throw new ArgumentNullException(nameof(rewardBatch));
+        }
+
+        public PreparationRoundStartupData CreateSnapshot()
+        {
+            return new PreparationRoundStartupData(BattleNumber, UnlockedBattleSlotCount, RewardBatch);
         }
     }
 

@@ -24,6 +24,14 @@ namespace Hearthstone
         public const int CardsPerSide = RunCardRules.BattleSlotCount;
         public const int DefaultCardNumber = 1;
         public const float ActionInterval = 0.75f;
+        public const float ResultSettlementDelay = 0.5f;
+        public const float VictoryBannerEnterDuration = 0.24f;
+        public const float VictoryBannerHoldDuration = 0.68f;
+        public const float VictoryBannerExitDuration = 0.24f;
+        public const float VictoryBannerTotalDuration =
+            VictoryBannerEnterDuration + VictoryBannerHoldDuration + VictoryBannerExitDuration;
+        public const float AttackEndWaitDuration = ActionInterval + 0.5f;
+        public const float AttackPresentationPlaybackSpeed = 0.8f;
         public const float AttackLungeDuration = 0.36f;
         public const float AttackLungeDistance = 36f;
         public const int AttackEffectFrameCount = 8;
@@ -89,13 +97,19 @@ namespace Hearthstone
 
         public static int FindNextLivingSlot(int startCursor, uint aliveMask)
         {
+            return FindNextLivingSlot(startCursor, aliveMask, CardsPerSide);
+        }
+
+        public static int FindNextLivingSlot(int startCursor, uint aliveMask, int slotCount)
+        {
             if (aliveMask == 0)
                 return -1;
+            ValidateRuntimeSlotCount(slotCount);
 
-            var normalizedCursor = NormalizeCursor(startCursor);
-            for (var offset = 0; offset < CardsPerSide; offset++)
+            var normalizedCursor = NormalizeCursor(startCursor, slotCount);
+            for (var offset = 0; offset < slotCount; offset++)
             {
-                var slot = (normalizedCursor + offset) % CardsPerSide;
+                var slot = (normalizedCursor + offset) % slotCount;
                 if ((aliveMask & (1u << slot)) != 0)
                     return slot;
             }
@@ -105,15 +119,21 @@ namespace Hearthstone
 
         public static int GetNextCursor(int actedSlot)
         {
-            if (actedSlot < 0 || actedSlot >= CardsPerSide)
+            return GetNextCursor(actedSlot, CardsPerSide);
+        }
+
+        public static int GetNextCursor(int actedSlot, int slotCount)
+        {
+            ValidateRuntimeSlotCount(slotCount);
+            if (actedSlot < 0 || actedSlot >= slotCount)
                 throw new ArgumentOutOfRangeException(nameof(actedSlot));
-            return (actedSlot + 1) % CardsPerSide;
+            return (actedSlot + 1) % slotCount;
         }
 
         public static int CountLiving(uint aliveMask)
         {
             var count = 0;
-            for (var slot = 0; slot < CardsPerSide; slot++)
+            for (var slot = 0; slot < RunCardRules.MaximumBattleSlotCount; slot++)
             {
                 if ((aliveMask & (1u << slot)) != 0)
                     count++;
@@ -127,7 +147,7 @@ namespace Hearthstone
             if (livingOrdinal < 0 || livingOrdinal >= livingCount)
                 throw new ArgumentOutOfRangeException(nameof(livingOrdinal));
 
-            for (var slot = 0; slot < CardsPerSide; slot++)
+            for (var slot = 0; slot < RunCardRules.MaximumBattleSlotCount; slot++)
             {
                 if ((aliveMask & (1u << slot)) == 0)
                     continue;
@@ -158,7 +178,13 @@ namespace Hearthstone
 
         public static uint GetAdjacentLivingMask(int mainSlot, uint aliveMask, int distance)
         {
-            if (mainSlot < 0 || mainSlot >= CardsPerSide)
+            return GetAdjacentLivingMask(mainSlot, aliveMask, distance, CardsPerSide);
+        }
+
+        public static uint GetAdjacentLivingMask(int mainSlot, uint aliveMask, int distance, int slotCount)
+        {
+            ValidateRuntimeSlotCount(slotCount);
+            if (mainSlot < 0 || mainSlot >= slotCount)
                 throw new ArgumentOutOfRangeException(nameof(mainSlot));
             if (distance < 0)
                 throw new ArgumentOutOfRangeException(nameof(distance));
@@ -167,7 +193,7 @@ namespace Hearthstone
             {
                 if (mainSlot - offset >= 0)
                     adjacentMask |= 1u << (mainSlot - offset);
-                if (mainSlot + offset < CardsPerSide)
+                if (mainSlot + offset < slotCount)
                     adjacentMask |= 1u << (mainSlot + offset);
             }
             return adjacentMask & aliveMask;
@@ -223,10 +249,21 @@ namespace Hearthstone
             return EBattleResult.InProgress;
         }
 
+        private static int NormalizeCursor(int cursor, int slotCount)
+        {
+            var normalized = cursor % slotCount;
+            return normalized < 0 ? normalized + slotCount : normalized;
+        }
+
         private static int NormalizeCursor(int cursor)
         {
-            var normalized = cursor % CardsPerSide;
-            return normalized < 0 ? normalized + CardsPerSide : normalized;
+            return NormalizeCursor(cursor, CardsPerSide);
+        }
+
+        private static void ValidateRuntimeSlotCount(int slotCount)
+        {
+            if (slotCount <= 0 || slotCount > RunCardRules.MaximumBattleSlotCount)
+                throw new ArgumentOutOfRangeException(nameof(slotCount));
         }
     }
 }

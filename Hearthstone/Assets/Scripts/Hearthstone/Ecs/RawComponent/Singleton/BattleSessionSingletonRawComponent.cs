@@ -16,12 +16,15 @@ namespace Hearthstone
     /// </summary>
     public sealed class BattleSessionSingletonRawComponent : EcsSingletonRawComponent
     {
-        public readonly Entity[] PlayerCards = new Entity[BattleRules.CardsPerSide];
-        public readonly Entity[] EnemyCards = new Entity[BattleRules.CardsPerSide];
+        public Entity[] PlayerCards = Array.Empty<Entity>();
+        public Entity[] EnemyCards = Array.Empty<Entity>();
+        public int BattleNumber;
+        public bool IsFinalBattle;
         public int PlayerAttackCursor;
         public int EnemyAttackCursor;
         public readonly ListenableVariable<EBattleSide> CurrentSide = new(EBattleSide.Player);
         public readonly ListenableVariable<EBattleResult> Result = new(EBattleResult.InProgress);
+        public readonly ListenableVariable<bool> OutcomePresentationCompleted = new(false);
         public readonly ListenableVariable<Entity> CurrentAttacker = new(Entity.Null);
         public readonly ListenableVariable<Entity> CurrentTarget = new(Entity.Null);
         public readonly ListenableVariable<int> AttackPresentationSequence = new(0);
@@ -48,17 +51,34 @@ namespace Hearthstone
         public int PendingTargetHealthBefore;
         public PreparationRewardBatchStartupData PendingPreparationRewardBatch;
         public bool PreparationTransitionRequested;
+        public bool ResultSettlementPending;
+        public EBattleResult PendingResult;
+        public float ResultSettlementCountdown;
+        public float OutcomePresentationCountdown;
 
-        public void Initialize(uint randomSeed, PreparationRewardBatchStartupData rewardBatch)
+        public void Initialize(
+            uint randomSeed,
+            PreparationRewardBatchStartupData rewardBatch,
+            int battleNumber,
+            bool isFinalBattle,
+            int playerSlotCount)
         {
             if (rewardBatch == null)
                 throw new ArgumentNullException(nameof(rewardBatch));
-            Array.Clear(PlayerCards, 0, PlayerCards.Length);
-            Array.Clear(EnemyCards, 0, EnemyCards.Length);
+            if (battleNumber <= 0)
+                throw new ArgumentOutOfRangeException(nameof(battleNumber));
+            if (playerSlotCount < RunCardRules.InitialBattleSlotCount ||
+                playerSlotCount > RunCardRules.MaximumBattleSlotCount)
+                throw new ArgumentOutOfRangeException(nameof(playerSlotCount));
+            PlayerCards = new Entity[playerSlotCount];
+            EnemyCards = new Entity[BattleRules.CardsPerSide];
+            BattleNumber = battleNumber;
+            IsFinalBattle = isFinalBattle;
             PlayerAttackCursor = 0;
             EnemyAttackCursor = 0;
             CurrentSide.SetValue(EBattleSide.Player);
             Result.SetValue(EBattleResult.InProgress);
+            OutcomePresentationCompleted.SetValue(false);
             CurrentAttacker.SetValue(Entity.Null);
             CurrentTarget.SetValue(Entity.Null);
             AttackPresentationSequence.SetValue(0);
@@ -69,6 +89,20 @@ namespace Hearthstone
             ClearPendingAttackPresentation();
             PendingPreparationRewardBatch = rewardBatch.CreateSnapshot();
             PreparationTransitionRequested = false;
+            ResultSettlementPending = false;
+            PendingResult = EBattleResult.InProgress;
+            ResultSettlementCountdown = 0f;
+            OutcomePresentationCountdown = 0f;
+        }
+
+        public void Initialize(uint randomSeed, PreparationRewardBatchStartupData rewardBatch)
+        {
+            Initialize(
+                randomSeed,
+                rewardBatch,
+                1,
+                false,
+                RunCardRules.InitialBattleSlotCount);
         }
 
         public Entity[] GetCards(EBattleSide side)
@@ -93,15 +127,19 @@ namespace Hearthstone
         {
             CurrentSide.MakeInvalid();
             Result.MakeInvalid();
+            OutcomePresentationCompleted.MakeInvalid();
             CurrentAttacker.MakeInvalid();
             CurrentTarget.MakeInvalid();
             AttackPresentationSequence.MakeInvalid();
-            Array.Clear(PlayerCards, 0, PlayerCards.Length);
-            Array.Clear(EnemyCards, 0, EnemyCards.Length);
+            PlayerCards = Array.Empty<Entity>();
+            EnemyCards = Array.Empty<Entity>();
+            BattleNumber = 0;
+            IsFinalBattle = false;
             PlayerAttackCursor = 0;
             EnemyAttackCursor = 0;
             CurrentSide.SetValue(EBattleSide.Player);
             Result.SetValue(EBattleResult.InProgress);
+            OutcomePresentationCompleted.SetValue(false);
             CurrentAttacker.SetValue(Entity.Null);
             CurrentTarget.SetValue(Entity.Null);
             AttackPresentationSequence.SetValue(0);
@@ -112,6 +150,10 @@ namespace Hearthstone
             ClearPendingAttackPresentation();
             PendingPreparationRewardBatch = null;
             PreparationTransitionRequested = false;
+            ResultSettlementPending = false;
+            PendingResult = EBattleResult.InProgress;
+            ResultSettlementCountdown = 0f;
+            OutcomePresentationCountdown = 0f;
         }
 
         public void ClearPendingAttackPresentation()

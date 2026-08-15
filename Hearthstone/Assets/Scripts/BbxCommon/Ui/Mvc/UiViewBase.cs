@@ -34,7 +34,7 @@ namespace BbxCommon.Ui
 
         internal void EditorPreInitialize()
         {
-            var uiPreInitRemoves = GetComponentsInChildren<IUiPreInitRemove>();
+            var uiPreInitRemoves = GetComponentsInChildren<IUiPreInitRemove>(true);
             foreach (var item in uiPreInitRemoves)
             {
                 if (item.DontRemove == false)
@@ -46,7 +46,7 @@ namespace BbxCommon.Ui
             while (true)
             {
                 bool end = true;
-                var uiPreInits = GetComponentsInChildren<IUiPreInit>();
+                var uiPreInits = GetComponentsInChildren<IUiPreInit>(true);
                 foreach (var item in uiPreInits)
                 {
                     if (item.OnUiPreInit(this) == false)
@@ -65,49 +65,49 @@ namespace BbxCommon.Ui
                 }
             }
 
-            var uiInits = GetComponentsInChildren<IUiInit>();
+            var uiInits = GetComponentsInChildren<IUiInit>(true);
             foreach (var item in uiInits)
             {
                 if (BbxUiItems.Contains((Component)item) == false)
                     BbxUiItems.Add((Component)item);
             }
 
-            var uiOpens = GetComponentsInChildren<IUiOpen>();
+            var uiOpens = GetComponentsInChildren<IUiOpen>(true);
             foreach (var item in uiOpens)
             {
                 if (BbxUiItems.Contains((Component)item) == false)
                     BbxUiItems.Add((Component)item);
             }
 
-            var uiShows = GetComponentsInChildren<IUiShow>();
+            var uiShows = GetComponentsInChildren<IUiShow>(true);
             foreach (var item in uiShows)
             {
                 if (BbxUiItems.Contains((Component)item) == false)
                     BbxUiItems.Add((Component)item);
             }
 
-            var uiUpdates = GetComponentsInChildren<IUiUpdate>();
+            var uiUpdates = GetComponentsInChildren<IUiUpdate>(true);
             foreach (var item in uiUpdates)
             {
                 if (BbxUiItems.Contains((Component)item) == false)
                     BbxUiItems.Add((Component)item);
             }
 
-            var uiHides = GetComponentsInChildren<IUiHide>();
+            var uiHides = GetComponentsInChildren<IUiHide>(true);
             foreach (var item in uiHides)
             {
                 if (BbxUiItems.Contains((Component)item) == false)
                     BbxUiItems.Add((Component)item);
             }
 
-            var uiCloses = GetComponentsInChildren<IUiClose>();
+            var uiCloses = GetComponentsInChildren<IUiClose>(true);
             foreach (var item in uiCloses)
             {
                 if (BbxUiItems.Contains((Component)item) == false)
                     BbxUiItems.Add((Component)item);
             }
 
-            var uiDestroys = GetComponentsInChildren<IUiDestroy>();
+            var uiDestroys = GetComponentsInChildren<IUiDestroy>(true);
             foreach (var item in uiDestroys)
             {
                 if (BbxUiItems.Contains((Component)item) == false)

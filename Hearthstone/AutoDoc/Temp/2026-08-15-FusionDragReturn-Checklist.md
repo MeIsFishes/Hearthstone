@@ -1,0 +1,28 @@
+# 融合素材拖离区域退回牌库检查清单
+
+- [x] 通过——用户要求：融合槽来源的单位拖离融合槽区域并松手时，一律取消融合素材选择并返回牌库展示。
+  - 证据：`BattleCardItemController.OnPreparationDragReturned()` 在释放点位于 `FusionSlotList` 外时调用 `RemoveFusionMaterial()`；卡池展示继续由 `FusionRevision` 权威刷新恢复。
+- [x] 通过——修复拖拽结束时的刷新时序，确保被拖对象先退出顶层拖拽状态，再清除融合素材和刷新界面。
+  - 证据：取消判定挂在既有 `UiDragable.Wrapper.OnBackFromTop` 回调；原先 Pointer Up 交互阶段的 `OnCardPoolInteract` 即时清除入口已移除。
+- [x] 通过——保留融合槽区域内的有效行为：原槽回落不移除，槽间移动继续生效。
+  - 证据：释放点仍在 `FusionSlotList` 矩形内时不执行移除；既有融合槽目标 `DropCardOnFusionSlot()` 路径未改动。
+- [x] 通过——阻止融合槽来源单位在拖离融合区时被出战槽等其他区域执行额外投放逻辑。
+  - 证据：`BattleSlot` 投放分支新增融合槽来源保护，先 `break` 再决定是否调用 `DropCardOnSlot()`。
+- [x] 通过——补充与本次行为直接相关的回归验证，覆盖拖离、原槽回落和槽间移动的判定边界。
+  - 证据：新增 `FusionMaterialDragReturnIsResolvedAfterTopLayerRestoreAndOutsideFusionArea`，约束 OnBackFromTop、区域判定、取消入口、旧卡池即时入口移除及出战槽保护顺序。
+- [x] 通过——代码审计：检查新增函数和字段是否必要，删除不必要的一次性抽象。
+  - 证据：仅新增页面区域命中查询；该查询是条目 Controller 获取页面 View 边界所需的最小接口，没有新增状态字段或平行拖拽实现，并删除旧 `OnCardPoolInteract()`。
+- [x] 通过——框架边界审计：使用既有 BbxCommon View/Controller、UiDragable 与生命周期入口，不绕过 UI 框架或复制通用拖拽管理。
+  - 证据：继续使用 `OnBackFromTop`、View 序列化的 `FusionSlotList`、规则层 `TryRemoveFusionMaterial()` 和 `FusionRevision`；未改 BbxCommon 框架、未直接写 session 槽。
+- [x] 通过——误改与依赖审计：仅修改本功能相关文件，不覆盖工作区内既有用户改动，不修改任何 `.meta` 文件。
+  - 证据：本任务修改两个 Controller、相关 Editor 测试及两篇现状文档；未编辑 Prefab、资源或 `.meta`。工作区中此前已有的其他修改均保留。
+- [x] 通过——玩家视角设计文档：读取格式 skill 和现有融合/备战文档，根据实际实现同步拖离行为。
+  - 证据：已读取 `design-doc-format` 与现有备战卡池设计文档，并更新 `AutoDoc/Design/Specific/preparation-card-pool/preparation-card-pool.md` 的玩家操作与反馈。
+- [x] 不适用——美术文档：读取格式 skill，核对本次是否产生玩家可见美术资产或布局变化并记录结论。
+  - 证据：已读取 `art-doc-writer`、备战模块美术文档和 UI 美术总览；本次只改变拖放判定与刷新时序，没有新增或调整图片、颜色、层级、布局及美术状态，现有美术事实未变化。
+- [x] 通过——程序文档：读取格式 skill 和现有备战 UI 文档，根据实际实现同步拖拽生命周期与取消规则。
+  - 证据：已读取 `program-doc-format`、UI 界面格式、备战 UI 文档及卡池程序文档；更新 `AutoDoc/Program/UI/preparation/preparation.md`，规则模块接口未变化，故其文档无需改动。
+- [x] 通过——验证：执行可用的相关 Editor 测试或等价静态/编译验证；默认不进入游戏。
+  - 证据：`dotnet build Hearthstone.csproj --no-restore --nologo` 与 `dotnet build Hearthstone.Tests.csproj --no-restore --nologo` 均返回 0 错误；目标文件 `git diff --check` 通过。Unity 编辑器当前占用项目，未另起批处理测试或进入游戏；日志未发现本次编译错误，既有依赖版本冲突警告不属于本次改动。
+- [x] 通过——结束审计：重新读取本清单，逐项记录状态与证据；随后只运行一次 `AutoDoc/CleanupTempDocs.bat`，并创建同名 Report。
+  - 证据：本文件已在修改、编译、文档同步和差异检查后重新读取并完成逐项审计；清理和 Report 结果将在同名报告记录。

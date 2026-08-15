@@ -12,19 +12,19 @@ namespace Hearthstone
             m_Session = EcsApi.GetSingletonRawComponent<BattleSessionSingletonRawComponent>();
             if (m_Session == null)
                 throw new InvalidOperationException("Battle result listener requires a battle session.");
-            AddVariableDirtyListener(m_Session.Result, OnBattleResultChanged);
+            AddVariableDirtyListener(m_Session.OutcomePresentationCompleted, OnOutcomePresentationCompleted);
         }
 
-        private void OnBattleResultChanged(EBattleResult result)
+        private void OnOutcomePresentationCompleted(bool completed)
         {
-            if (result == EBattleResult.InProgress || m_Session.PreparationTransitionRequested)
+            if (completed == false ||
+                m_Session.Result.Value != EBattleResult.PlayerVictory ||
+                m_Session.IsFinalBattle ||
+                m_Session.PreparationTransitionRequested)
                 return;
-            if (m_Session.PendingPreparationRewardBatch == null)
-                throw new InvalidOperationException("Battle session has no pending preparation reward batch.");
 
             m_Session.PreparationTransitionRequested = true;
-            HearthstoneGameEngine.Instance.EnterPreparationStageGroup(
-                m_Session.PendingPreparationRewardBatch.CreateSnapshot());
+            HearthstoneGameEngine.Instance.BeginPreparationForBattle(m_Session.BattleNumber + 1);
         }
     }
 }

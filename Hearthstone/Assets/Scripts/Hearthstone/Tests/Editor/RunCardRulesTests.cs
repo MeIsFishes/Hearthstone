@@ -36,7 +36,7 @@ namespace Hearthstone.Tests
         }
 
         [Test]
-        public void ApplyRewardBatch_IsAtomicAndIdempotent()
+        public void ApplyRewardBatch_PreservesDuplicateCopiesAndRemainsIdempotent()
         {
             var runState = new RunStateSingletonRawComponent();
             var batch = CreateBatch("batch-a", 2, 3, 5, 6, 7);
@@ -50,11 +50,16 @@ namespace Hearthstone.Tests
             Assert.AreEqual(5, runState.GetOwnedCardCount());
 
             var overlapping = CreateBatch("batch-b", 2, 8, 9, 10, 11);
-            Assert.Throws<InvalidOperationException>(() => RunCardRules.ApplyRewardBatch(runState, overlapping));
-            Assert.AreEqual(revision, runState.Revision.Value);
-            Assert.AreEqual(5, runState.GetOwnedCardCount());
-            Assert.IsFalse(runState.AppliedRewardBatchPayloadFingerprints.ContainsKey("batch-b"));
-            Assert.IsFalse(runState.HasCard(8));
+            Assert.AreEqual(ERewardBatchApplyResult.Applied, RunCardRules.ApplyRewardBatch(runState, overlapping));
+            Assert.AreEqual(revision + 1, runState.Revision.Value);
+            Assert.AreEqual(10, runState.GetOwnedCardCount());
+            Assert.AreEqual(2, runState.GetCardCopyCount(2));
+            Assert.IsTrue(runState.AppliedRewardBatchPayloadFingerprints.ContainsKey("batch-b"));
+            Assert.IsTrue(runState.HasCard(8));
+            Assert.AreEqual(
+                ERewardBatchApplyResult.AlreadyApplied,
+                RunCardRules.ApplyRewardBatch(runState, overlapping));
+            Assert.AreEqual(10, runState.GetOwnedCardCount());
         }
 
         [Test]
@@ -126,7 +131,7 @@ namespace Hearthstone.Tests
             Assert.AreEqual(revision, runState.Revision.Value);
             Assert.AreEqual(result, runState.CardInstances[result.CardNumber]);
             Assert.IsTrue(runState.HasCard(54));
-            CollectionAssert.AreEqual(new[] { 0, 0, 0 }, runState.BattleSlotCardNumbers);
+            CollectionAssert.AreEqual(new[] { 0, 0, 0, 0, 0, 0 }, runState.BattleSlotCardNumbers);
         }
 
         [Test]
@@ -146,7 +151,7 @@ namespace Hearthstone.Tests
             runState.CollectToPool();
             Assert.IsEmpty(runState.AppliedRewardBatchPayloadFingerprints);
             Assert.AreEqual(0, runState.GetOwnedCardCount());
-            CollectionAssert.AreEqual(new[] { 0, 0, 0 }, runState.BattleSlotCardNumbers);
+            CollectionAssert.AreEqual(new[] { 0, 0, 0, 0, 0, 0 }, runState.BattleSlotCardNumbers);
         }
 
         [Test]
@@ -247,43 +252,189 @@ namespace Hearthstone.Tests
         }
 
         [Test]
-        public void FusionEvaluationAndCommit_UsesAllFourCardTypesForLegendaryRecipeAndAllStats()
+        public void FusionEvaluationAndCommit_UsesAllFourMaterialsForLegendaryRecipeAndAllStats()
         {
             var runState = new RunStateSingletonRawComponent();
             var session = new PreparationSessionSingletonRawComponent();
             RunCardRules.ApplyRewardBatch(runState, CreateFusionBatch("fusion-batch"));
             runState.BattleSlotCardNumbers[0] = 14;
-            runState.BattleSlotCardNumbers[1] = 54;
+            runState.BattleSlotCardNumbers[1] = 35;
 
-            SelectFusionMaterials(runState, session, 14, 20);
-            var pair = RunCardRules.EvaluateFusion(runState, session);
-            Assert.IsTrue(pair.CanFuse);
-            Assert.AreEqual(2, pair.RecipeMaterialCount);
-            Assert.AreEqual(105, pair.ResultCardNumber);
-
-            Assert.AreEqual(EFusionOperationResult.Applied,
-                RunCardRules.TrySetFusionMaterial(runState, session, 30, 2));
-            Assert.AreEqual(EFusionOperationResult.Applied,
-                RunCardRules.TrySetFusionMaterial(runState, session, 54, 3));
+            SelectFusionMaterials(runState, session, 14, 20, 30, 35);
             var evaluation = RunCardRules.EvaluateFusion(runState, session);
-            Assert.AreEqual(118, evaluation.CardNumberSum);
+            Assert.AreEqual(RunCardRules.FusionTargetCardNumberSum, evaluation.CardNumberSum);
             Assert.AreEqual(4, evaluation.RecipeMaterialCount);
-            Assert.AreEqual(187, evaluation.ResultCardNumber);
+            Assert.AreEqual(184, evaluation.ResultCardNumber);
+            Assert.AreEqual(131, evaluation.PresentationCardNumber);
             Assert.IsTrue(evaluation.CanFuse);
             Assert.AreEqual(EFusionOperationResult.Applied,
                 RunCardRules.TryFuse(runState, session, out var result));
-            Assert.AreEqual(187, result.CardNumber);
+            Assert.AreEqual(184, result.CardNumber);
+            Assert.AreEqual(131, result.PresentationCardNumber);
             Assert.AreEqual(EBattleCardTier.Legendary, result.Tier);
             Assert.AreEqual(11, result.Attack);
-            Assert.AreEqual(12, result.MaxHealth);
+            Assert.AreEqual(15, result.MaxHealth);
             Assert.IsFalse(runState.HasCard(14));
             Assert.IsFalse(runState.HasCard(20));
             Assert.IsFalse(runState.HasCard(30));
-            Assert.IsFalse(runState.HasCard(54));
-            Assert.IsTrue(runState.HasCard(35));
-            Assert.IsTrue(runState.HasCard(187));
-            CollectionAssert.AreEqual(new[] { 0, 0, 0 }, runState.BattleSlotCardNumbers);
+            Assert.IsFalse(runState.HasCard(35));
+            Assert.IsTrue(runState.HasCard(54));
+            Assert.IsTrue(runState.HasCard(184));
+            CollectionAssert.AreEqual(new[] { 0, 0, 0, 0, 0, 0 }, runState.BattleSlotCardNumbers);
             CollectionAssert.AreEqual(new[] { 0, 0, 0, 0 }, session.FusionSlotCardNumbers);
+
+            var battleCard = new BattleCardRawComponent();
+            battleCard.InitializePlayer(0, result);
+            Assert.AreEqual(184, battleCard.CardNumber);
+            Assert.AreEqual(184, battleCard.CardTypeId);
+            Assert.AreEqual(131, battleCard.PresentationCardNumber);
+            Assert.AreEqual(131, battleCard.PresentationCardTypeId);
+            Assert.AreEqual(EBattleCardTier.Legendary, battleCard.Tier);
+        }
+
+        [Test]
+        public void FourCardFusionPresentationUsesActualHighestThreeCardNumbers()
+        {
+            AssertFourCardPresentation(
+                new[] { 2, 4, 8, 85 },
+                177,
+                127);
+            AssertFourCardPresentation(
+                new[] { 4, 7, 8, 80 },
+                177,
+                143);
+        }
+
+        [Test]
+        public void FusionEvaluation_RequiresCardNumberSumExactlyNinetyNine()
+        {
+            var underState = new RunStateSingletonRawComponent();
+            var underSession = new PreparationSessionSingletonRawComponent();
+            underState.CardInstances[14] = new RunCardInstanceData(14, 1, 1);
+            underState.CardInstances[20] = new RunCardInstanceData(20, 1, 1);
+            SelectFusionMaterials(underState, underSession, 14, 20);
+
+            var under = RunCardRules.EvaluateFusion(underState, underSession);
+            Assert.AreEqual(34, under.CardNumberSum);
+            Assert.AreEqual(EFusionOperationResult.CardNumberSumNotExact, under.BlockingResult);
+            Assert.IsFalse(under.CanFuse);
+            Assert.AreEqual(
+                EFusionOperationResult.CardNumberSumNotExact,
+                RunCardRules.TryFuse(underState, underSession, out _));
+
+            var exactState = new RunStateSingletonRawComponent();
+            var exactSession = new PreparationSessionSingletonRawComponent();
+            exactState.CardInstances[44] = new RunCardInstanceData(44, 1, 1);
+            exactState.CardInstances[55] = new RunCardInstanceData(55, 1, 1);
+            SelectFusionMaterials(exactState, exactSession, 44, 55);
+
+            var exact = RunCardRules.EvaluateFusion(exactState, exactSession);
+            Assert.AreEqual(RunCardRules.FusionTargetCardNumberSum, exact.CardNumberSum);
+            Assert.AreEqual(EFusionOperationResult.Applied, exact.BlockingResult);
+            Assert.IsTrue(exact.CanFuse);
+
+            var overState = new RunStateSingletonRawComponent();
+            var overSession = new PreparationSessionSingletonRawComponent();
+            overState.CardInstances[44] = new RunCardInstanceData(44, 1, 1);
+            overState.CardInstances[56] = new RunCardInstanceData(56, 1, 1);
+            SelectFusionMaterials(overState, overSession, 44, 56);
+
+            var over = RunCardRules.EvaluateFusion(overState, overSession);
+            Assert.AreEqual(100, over.CardNumberSum);
+            Assert.AreEqual(EFusionOperationResult.CardNumberSumNotExact, over.BlockingResult);
+            Assert.IsFalse(over.CanFuse);
+            Assert.AreEqual(
+                EFusionOperationResult.CardNumberSumNotExact,
+                RunCardRules.TryFuse(overState, overSession, out _));
+        }
+
+        [Test]
+        public void FusionRecommendations_ReturnEveryLegalExactCombinationContainingSelectedMaterials()
+        {
+            var runState = new RunStateSingletonRawComponent();
+            var session = new PreparationSessionSingletonRawComponent();
+            foreach (var cardNumber in new[] { 14, 20, 30, 35, 44, 55 })
+                runState.CardInstances[cardNumber] = new RunCardInstanceData(cardNumber, 1, 1);
+            SelectFusionMaterials(runState, session, 14);
+            var recommendations = new System.Collections.Generic.List<FusionRecommendationData>();
+
+            Assert.AreEqual(
+                2,
+                RunCardRules.FindFusionRecommendations(runState, session, recommendations));
+            CollectionAssert.AreEqual(
+                new[] { 14, 30, 55 },
+                Enumerable.Range(0, recommendations[0].MaterialCount)
+                    .Select(recommendations[0].GetCardNumber)
+                    .ToArray());
+            CollectionAssert.AreEqual(
+                new[] { 14, 20, 30, 35 },
+                Enumerable.Range(0, recommendations[1].MaterialCount)
+                    .Select(recommendations[1].GetCardNumber)
+                    .ToArray());
+            foreach (var recommendation in recommendations)
+            {
+                var cardNumbers = Enumerable.Range(0, recommendation.MaterialCount)
+                    .Select(recommendation.GetCardNumber)
+                    .ToArray();
+                Assert.Contains(14, cardNumbers);
+                Assert.AreEqual(RunCardRules.FusionTargetCardNumberSum, cardNumbers.Sum());
+                Assert.AreEqual(cardNumbers.Length, cardNumbers.Distinct().Count());
+                Assert.IsFalse(runState.HasCard(recommendation.ResultCardNumber));
+            }
+        }
+
+        [Test]
+        public void FusionRecommendations_WithEmptySelectionReturnEveryApplicableCombination()
+        {
+            var runState = new RunStateSingletonRawComponent();
+            var session = new PreparationSessionSingletonRawComponent();
+            runState.CardInstances[44] = new RunCardInstanceData(44, 1, 1);
+            runState.CardInstances[55] = new RunCardInstanceData(55, 1, 1);
+            var recommendations = new System.Collections.Generic.List<FusionRecommendationData>
+            {
+                default,
+            };
+
+            Assert.AreEqual(1, RunCardRules.FindFusionRecommendations(runState, session, recommendations));
+            CollectionAssert.AreEqual(
+                new[] { 44, 55 },
+                Enumerable.Range(0, recommendations[0].MaterialCount)
+                    .Select(recommendations[0].GetCardNumber)
+                    .ToArray());
+            var resultCardNumber = recommendations[0].ResultCardNumber;
+            runState.CardInstances[resultCardNumber] = new RunCardInstanceData(resultCardNumber, 1, 1);
+
+            Assert.AreEqual(0, RunCardRules.FindFusionRecommendations(runState, session, recommendations));
+            Assert.IsEmpty(recommendations);
+        }
+
+        [Test]
+        public void ApplyingFusionRecommendationAtomicallyReplacesMaterialSlots()
+        {
+            var runState = new RunStateSingletonRawComponent();
+            var session = new PreparationSessionSingletonRawComponent();
+            foreach (var cardNumber in new[] { 14, 30, 44, 55 })
+                runState.CardInstances[cardNumber] = new RunCardInstanceData(cardNumber, 1, 1);
+            SelectFusionMaterials(runState, session, 44);
+            var recommendations = new System.Collections.Generic.List<FusionRecommendationData>();
+            RunCardRules.FindFusionRecommendations(runState, session, recommendations);
+            var recommendation = recommendations.Single(item =>
+                item.MaterialCount == 2 &&
+                item.GetCardNumber(0) == 44 &&
+                item.GetCardNumber(1) == 55);
+            var revision = session.FusionRevision.Value;
+
+            Assert.AreEqual(
+                EFusionOperationResult.Applied,
+                RunCardRules.TryApplyFusionRecommendation(runState, session, recommendation));
+            CollectionAssert.AreEqual(new[] { 44, 55, 0, 0 }, session.FusionSlotCardNumbers);
+            Assert.AreEqual(revision + 1, session.FusionRevision.Value);
+            Assert.IsTrue(RunCardRules.EvaluateFusion(runState, session).CanFuse);
+
+            Assert.AreEqual(
+                EFusionOperationResult.NoChange,
+                RunCardRules.TryApplyFusionRecommendation(runState, session, recommendation));
+            Assert.AreEqual(revision + 1, session.FusionRevision.Value);
         }
 
         [Test]
@@ -349,9 +500,10 @@ namespace Hearthstone.Tests
             SelectFusionMaterials(runState, session, 4, 44, 45, 49);
 
             var evaluation = RunCardRules.EvaluateFusion(runState, session);
+            Assert.AreEqual(142, evaluation.CardNumberSum);
             Assert.AreEqual(4, evaluation.RecipeMaterialCount);
             Assert.AreEqual(0, evaluation.ResultCardNumber);
-            Assert.AreEqual(EFusionOperationResult.RecipeNotFound, evaluation.BlockingResult);
+            Assert.AreEqual(EFusionOperationResult.CardNumberSumNotExact, evaluation.BlockingResult);
         }
 
         [Test]
@@ -390,22 +542,74 @@ namespace Hearthstone.Tests
 
             Assert.IsTrue(RunCardRules.TryPlaceCard(runState, 2, 0));
             Assert.IsTrue(RunCardRules.TryPlaceCard(runState, 3, 0));
-            CollectionAssert.AreEqual(new[] { 3, 0, 0 }, runState.BattleSlotCardNumbers);
+            CollectionAssert.AreEqual(new[] { 3, 0, 0, 0, 0, 0 }, runState.BattleSlotCardNumbers);
             Assert.IsTrue(RunCardRules.TryPlaceCard(runState, 3, 2));
-            CollectionAssert.AreEqual(new[] { 0, 0, 3 }, runState.BattleSlotCardNumbers);
+            CollectionAssert.AreEqual(new[] { 0, 0, 3, 0, 0, 0 }, runState.BattleSlotCardNumbers);
             Assert.IsFalse(RunCardRules.TryPlaceCard(runState, 4, 1));
-            CollectionAssert.AreEqual(new[] { 0, 0, 3 }, runState.BattleSlotCardNumbers);
+            CollectionAssert.AreEqual(new[] { 0, 0, 3, 0, 0, 0 }, runState.BattleSlotCardNumbers);
         }
 
         [Test]
-        public void RewardBatch_RequiresExactlyFiveUniqueGrants()
+        public void RewardBatch_AllowsConfiguredGrantCountAndDuplicateNumbers()
         {
-            Assert.Throws<ArgumentException>(() => new PreparationRewardBatchStartupData(
-                "short", new[] { Grant(2) }));
-            Assert.Throws<ArgumentException>(() => new PreparationRewardBatchStartupData(
-                "duplicate", new[] { Grant(2), Grant(2), Grant(3), Grant(5), Grant(6) }));
+            var shortBatch = new PreparationRewardBatchStartupData("short", new[] { Grant(2) });
+            Assert.AreEqual(1, shortBatch.Grants.Count);
+            var duplicateBatch = new PreparationRewardBatchStartupData(
+                "duplicate", new[] { Grant(2), Grant(2), Grant(3), Grant(5), Grant(6) });
+            var runState = new RunStateSingletonRawComponent();
+            Assert.AreEqual(ERewardBatchApplyResult.Applied, RunCardRules.ApplyRewardBatch(runState, duplicateBatch));
+            Assert.AreEqual(5, runState.GetOwnedCardCount());
+            Assert.AreEqual(2, runState.GetCardCopyCount(2));
             Assert.Throws<ArgumentOutOfRangeException>(() =>
                 new RewardCardGrantStartupData(RunCardRules.LockedCardNumber, 1, 1));
+        }
+
+        [Test]
+        public void BattleProgressionConfigurationDefinesRoundDrawAndSlotUnlocks()
+        {
+            DataApi.ReleaseAllData<BattleProgressionCsvData>(false);
+            try
+            {
+                CsvApi.ReadFromString<BattleProgressionCsvData>(
+                    nameof(BattleProgressionCsvData),
+                    "BattleNumber,UnlockSlotCount,DrawCardCount\n" +
+                    "1,3,3");
+                var progression = DataApi.GetData<BattleProgressionCsvData>(1);
+                Assert.NotNull(progression);
+                Assert.AreEqual(3, progression.UnlockSlotCount);
+                Assert.AreEqual(3, progression.DrawCardCount);
+                Assert.AreEqual(3, BattleProgressionCsvData.GetUnlockedSlotTotal(1));
+            }
+            finally
+            {
+                DataApi.ReleaseAllData<BattleProgressionCsvData>(false);
+            }
+        }
+
+        [Test]
+        public void FusionConsumesOneDuplicateCopyAndPromotesTheNextCopy()
+        {
+            var runState = new RunStateSingletonRawComponent();
+            var session = new PreparationSessionSingletonRawComponent();
+            var batch = new PreparationRewardBatchStartupData(
+                "duplicate-fusion",
+                new[]
+                {
+                    new RewardCardGrantStartupData(44, 1, 2),
+                    new RewardCardGrantStartupData(44, 9, 10),
+                    new RewardCardGrantStartupData(55, 3, 4),
+                    Grant(2),
+                    Grant(3),
+                });
+            RunCardRules.ApplyRewardBatch(runState, batch);
+            SelectFusionMaterials(runState, session, 44, 55);
+
+            Assert.AreEqual(EFusionOperationResult.Applied, RunCardRules.TryFuse(runState, session, out _));
+            Assert.AreEqual(1, runState.GetCardCopyCount(44));
+            Assert.AreEqual(9, runState.GetCardInstance(44).Attack);
+            Assert.AreEqual(10, runState.GetCardInstance(44).MaxHealth);
+            Assert.AreEqual(0, runState.GetCardCopyCount(55));
+            Assert.AreEqual(4, runState.GetOwnedCardCount());
         }
 
         [Test]
@@ -495,13 +699,14 @@ namespace Hearthstone.Tests
                 "Assets/Resources/Fonts/NotoSansSC-SemiBold Dynamic SDF.asset");
             Assert.NotNull(font);
             const string requiredCharacters =
-                "备战阶段卡槽位池哥布林战士弓手投弹野猪食人魔融合造物出战素材合计继续";
+                "备战阶段卡槽位池哥布林战士弓手投弹野猪食人魔融合造物出战素材合计继续智能推荐无可用组合选择";
             Assert.IsTrue(font.HasCharacters(requiredCharacters));
 
             var prefabPaths = new[]
             {
                 "Assets/Resources/Ui/PreparationView.prefab",
                 "Assets/Resources/Ui/BattleCardItem.prefab",
+                "Assets/Resources/Ui/FusionRecommendationItem.prefab",
             };
             foreach (var path in prefabPaths)
             {
@@ -532,13 +737,200 @@ namespace Hearthstone.Tests
             Assert.NotNull(page.FusionOperationRoot);
             Assert.NotNull(page.BattleSlotList);
             Assert.NotNull(page.FusionSlotList);
-            Assert.NotNull(page.FusionExpressionText);
-            Assert.NotNull(page.FusionResultText);
+            Assert.NotNull(page.FusionCurrentPointLabel);
+            Assert.NotNull(page.FusionCurrentPointValue);
+            Assert.NotNull(page.FusionRemainingPointLabel);
+            Assert.NotNull(page.FusionRemainingPointValue);
             Assert.NotNull(page.FusionButton);
             Assert.NotNull(page.FusionButtonAttemptListener);
+            Assert.NotNull(page.FusionRecommendationButton);
+            Assert.NotNull(page.FusionRecommendationHoverListener);
+            Assert.NotNull(page.FusionRecommendationTooltip);
             Assert.NotNull(page.FusionAreaInteractor);
+            Assert.NotNull(page.FusionRecommendationOverlay);
+            Assert.NotNull(page.FusionRecommendationCloseButton);
+            Assert.NotNull(page.FusionRecommendationScrollRect);
+            Assert.NotNull(page.FusionRecommendationList);
+            Assert.NotNull(page.FusionRecommendationEmptyText);
+            Assert.IsFalse(page.FusionRecommendationOverlay.activeSelf);
+            var serializedPage = new SerializedObject(page);
+            var serializedUiItems = serializedPage.FindProperty("BbxUiItems");
+            Assert.NotNull(serializedUiItems);
+            Assert.IsTrue(
+                Enumerable.Range(0, serializedUiItems.arraySize).Any(index =>
+                    serializedUiItems.GetArrayElementAtIndex(index).objectReferenceValue ==
+                    page.FusionRecommendationList),
+                "Inactive recommendation UiList must participate in the page UI lifecycle.");
+            Assert.AreSame(
+                page.FusionRecommendationList.transform,
+                page.FusionRecommendationScrollRect.content);
+            Assert.AreEqual(
+                "智能推荐",
+                page.FusionRecommendationButton.transform.Find("Label").GetComponent<TMP_Text>().text);
+            Assert.AreSame(
+                page.FusionRecommendationButton.transform,
+                page.FusionRecommendationTooltip.transform.parent);
+            Assert.AreSame(
+                page.FusionRecommendationButton.gameObject,
+                page.FusionRecommendationHoverListener.gameObject);
+            Assert.IsFalse(page.FusionRecommendationTooltip.activeSelf);
+            var recommendationTooltipText = page.FusionRecommendationTooltip.transform
+                .Find("Text")?.GetComponent<TMP_Text>();
+            var recommendationTooltipBackground = page.FusionRecommendationTooltip.GetComponent<Image>();
+            Assert.NotNull(recommendationTooltipText);
+            Assert.NotNull(recommendationTooltipBackground);
+            Assert.AreEqual("智能寻找牌库中可以融合的组合", recommendationTooltipText.text);
+            Assert.AreEqual(TextAlignmentOptions.MidlineLeft, recommendationTooltipText.alignment);
+            Assert.IsFalse(recommendationTooltipText.raycastTarget);
+            Assert.IsFalse(recommendationTooltipBackground.raycastTarget);
+            Assert.AreEqual(new Vector2(460f, 94f),
+                ((RectTransform)page.FusionRecommendationTooltip.transform).sizeDelta);
+            Assert.AreEqual(new Vector2(354f, 0f),
+                ((RectTransform)page.FusionRecommendationTooltip.transform).anchoredPosition);
+            var battlePrefab = AssetDatabase.LoadAssetAtPath<GameObject>(
+                "Assets/Resources/Ui/BattleView.prefab");
+            Assert.NotNull(battlePrefab);
+            var recommendationPanel = page.FusionRecommendationOverlay.transform.Find("Panel");
+            var battleBackground = battlePrefab.transform.Find("BoardBackground")?.GetComponent<Image>();
+            var recommendationBackground = recommendationPanel?.GetComponent<Image>();
+            var recommendationAging = recommendationPanel?.Find("ParchmentAgingOverlay")?.GetComponent<Image>();
+            var battleAging = battlePrefab.transform.Find("ParchmentAgingOverlay")?.GetComponent<Image>();
+            var recommendationScroll = recommendationPanel?.Find("ScrollRect")?.GetComponent<Image>();
+            var recommendationViewport = recommendationPanel?.Find("ScrollRect/Viewport");
+            Assert.NotNull(recommendationPanel);
+            Assert.NotNull(battleBackground);
+            Assert.NotNull(recommendationBackground);
+            Assert.NotNull(recommendationAging);
+            Assert.NotNull(battleAging);
+            Assert.NotNull(recommendationScroll);
+            Assert.NotNull(recommendationViewport);
+            Assert.IsNull(recommendationPanel.Find("Title"));
+            Assert.IsNull(recommendationPanel.Find("Hint"));
+            Assert.AreSame(battleBackground.sprite, recommendationBackground.sprite);
+            Assert.AreSame(battleAging.sprite, recommendationAging.sprite);
+            Assert.AreEqual(0.14f, recommendationAging.color.a, 0.001f);
+            Assert.IsFalse(recommendationAging.raycastTarget);
+            Assert.AreEqual(0f, recommendationScroll.color.a, 0.001f);
+            Assert.IsNull(recommendationViewport.GetComponent<Image>());
+            Assert.AreEqual("无可用组合", page.FusionRecommendationEmptyText.text);
+            Assert.AreEqual(TextAlignmentOptions.Center, page.FusionRecommendationEmptyText.alignment);
+            Assert.AreEqual(
+                UiList.EArrangement.Manual,
+                page.FusionRecommendationList.ArragementType);
+            var recommendationItemPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(
+                "Assets/Resources/Ui/FusionRecommendationItem.prefab");
+            Assert.NotNull(recommendationItemPrefab);
+            var recommendationItem = recommendationItemPrefab.GetComponent<FusionRecommendationItemView>();
+            Assert.NotNull(recommendationItem);
+            Assert.NotNull(recommendationItem.CardList);
+            Assert.NotNull(recommendationItem.SelectButton);
+            Assert.IsNull(recommendationItemPrefab.transform.Find("ResultCard"));
+            Assert.IsNull(recommendationItemPrefab.transform.Find("Result"));
+            Assert.AreEqual(
+                "选择",
+                recommendationItem.SelectButton.transform.Find("Label").GetComponent<TMP_Text>().text);
+            var currentPointPanel = page.FusionOperationRoot.transform.Find(
+                "FusionSumPanel/CurrentPointPanel") as RectTransform;
+            var remainingPointPanel = page.FusionOperationRoot.transform.Find(
+                "FusionSumPanel/RemainingPointPanel") as RectTransform;
+            var recommendationButtonRect = page.FusionRecommendationButton.transform as RectTransform;
+            var fusionButtonRect = page.FusionButton.transform as RectTransform;
+            Assert.NotNull(currentPointPanel);
+            Assert.NotNull(remainingPointPanel);
+            Assert.NotNull(recommendationButtonRect);
+            Assert.NotNull(fusionButtonRect);
+            Assert.AreEqual(new Vector2(280f, 72f), currentPointPanel.sizeDelta);
+            Assert.AreEqual(new Vector2(280f, 72f), remainingPointPanel.sizeDelta);
+            Assert.AreEqual(new Vector2(216f, 68f), recommendationButtonRect.sizeDelta);
+            Assert.AreEqual(new Vector2(300f, 82f), fusionButtonRect.sizeDelta);
+            Assert.AreEqual(currentPointPanel.anchoredPosition.x, remainingPointPanel.anchoredPosition.x);
+            Assert.AreEqual(currentPointPanel.anchoredPosition.x, recommendationButtonRect.anchoredPosition.x);
+            Assert.Greater(currentPointPanel.anchoredPosition.y, remainingPointPanel.anchoredPosition.y);
+            Assert.Greater(remainingPointPanel.anchoredPosition.y, recommendationButtonRect.anchoredPosition.y);
+            Assert.Greater(fusionButtonRect.anchoredPosition.x, currentPointPanel.anchoredPosition.x);
+            Assert.Greater(fusionButtonRect.sizeDelta.x, currentPointPanel.sizeDelta.x);
+            Assert.NotNull(currentPointPanel.GetComponent<Image>().sprite);
+            Assert.AreEqual(
+                "PreparationFusionSumPanel",
+                currentPointPanel.GetComponent<Image>().sprite.name);
+            Assert.AreSame(
+                currentPointPanel.GetComponent<Image>().sprite,
+                remainingPointPanel.GetComponent<Image>().sprite);
+            Assert.IsFalse(currentPointPanel.GetComponent<Image>().preserveAspect);
+            Assert.IsFalse(remainingPointPanel.GetComponent<Image>().preserveAspect);
+            Assert.AreEqual("当前点数", page.FusionCurrentPointLabel.text);
+            Assert.AreEqual("0", page.FusionCurrentPointValue.text);
+            Assert.AreEqual("剩余点数", page.FusionRemainingPointLabel.text);
+            Assert.AreEqual("99", page.FusionRemainingPointValue.text);
+            Assert.AreEqual(TextAlignmentOptions.MidlineLeft, page.FusionCurrentPointLabel.alignment);
+            Assert.AreEqual(TextAlignmentOptions.MidlineRight, page.FusionCurrentPointValue.alignment);
+            Assert.AreEqual(TextAlignmentOptions.MidlineLeft, page.FusionRemainingPointLabel.alignment);
+            Assert.AreEqual(TextAlignmentOptions.MidlineRight, page.FusionRemainingPointValue.alignment);
+            Assert.AreEqual(Color.black, page.FusionCurrentPointLabel.color);
+            Assert.AreEqual(Color.black, page.FusionCurrentPointValue.color);
+            Assert.AreEqual(Color.black, page.FusionRemainingPointLabel.color);
+            Assert.AreEqual(Color.black, page.FusionRemainingPointValue.color);
+            var currentLabelBounds = RectTransformUtility.CalculateRelativeRectTransformBounds(
+                currentPointPanel,
+                page.FusionCurrentPointLabel.rectTransform);
+            var currentValueBounds = RectTransformUtility.CalculateRelativeRectTransformBounds(
+                currentPointPanel,
+                page.FusionCurrentPointValue.rectTransform);
+            var remainingLabelBounds = RectTransformUtility.CalculateRelativeRectTransformBounds(
+                remainingPointPanel,
+                page.FusionRemainingPointLabel.rectTransform);
+            var remainingValueBounds = RectTransformUtility.CalculateRelativeRectTransformBounds(
+                remainingPointPanel,
+                page.FusionRemainingPointValue.rectTransform);
+            Assert.LessOrEqual(currentPointPanel.rect.xMin, currentLabelBounds.min.x);
+            Assert.GreaterOrEqual(currentPointPanel.rect.xMax, currentValueBounds.max.x);
+            Assert.LessOrEqual(remainingPointPanel.rect.xMin, remainingLabelBounds.min.x);
+            Assert.GreaterOrEqual(remainingPointPanel.rect.xMax, remainingValueBounds.max.x);
+            Assert.NotNull(page.RewardRevealOverlay);
+            Assert.NotNull(page.RewardRevealCanvasGroup);
+            Assert.NotNull(page.RewardRevealConfirmButton);
+            Assert.NotNull(page.RewardRevealCardList);
+            Assert.IsFalse(page.RewardRevealOverlay.activeSelf);
+            Assert.IsTrue(page.RewardRevealCanvasGroup.blocksRaycasts);
+            Assert.IsFalse(page.RewardRevealCanvasGroup.interactable);
+            Assert.IsFalse(page.RewardRevealConfirmButton.interactable);
+            Assert.AreEqual(Navigation.Mode.None, page.RewardRevealConfirmButton.navigation.mode);
+            Assert.AreSame(
+                page.RewardRevealOverlay.GetComponent<Image>(),
+                page.RewardRevealConfirmButton.targetGraphic);
+            Assert.AreSame(
+                page.RewardRevealOverlay.transform,
+                page.RewardRevealCardList.transform.parent);
+            Assert.AreEqual(UiList.EArrangement.Manual, page.RewardRevealCardList.ArragementType);
+            var rewardTitle = page.RewardRevealOverlay.transform.Find("RewardTitle");
+            Assert.NotNull(rewardTitle);
+            var rewardTitleImage = rewardTitle.GetComponent<Image>();
+            Assert.NotNull(rewardTitleImage);
+            Assert.NotNull(rewardTitleImage.sprite);
+            Assert.AreEqual("PreparationRewardTitle", rewardTitleImage.sprite.name);
+            Assert.IsTrue(rewardTitleImage.preserveAspect);
+            Assert.IsFalse(rewardTitleImage.raycastTarget);
+            Assert.AreEqual(new Vector2(620f, 225f), ((RectTransform)rewardTitle).sizeDelta);
+            Assert.AreEqual(new Vector2(0f, 270f), ((RectTransform)rewardTitle).anchoredPosition);
+            var rewardTitleTexture = rewardTitleImage.sprite.texture;
+            Assert.GreaterOrEqual(rewardTitleTexture.width, 2000);
+            Assert.GreaterOrEqual(rewardTitleTexture.height, 700);
+            var rewardTitleImporter = AssetImporter.GetAtPath(
+                AssetDatabase.GetAssetPath(rewardTitleTexture)) as TextureImporter;
+            Assert.NotNull(rewardTitleImporter);
+            Assert.IsTrue(rewardTitleImporter.DoesSourceTextureHaveAlpha());
+            Assert.IsTrue(rewardTitleImporter.alphaIsTransparency);
+            Assert.IsFalse(rewardTitleImporter.mipmapEnabled);
+            Assert.AreEqual(TextureWrapMode.Clamp, rewardTitleImporter.wrapMode);
+            Assert.IsTrue(
+                Enumerable.Range(0, serializedUiItems.arraySize).Any(index =>
+                    serializedUiItems.GetArrayElementAtIndex(index).objectReferenceValue ==
+                    page.RewardRevealCardList),
+                "Inactive reward reveal UiList must participate in the page UI lifecycle.");
             Assert.NotNull(page.FusionRevealOverlay);
             Assert.NotNull(page.FusionRevealCanvasGroup);
+            Assert.NotNull(page.FusionRevealDismissButton);
+            Assert.NotNull(page.FusionRevealMaterialCardList);
             Assert.NotNull(page.FusionRevealCardRoot);
             Assert.NotNull(page.FusionRevealCardList);
             Assert.NotNull(page.FusionRevealSealedFace);
@@ -546,16 +938,31 @@ namespace Hearthstone.Tests
             Assert.NotNull(page.FusionRevealFlash);
             Assert.NotNull(page.FusionRevealFlashCanvasGroup);
             Assert.IsTrue(page.FusionRevealCanvasGroup.blocksRaycasts);
+            Assert.IsFalse(page.FusionRevealCanvasGroup.interactable);
+            Assert.IsFalse(page.FusionRevealDismissButton.interactable);
+            Assert.AreEqual(Navigation.Mode.None, page.FusionRevealDismissButton.navigation.mode);
+            Assert.AreSame(
+                page.FusionRevealOverlay.GetComponent<Image>(),
+                page.FusionRevealDismissButton.targetGraphic);
+            Assert.AreSame(
+                page.FusionRevealOverlay.transform,
+                page.FusionRevealMaterialCardList.transform.parent);
+            Assert.AreEqual(UiList.EArrangement.Manual, page.FusionRevealMaterialCardList.ArragementType);
             Assert.AreEqual(UiList.EArrangement.Manual, page.FusionRevealCardList.ArragementType);
             Assert.AreEqual(180f, page.FusionRevealCardBack.transform.localEulerAngles.y, 0.01f);
-            Assert.NotNull(page.FusionRevealFlash.parent.GetComponent<RectMask2D>());
+            Assert.AreSame(page.FusionRevealOverlay.transform, page.FusionRevealFlash.parent);
+            Assert.AreEqual(Vector2.zero, page.FusionRevealFlash.offsetMin);
+            Assert.AreEqual(Vector2.zero, page.FusionRevealFlash.offsetMax);
+            Assert.IsFalse(page.FusionRevealFlash.GetComponent<Image>().raycastTarget);
+            foreach (var revealText in page.FusionRevealOverlay.GetComponentsInChildren<TMP_Text>(true))
+                StringAssert.DoesNotContain("按任意键继续", revealText.text);
             Assert.AreEqual(
                 pagePrefab.transform.childCount - 1,
                 page.FusionRevealOverlay.transform.GetSiblingIndex());
             Assert.NotNull(page.CardPoolInteractor);
             Assert.NotNull(page.OwnedOnlyToggle);
             Assert.NotNull(page.OwnedOnlyLabel);
-            Assert.IsFalse(page.OwnedOnlyToggle.isOn);
+            Assert.IsTrue(page.OwnedOnlyToggle.isOn);
             Assert.AreEqual("查看拥有", page.OwnedOnlyLabel.text);
             Assert.AreSame(
                 page.OwnedOnlyToggle.transform,
@@ -564,6 +971,15 @@ namespace Hearthstone.Tests
             Assert.IsNull(pagePrefab.transform.Find("CardPoolPanel/PoolTitle"));
             Assert.IsNull(pagePrefab.transform.Find("ContinueButton/AuxiliaryLabel"));
             Assert.AreEqual("继续", page.ContinueMainText.text);
+            Assert.AreEqual(Navigation.Mode.None, page.ContinueButton.navigation.mode);
+            Assert.AreSame(page.ContinueButtonImage.sprite, page.ContinueButton.spriteState.pressedSprite);
+            Assert.AreSame(page.ContinueButtonImage.sprite, page.ContinueButton.spriteState.selectedSprite);
+            Assert.AreEqual(
+                "PreparationContinueButtonHighlighted",
+                page.ContinueButton.spriteState.highlightedSprite.name);
+            Assert.AreEqual(
+                "PreparationContinueButtonWaiting",
+                page.ContinueButton.spriteState.disabledSprite.name);
             Assert.AreEqual("PreparationTabSelectedV2", page.BattleTabImage.sprite.name);
             Assert.AreEqual("PreparationTabIdleV2", page.FusionTabImage.sprite.name);
 
@@ -597,6 +1013,12 @@ namespace Hearthstone.Tests
             Assert.AreEqual(-58f, fusionTabRect.anchoredPosition.y);
             Assert.AreEqual(-130f, ((RectTransform)page.BattleSlotList.transform).anchoredPosition.y);
 
+            var fusionMaterialTitleRect = page.FusionOperationRoot.transform.Find("Title") as RectTransform;
+            var fusionSlotListRect = (RectTransform)page.FusionSlotList.transform;
+            Assert.NotNull(fusionMaterialTitleRect);
+            Assert.AreEqual(new Vector2(425f, -40f), fusionMaterialTitleRect.anchoredPosition);
+            Assert.AreEqual(new Vector2(420f, -150f), fusionSlotListRect.anchoredPosition);
+
             var poolPanelRect = (RectTransform)page.CardPoolInteractor.transform;
             Assert.AreEqual(new Vector2(1780f, 630f), poolPanelRect.sizeDelta);
             Assert.AreEqual(new Vector2(1650f, 510f), ((RectTransform)page.CardPoolScrollRect.transform).sizeDelta);
@@ -628,6 +1050,8 @@ namespace Hearthstone.Tests
             var mappings = UiApi.CapturePreloadedUiPrefabPathsForValidation();
             Assert.AreEqual("Ui/BattleCardItem",
                 mappings[typeof(BattleCardItemController).FullName]);
+            Assert.AreEqual("Ui/FusionRecommendationItem",
+                mappings[typeof(FusionRecommendationItemController).FullName]);
             Assert.NotNull(Resources.Load<UiSceneAsset>("Ui/Preparation"));
             Assert.AreEqual(31, RunCardRules.CardRowCount);
             Assert.AreEqual(213, RunCardRules.LastCardNumber);
@@ -639,7 +1063,7 @@ namespace Hearthstone.Tests
                 "PreparationFusionSlotFrame",
                 "PreparationFusionSumPanel", "PreparationFusionButtonDisabled",
                 "PreparationFusionButtonEnabled", "PreparationFusionButtonPressed",
-                "PreparationMaterialSelected", "FusionCard_099",
+                "PreparationMaterialSelected", "PreparationRewardTitle", "FusionCard_099",
             };
             foreach (var key in spriteKeys)
                 Assert.NotNull(ResourceApi.LoadSprite(key), key);
@@ -658,13 +1082,20 @@ namespace Hearthstone.Tests
                 "for (var cardNumber = RunCardRules.FirstCardNumber;",
                 controllerScript.text);
             StringAssert.Contains(
-                "m_ShowOwnedOnly && m_RunState.HasCard(cardNumber) == false",
+                "m_ShowOwnedOnly && copyCount == 0",
                 controllerScript.text);
-            StringAssert.Contains("item.BindPreparation(this, cardNumber, displayNumber)", controllerScript.text);
+            StringAssert.Contains("var copyCount = m_RunState.GetCardCopyCount(cardNumber)", controllerScript.text);
+            StringAssert.Contains(
+                "for (var copyIndex = 0; copyIndex < visibleCopyCount; copyIndex++)",
+                controllerScript.text);
+            StringAssert.Contains(
+                "item.BindPreparation(this, cardNumber, displayNumber, copyIndex)",
+                controllerScript.text);
             StringAssert.Contains("nextLegendaryDisplayNumber++", controllerScript.text);
-            StringAssert.Contains("SetIsOnWithoutNotify(false)", controllerScript.text);
+            StringAssert.Contains("m_ShowOwnedOnly = true", controllerScript.text);
+            StringAssert.Contains("SetIsOnWithoutNotify(true)", controllerScript.text);
             StringAssert.Contains("verticalNormalizedPosition = 1f", controllerScript.text);
-            StringAssert.Contains("HasOwnedCardSetChanged()", controllerScript.text);
+            StringAssert.Contains("HasOwnedCardCountChanged()", controllerScript.text);
             var resizeIndex = controllerScript.text.IndexOf("poolContent.SetSizeWithCurrentAnchors", StringComparison.Ordinal);
             Assert.GreaterOrEqual(resizeIndex, 0);
             var relayoutIndex = controllerScript.text.IndexOf(
@@ -678,7 +1109,131 @@ namespace Hearthstone.Tests
         }
 
         [Test]
-        public void FusionRevealUsesScalePulseReducedSpeedAndRegisteredAudio()
+        public void FusionMaterialDragReturnIsResolvedAfterTopLayerRestoreAndOutsideFusionArea()
+        {
+            var itemControllerScript = AssetDatabase.LoadAssetAtPath<MonoScript>(
+                "Assets/Scripts/Hearthstone/Ui/Controller/BattleCardItemController.cs");
+            var pageControllerScript = AssetDatabase.LoadAssetAtPath<MonoScript>(
+                "Assets/Scripts/Hearthstone/Ui/Controller/PreparationController.cs");
+            var dragableScript = AssetDatabase.LoadAssetAtPath<MonoScript>(
+                "Assets/Scripts/BbxCommon/Ui/Misc/UiDragable.cs");
+            Assert.NotNull(itemControllerScript);
+            Assert.NotNull(pageControllerScript);
+            Assert.NotNull(dragableScript);
+
+            StringAssert.Contains(
+                "m_PreparationPage.IsPointerInsideFusionArea(eventData) == false",
+                itemControllerScript.text);
+            StringAssert.Contains(
+                "Wrapper.OnBackFromTop += OnPreparationDragReturned",
+                itemControllerScript.text);
+            StringAssert.Contains(
+                "m_PreparationPage.RemoveFusionMaterial(m_PreparationSlot)",
+                itemControllerScript.text);
+            StringAssert.Contains(
+                "RectTransformUtility.RectangleContainsScreenPoint",
+                pageControllerScript.text);
+            StringAssert.DoesNotContain(
+                "m_View.CardPoolInteractor.Wrapper.OnInteract += OnCardPoolInteract",
+                pageControllerScript.text);
+            StringAssert.DoesNotContain("restoredSlotPosition", itemControllerScript.text);
+            StringAssert.DoesNotContain("PreparationDragReturnPriority", itemControllerScript.text);
+            StringAssert.Contains("UiDragable : BbxUiItem", dragableScript.text);
+            StringAssert.Contains(
+                "RectTransformUtility.ScreenPointToWorldPointInRectangle",
+                dragableScript.text);
+            StringAssert.DoesNotContain("eventData.position.AsVector3XY()", dragableScript.text);
+
+            var topLayerRestoreIndex = dragableScript.text.IndexOf(
+                "UiApi.SetTopUiBack(EventListener.gameObject)",
+                StringComparison.Ordinal);
+            var localPositionRestoreIndex = dragableScript.text.IndexOf(
+                "SetLocalPositionOnce(m_OriginalPos",
+                topLayerRestoreIndex,
+                StringComparison.Ordinal);
+            Assert.That(topLayerRestoreIndex, Is.GreaterThanOrEqualTo(0));
+            Assert.That(localPositionRestoreIndex, Is.GreaterThan(topLayerRestoreIndex));
+
+            var battleSlotCase = itemControllerScript.text.IndexOf(
+                "case EPreparationBindingMode.BattleSlot:",
+                StringComparison.Ordinal);
+            var fusionSlotGuard = itemControllerScript.text.IndexOf(
+                "source.Source == EPreparationCardSource.FusionSlot",
+                battleSlotCase,
+                StringComparison.Ordinal);
+            var battleSlotDrop = itemControllerScript.text.IndexOf(
+                "m_PreparationPage.DropCardOnSlot",
+                battleSlotCase,
+                StringComparison.Ordinal);
+            Assert.That(fusionSlotGuard, Is.GreaterThan(battleSlotCase));
+            Assert.That(battleSlotDrop, Is.GreaterThan(fusionSlotGuard));
+        }
+
+        [Test]
+        public void FusionRevealUsesPaintedFacesWithoutCardLocalGrayBacking()
+        {
+            var pagePrefab = AssetDatabase.LoadAssetAtPath<GameObject>(
+                "Assets/Resources/Ui/PreparationView.prefab");
+            Assert.NotNull(pagePrefab);
+            var page = pagePrefab.GetComponent<PreparationView>();
+            Assert.NotNull(page);
+            Assert.NotNull(page.FusionRevealOverlay);
+            Assert.AreEqual(0.78f, page.FusionRevealOverlay.GetComponent<Image>().color.a, 0.001f);
+            Assert.IsNull(page.FusionRevealCardRoot.Find("FloatingShadow"));
+            Assert.AreEqual(
+                "FusionRevealQuestionFace",
+                page.FusionRevealSealedFace.GetComponent<Image>().sprite.name);
+            Assert.IsNull(page.FusionRevealSealedFace.transform.Find("Seal"));
+            Assert.IsNull(page.FusionRevealSealedFace.transform.Find("Question"));
+            Assert.AreEqual(
+                "FusionRevealCardBack",
+                page.FusionRevealCardBack.GetComponent<Image>().sprite.name);
+            Assert.IsNull(page.FusionRevealCardBack.transform.Find("CenterDiamond"));
+        }
+
+        [Test]
+        public void PreparationRewardsDealThenPocketSequentiallyWithManagedAudio()
+        {
+            ResourceApi.Initialize();
+            var controllerScript = AssetDatabase.LoadAssetAtPath<MonoScript>(
+                "Assets/Scripts/Hearthstone/Ui/Controller/PreparationController.cs");
+            Assert.NotNull(controllerScript);
+            StringAssert.Contains("m_Session.WasNewlyApplied == false", controllerScript.text);
+            StringAssert.Contains("m_Session.RewardCards", controllerScript.text);
+            StringAssert.Contains("ERewardRevealPhase.Dealing", controllerScript.text);
+            StringAssert.Contains("ERewardRevealPhase.AwaitingConfirm", controllerScript.text);
+            StringAssert.Contains("ERewardRevealPhase.Pocketing", controllerScript.text);
+            StringAssert.Contains("RewardRevealDealStagger = 0.14f", controllerScript.text);
+            StringAssert.Contains("RewardRevealPocketStagger = 0.11f", controllerScript.text);
+            StringAssert.Contains("CardPocketFinalScale = 0.3f", controllerScript.text);
+            StringAssert.Contains("GetRewardRevealPosition(index, cardCount)", controllerScript.text);
+            StringAssert.Contains("GetPocketTarget(overlayRect, itemRect)", controllerScript.text);
+            StringAssert.Contains("m_LastConfirmedRewardBatchId = m_RewardRevealBatchId", controllerScript.text);
+            StringAssert.Contains("RewardRevealDealAudioKey = \"card-place-1\"", controllerScript.text);
+            StringAssert.Contains("CardPocketAudioKey = \"handleSmallLeather\"", controllerScript.text);
+            StringAssert.Contains("AudioApi.StopGroup(PreparationCardAnimationAudioGroup)", controllerScript.text);
+
+            var cardControllerScript = AssetDatabase.LoadAssetAtPath<MonoScript>(
+                "Assets/Scripts/Hearthstone/Ui/Controller/BattleCardItemController.cs");
+            Assert.NotNull(cardControllerScript);
+            StringAssert.Contains(
+                "BindPreparationRewardReveal(RunCardInstanceData reward)",
+                cardControllerScript.text);
+
+            var dealClip = AssetDatabase.LoadAssetAtPath<AudioClip>(
+                "Assets/Resources/BbxCommon/Audio/Library/Casino Audio/card-place-1.ogg");
+            var pocketClip = AssetDatabase.LoadAssetAtPath<AudioClip>(
+                "Assets/Resources/BbxCommon/Audio/Library/RPG Audio/handleSmallLeather.ogg");
+            Assert.NotNull(dealClip);
+            Assert.NotNull(pocketClip);
+            Assert.NotNull(ResourceApi.GetFile("card-place-1"));
+            Assert.NotNull(ResourceApi.GetFile("handleSmallLeather"));
+            Assert.That(dealClip.length, Is.InRange(0.68f, 0.7f));
+            Assert.That(pocketClip.length, Is.InRange(0.33f, 0.35f));
+        }
+
+        [Test]
+        public void FusionRevealGathersMaterialsTurnsTwiceWaitsForOutsideClickAndKeepsCardTooltip()
         {
             ResourceApi.Initialize();
             var controllerScript = AssetDatabase.LoadAssetAtPath<MonoScript>(
@@ -686,13 +1241,33 @@ namespace Hearthstone.Tests
             Assert.NotNull(controllerScript);
             StringAssert.Contains("FusionRevealPlaybackSpeed = 0.8f", controllerScript.text);
             StringAssert.Contains("FusionRevealPeakScale = 1.28f", controllerScript.text);
-            StringAssert.Contains(
-                "rotationProgress / FusionRevealResultRotationProgress",
-                controllerScript.text);
+            StringAssert.Contains("FusionRevealRotationTurns = 2f", controllerScript.text);
+            StringAssert.Contains("FusionRevealMinimumScreenHeightCoverage = 2f / 3f", controllerScript.text);
+            StringAssert.Contains("PopulateFusionRevealMaterials(transaction)", controllerScript.text);
+            StringAssert.Contains("Vector2.Lerp(startPosition, Vector2.zero, progress)", controllerScript.text);
+            StringAssert.Contains("EvaluateFusionRevealScale(rotationProgress)", controllerScript.text);
+            StringAssert.Contains("CompleteFusionReveal()", controllerScript.text);
+            StringAssert.Contains("m_FusionRevealAwaitingDismiss = true", controllerScript.text);
+            StringAssert.Contains("OnFusionRevealDismissClicked", controllerScript.text);
+            StringAssert.Contains("StartFusionRevealPocket()", controllerScript.text);
+            StringAssert.Contains("UpdateFusionRevealPocket(deltaTime)", controllerScript.text);
+            StringAssert.Contains("FusionRevealPocketDuration = 0.36f", controllerScript.text);
+            StringAssert.Contains("CardPocketFinalScale = 0.3f", controllerScript.text);
+            StringAssert.Contains("GetPocketTarget(", controllerScript.text);
+            StringAssert.Contains("CardPocketAudioKey = \"handleSmallLeather\"", controllerScript.text);
+            StringAssert.Contains("m_FusionRevealCard.SetFusionRevealInteraction(true)", controllerScript.text);
+            StringAssert.DoesNotContain("FusionRevealHoldDuration", controllerScript.text);
+            StringAssert.DoesNotContain("FusionRevealFadeOutDuration", controllerScript.text);
             StringAssert.Contains("FusionRevealMotionAudioKey = \"card-shuffle\"", controllerScript.text);
             StringAssert.Contains("FusionRevealMomentAudioKey = \"highUp\"", controllerScript.text);
             StringAssert.Contains("m_FusionRevealMomentAudioPlayed == false", controllerScript.text);
             StringAssert.Contains("StopFusionRevealAudio();", controllerScript.text);
+
+            var cardControllerScript = AssetDatabase.LoadAssetAtPath<MonoScript>(
+                "Assets/Scripts/Hearthstone/Ui/Controller/BattleCardItemController.cs");
+            Assert.NotNull(cardControllerScript);
+            StringAssert.Contains("BindFusionMaterialReveal(FusionMaterialSnapshot material)", cardControllerScript.text);
+            StringAssert.Contains("SetFusionRevealInteraction(bool enabled)", cardControllerScript.text);
 
             var motionClip = AssetDatabase.LoadAssetAtPath<AudioClip>(
                 "Assets/Resources/BbxCommon/Audio/Library/Casino Audio/card-shuffle.ogg");
@@ -704,6 +1279,64 @@ namespace Hearthstone.Tests
             Assert.NotNull(ResourceApi.GetFile("highUp"));
             Assert.That(motionClip.length, Is.GreaterThan(3f));
             Assert.That(revealClip.length, Is.InRange(0.5f, 0.6f));
+        }
+
+        [Test]
+        public void FusionPanelUsesCurrentRemainingExactTargetGlowAndAuthoritativeButtonState()
+        {
+            var controllerScript = AssetDatabase.LoadAssetAtPath<MonoScript>(
+                "Assets/Scripts/Hearthstone/Ui/Controller/PreparationController.cs");
+            Assert.NotNull(controllerScript);
+            StringAssert.Contains(
+                "m_View.FusionCurrentPointValue.text = evaluation.CardNumberSum.ToString()",
+                controllerScript.text);
+            StringAssert.Contains(
+                "m_View.FusionRemainingPointValue.text =",
+                controllerScript.text);
+            StringAssert.Contains(
+                "(RunCardRules.FusionTargetCardNumberSum - evaluation.CardNumberSum).ToString()",
+                controllerScript.text);
+            StringAssert.Contains(
+                "evaluation.CardNumberSum == RunCardRules.FusionTargetCardNumberSum",
+                controllerScript.text);
+            StringAssert.Contains("UpdateFusionTargetGlow(deltaTime)", controllerScript.text);
+            StringAssert.Contains(
+                "color = m_View.FusionOverTargetColor",
+                controllerScript.text);
+            StringAssert.Contains(
+                "m_View.FusionRemainingPointValue.color = m_View.FusionUnderTargetColor",
+                controllerScript.text);
+            StringAssert.Contains(
+                "m_View.FusionButton.interactable = evaluation.CanFuse",
+                controllerScript.text);
+        }
+
+        [Test]
+        public void FusionSmartRecommendationUsesVirtualizedRowsAndAllowsEmptySelection()
+        {
+            var controllerScript = AssetDatabase.LoadAssetAtPath<MonoScript>(
+                "Assets/Scripts/Hearthstone/Ui/Controller/PreparationController.cs");
+            Assert.NotNull(controllerScript);
+            StringAssert.Contains(
+                "m_View.FusionRecommendationButton.interactable = true",
+                controllerScript.text);
+            StringAssert.Contains("FindFusionRecommendations", controllerScript.text);
+            StringAssert.Contains("ModifyCount<FusionRecommendationItemController>", controllerScript.text);
+            StringAssert.Contains("RefreshVisibleFusionRecommendations", controllerScript.text);
+            StringAssert.Contains("TryApplyFusionRecommendation", controllerScript.text);
+            StringAssert.Contains("FusionRecommendationOverlay.SetActive(true)", controllerScript.text);
+            StringAssert.Contains("verticalNormalizedPosition = 1f", controllerScript.text);
+            StringAssert.Contains("OnFusionRecommendationPointerEnter", controllerScript.text);
+            StringAssert.Contains(
+                "m_View.FusionRecommendationTooltip.SetActive(true)",
+                controllerScript.text);
+            StringAssert.Contains("HideFusionRecommendationTooltip()", controllerScript.text);
+
+            var cardScript = AssetDatabase.LoadAssetAtPath<MonoScript>(
+                "Assets/Scripts/Hearthstone/Ui/Controller/BattleCardItemController.cs");
+            Assert.NotNull(cardScript);
+            StringAssert.Contains("EPreparationBindingMode.FusionRecommendation", cardScript.text);
+            StringAssert.Contains("m_View.PreparationDragable.enabled = false", cardScript.text);
         }
 
         [Test]
@@ -831,6 +1464,31 @@ namespace Hearthstone.Tests
             var minimum = (Vector2)canvas.InverseTransformPoint(corners[0]);
             var maximum = (Vector2)canvas.InverseTransformPoint(corners[2]);
             return Rect.MinMaxRect(minimum.x, minimum.y, maximum.x, maximum.y);
+        }
+
+        private static void AssertFourCardPresentation(
+            int[] materialCardNumbers,
+            int expectedResultCardNumber,
+            int expectedPresentationCardNumber)
+        {
+            var runState = new RunStateSingletonRawComponent();
+            var session = new PreparationSessionSingletonRawComponent();
+            foreach (var cardNumber in materialCardNumbers)
+                runState.CardInstances[cardNumber] = new RunCardInstanceData(cardNumber, 1, 2);
+            SelectFusionMaterials(runState, session, materialCardNumbers);
+
+            var evaluation = RunCardRules.EvaluateFusion(runState, session);
+            Assert.IsTrue(evaluation.CanFuse);
+            Assert.AreEqual(expectedResultCardNumber, evaluation.ResultCardNumber);
+            Assert.AreEqual(expectedPresentationCardNumber, evaluation.PresentationCardNumber);
+            Assert.AreEqual(
+                EFusionOperationResult.Applied,
+                RunCardRules.TryFuse(runState, session, out var result));
+            Assert.AreEqual(expectedResultCardNumber, result.CardNumber);
+            Assert.AreEqual(expectedPresentationCardNumber, result.PresentationCardNumber);
+            Assert.AreEqual(EBattleCardTier.Legendary, result.Tier);
+            Assert.AreEqual(materialCardNumbers.Length, result.Attack);
+            Assert.AreEqual(materialCardNumbers.Length * 2, result.MaxHealth);
         }
 
         private static PreparationRewardBatchStartupData CreateBatch(string id, params int[] numbers)

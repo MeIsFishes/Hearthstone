@@ -1,10 +1,12 @@
 using System;
+using System.Text.RegularExpressions;
 using BbxCommon;
 using NUnit.Framework;
 using TMPro;
 using Unity.Mathematics;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.TestTools;
 using UnityEngine.UI;
 using Random = Unity.Mathematics.Random;
 using Resources = UnityEngine.Resources;
@@ -18,6 +20,17 @@ namespace Hearthstone.Tests
         {
             DataApi.ReleaseAllData<BattleCardCsvData>(false);
             DataApi.ReleaseAllData<BattleCardTypeCsvData>(false);
+        }
+
+        [Test]
+        public void AttackPresentationUsesSharedPlaybackSpeedAndExtendedEndWait()
+        {
+            Assert.That(
+                BattleRules.AttackPresentationPlaybackSpeed,
+                Is.EqualTo(0.8f).Within(0.001f));
+            Assert.That(
+                BattleRules.AttackEndWaitDuration,
+                Is.EqualTo(BattleRules.ActionInterval + 0.5f).Within(0.001f));
         }
 
         [Test]
@@ -127,6 +140,9 @@ namespace Hearthstone.Tests
                 "// Associated: BattleCardCsvData\n" +
                 "9,错误列表,2,2,1,1,None,,first;second,0.1,0.7;0.6,0.1\n";
 
+            LogAssert.Expect(
+                LogType.Error,
+                new Regex("Battle card type 9 must configure the same number of attack audio keys"));
             CsvApi.ReadFromString<BattleCardTypeCsvData>(nameof(BattleCardTypeCsvData), typeCsv);
 
             Assert.IsNull(DataApi.GetData<BattleCardTypeCsvData>(9));
@@ -166,6 +182,7 @@ namespace Hearthstone.Tests
             Assert.NotNull(ResourceApi.LoadSprite("CardNumberBadgeHex"));
             Assert.NotNull(ResourceApi.LoadSprite("CardFrame-v3"));
             Assert.NotNull(ResourceApi.LoadSprite("BattleBoardBackground"));
+            Assert.NotNull(ResourceApi.LoadSprite("BattleCenterDividerCarving"));
             Assert.NotNull(ResourceApi.LoadSprite("BattleAttackSwordSlash"));
             Assert.NotNull(ResourceApi.LoadSprite("BattleAttackArrowImpact"));
             Assert.NotNull(ResourceApi.LoadSprite("BattleAttackSmallExplosion"));
@@ -179,7 +196,7 @@ namespace Hearthstone.Tests
         }
 
         [Test]
-        public void PreparationAndBattleUseSameSubtleParchmentAgingOverlay()
+        public void PreparationAndBattleShareParchmentAgingOverlayWithStrongerBattleWeathering()
         {
             ResourceApi.Initialize();
             var sharedOverlay = ResourceApi.LoadSprite("ParchmentAgingOverlay");
@@ -204,7 +221,8 @@ namespace Hearthstone.Tests
             Assert.IsFalse(preparationOverlay.raycastTarget);
             Assert.IsFalse(battleOverlay.raycastTarget);
             Assert.That(preparationOverlay.color.a, Is.EqualTo(0.18f).Within(0.001f));
-            Assert.That(battleOverlay.color.a, Is.EqualTo(0.14f).Within(0.001f));
+            Assert.That(battleOverlay.color.a, Is.EqualTo(0.24f).Within(0.001f));
+            Assert.Greater(battleOverlay.color.a, preparationOverlay.color.a);
 
             var preparationRect = (RectTransform)preparationOverlay.transform;
             var battleRect = (RectTransform)battleOverlay.transform;
@@ -264,7 +282,7 @@ namespace Hearthstone.Tests
         }
 
         [Test]
-        public void EngineDefersDefaultRandomRewardUntilGameEngineDataStageHasLoaded()
+        public void EngineDefersRunCreationUntilMainMenuStartIsRequested()
         {
             var engineScript = AssetDatabase.LoadAssetAtPath<MonoScript>(
                 "Assets/Scripts/Hearthstone/Bootstrap/HearthstoneGameEngine.cs");
@@ -293,9 +311,10 @@ namespace Hearthstone.Tests
                 loadingCompletedStart,
                 submitStart - loadingCompletedStart);
             StringAssert.DoesNotContain("BattleStageStartupData.CreateDefault()", onAwakeSource);
-            StringAssert.Contains("BattleStageStartupData.CreateDefault()", loadingCompletedSource);
+            StringAssert.DoesNotContain("RunStateStages.CreateRunStateStage(this)", onAwakeSource);
+            StringAssert.Contains("EnterMainMenuStageGroup()", loadingCompletedSource);
             StringAssert.Contains(
-                "m_RequestedBattleStartupData == null && m_RequestedPreparationBatch == null",
+                "m_StageGroupCoordinator.ActiveGroup == EHearthstoneStageGroup.None",
                 loadingCompletedSource);
         }
 
@@ -304,7 +323,7 @@ namespace Hearthstone.Tests
         {
             var font = Resources.Load<TMP_FontAsset>("Fonts/NotoSansSC-Dynamic SDF");
             Assert.NotNull(font);
-            const string interfaceCharacters = "战斗进行中胜利失败阵亡哥布林战士弓手投弹野猪食人魔";
+            const string interfaceCharacters = "战斗胜利失败阵亡哥布林战士弓手投弹野猪食人魔";
             if (font.HasCharacters(interfaceCharacters) == false)
             {
                 Assert.IsTrue(font.TryAddCharacters(interfaceCharacters, out var missingCharacters));
@@ -342,6 +361,137 @@ namespace Hearthstone.Tests
         }
 
         [Test]
+        public void BattleCardPrefabKeepsTauntShieldBehindCardWithVisibleOuterEdges()
+        {
+            const string shieldPath =
+                "Assets/Resources/Art/BattleCards/UI/TauntShieldOutline.png";
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(
+                "Assets/Resources/Ui/BattleCardItem.prefab");
+            var importer = AssetImporter.GetAtPath(shieldPath) as TextureImporter;
+            Assert.NotNull(prefab);
+            Assert.NotNull(importer);
+
+            var view = prefab.GetComponent<BattleCardItemView>();
+            Assert.NotNull(view);
+            Assert.NotNull(view.TauntShieldOutline);
+            Assert.NotNull(view.TauntShieldOutline.sprite);
+            Assert.AreEqual("TauntShieldOutline", view.TauntShieldOutline.sprite.name);
+            Assert.AreEqual(Image.Type.Simple, view.TauntShieldOutline.type);
+            Assert.IsFalse(view.TauntShieldOutline.preserveAspect);
+            Assert.IsFalse(view.TauntShieldOutline.raycastTarget);
+            Assert.IsFalse(view.TauntShieldOutline.gameObject.activeSelf);
+            Assert.AreEqual(new Vector2(292f, 408f), view.TauntShieldOutline.rectTransform.sizeDelta);
+            Assert.AreEqual(new Vector2(0f, -14f), view.TauntShieldOutline.rectTransform.anchoredPosition);
+            Assert.Greater(view.TauntShieldOutline.rectTransform.sizeDelta.x, 278f);
+            Assert.Greater(view.TauntShieldOutline.rectTransform.sizeDelta.y, 384f);
+            Assert.AreSame(view.transform, view.TauntShieldOutline.transform.parent);
+            Assert.AreEqual(0, view.TauntShieldOutline.transform.GetSiblingIndex());
+            Assert.AreEqual(TextureImporterType.Sprite, importer.textureType);
+            Assert.AreEqual(SpriteImportMode.Single, importer.spriteImportMode);
+            Assert.IsTrue(importer.alphaIsTransparency);
+            Assert.IsFalse(importer.mipmapEnabled);
+            Assert.AreEqual(TextureWrapMode.Clamp, importer.wrapMode);
+
+            var controllerScript = AssetDatabase.LoadAssetAtPath<MonoScript>(
+                "Assets/Scripts/Hearthstone/Ui/Controller/BattleCardItemController.cs");
+            Assert.NotNull(controllerScript);
+            StringAssert.Contains(
+                "BattleKeywordRules.Has(keywords, EBattleKeyword.Taunt)",
+                controllerScript.text);
+        }
+
+        [Test]
+        public void BattleCardPrefabConfiguresDamageStatAndKeywordFeedbackLayers()
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(
+                "Assets/Resources/Ui/BattleCardItem.prefab");
+            Assert.NotNull(prefab);
+            var view = prefab.GetComponent<BattleCardItemView>();
+            Assert.NotNull(view);
+
+            Assert.NotNull(view.AttackValueOutgoingText);
+            Assert.NotNull(view.HealthValueOutgoingText);
+            Assert.AreSame(view.AttackText.transform.parent, view.AttackValueOutgoingText.transform.parent);
+            Assert.AreSame(view.HealthText.transform.parent, view.HealthValueOutgoingText.transform.parent);
+            Assert.IsFalse(view.AttackValueOutgoingText.gameObject.activeSelf);
+            Assert.IsFalse(view.HealthValueOutgoingText.gameObject.activeSelf);
+
+            Assert.NotNull(view.DamagePopupBackground);
+            Assert.NotNull(view.DamagePopupText);
+            Assert.AreEqual("DamageNumberBurst", view.DamagePopupBackground.sprite.name);
+            Assert.AreEqual(new Vector2(92f, 70f), view.DamagePopupBackground.rectTransform.sizeDelta);
+            Assert.AreEqual(new Vector2(-82f, -112f), view.DamagePopupBackground.rectTransform.anchoredPosition);
+            Assert.AreEqual(new Color32(210, 32, 32, 255), (Color32)view.DamagePopupText.color);
+            var damageTextOutline = view.DamagePopupText.GetComponent<Outline>();
+            Assert.NotNull(damageTextOutline);
+            Assert.AreEqual(new Vector2(2f, -2f), damageTextOutline.effectDistance);
+            Assert.IsFalse(view.DamagePopupBackground.gameObject.activeSelf);
+
+            Assert.NotNull(view.ChargeFeedbackIcon);
+            Assert.NotNull(view.LongShotFeedbackIcon);
+            Assert.AreEqual("ChargeHornIcon", view.ChargeFeedbackIcon.sprite.name);
+            Assert.AreEqual("LongShotBowIcon", view.LongShotFeedbackIcon.sprite.name);
+            Assert.AreEqual(new Vector2(96f, 96f), view.ChargeFeedbackIcon.rectTransform.sizeDelta);
+            Assert.AreEqual(new Vector2(96f, 96f), view.LongShotFeedbackIcon.rectTransform.sizeDelta);
+            Assert.Less(view.ChargeFeedbackIcon.rectTransform.anchoredPosition.x, 0f);
+            Assert.Greater(view.LongShotFeedbackIcon.rectTransform.anchoredPosition.x, 0f);
+            Assert.IsFalse(view.ChargeFeedbackIcon.gameObject.activeSelf);
+            Assert.IsFalse(view.LongShotFeedbackIcon.gameObject.activeSelf);
+            Assert.AreSame(view.transform, view.DamagePopupBackground.transform.parent);
+            Assert.AreSame(view.transform, view.ChargeFeedbackIcon.transform.parent);
+            Assert.AreSame(view.transform, view.LongShotFeedbackIcon.transform.parent);
+
+            Assert.NotNull(view.KeywordTooltip);
+            Assert.NotNull(view.KeywordTooltipText);
+            Assert.AreSame(view.transform, view.KeywordTooltip.transform.parent);
+            Assert.AreEqual("BattleBoardBackground", view.KeywordTooltip.GetComponent<Image>().sprite.name);
+            Assert.AreEqual(new Vector2(368f, 156f),
+                ((RectTransform)view.KeywordTooltip.transform).sizeDelta);
+            Assert.IsFalse(view.KeywordTooltip.activeSelf);
+            Assert.IsFalse(view.KeywordTooltip.GetComponent<Image>().raycastTarget);
+            Assert.IsTrue(view.KeywordTooltipText.enableWordWrapping);
+            Assert.IsFalse(view.KeywordTooltipText.raycastTarget);
+
+            Assert.NotNull(view.KeywordText);
+            Assert.AreEqual(17f, view.KeywordText.fontSizeMax);
+            Assert.AreEqual(TextAlignmentOptions.Top, view.KeywordText.alignment);
+
+            var spritePaths = new[]
+            {
+                "Assets/Resources/Art/BattleCards/UI/DamageNumberBurst.png",
+                "Assets/Resources/Art/BattleCards/UI/ChargeHornIcon.png",
+                "Assets/Resources/Art/BattleCards/UI/LongShotBowIcon.png",
+            };
+            foreach (var spritePath in spritePaths)
+            {
+                var importer = AssetImporter.GetAtPath(spritePath) as TextureImporter;
+                Assert.NotNull(importer, spritePath);
+                Assert.AreEqual(TextureImporterType.Sprite, importer.textureType, spritePath);
+                Assert.AreEqual(SpriteImportMode.Single, importer.spriteImportMode, spritePath);
+                Assert.IsTrue(importer.alphaIsTransparency, spritePath);
+                Assert.IsFalse(importer.mipmapEnabled, spritePath);
+                Assert.AreEqual(TextureWrapMode.Clamp, importer.wrapMode, spritePath);
+            }
+
+            var controllerScript = AssetDatabase.LoadAssetAtPath<MonoScript>(
+                "Assets/Scripts/Hearthstone/Ui/Controller/BattleCardItemController.cs");
+            Assert.NotNull(controllerScript);
+            StringAssert.Contains("StartDamagePopup(m_LastHealth - health)", controllerScript.text);
+            StringAssert.Contains("value > lastValue", controllerScript.text);
+            StringAssert.Contains(
+                "BattleKeywordRules.Has(attacker.Keywords, EBattleKeyword.Charge)",
+                controllerScript.text);
+            StringAssert.Contains(
+                "BattleKeywordRules.Has(attacker.Keywords, EBattleKeyword.LongShot)",
+                controllerScript.text);
+            StringAssert.Contains(
+                "deltaTime * BattleRules.AttackPresentationPlaybackSpeed",
+                controllerScript.text);
+            StringAssert.Contains("private const float KeywordFeedbackDistance = 84f", controllerScript.text);
+            StringAssert.Contains("ShowKeywordTooltip()", controllerScript.text);
+        }
+
+        [Test]
         public void BattleCardArtworkNormalizesImportedRatiosToSlightlyWideDrawingRect()
         {
             var ordinaryTexture = AssetDatabase.LoadAssetAtPath<Texture2D>(
@@ -376,7 +526,7 @@ namespace Hearthstone.Tests
         }
 
         [Test]
-        public void BattleCardHoverUsesUnifiedFramePaletteAndPreparationOnlyInteraction()
+        public void BattleCardHoverUsesUnifiedFramePaletteAndKeepsDragPreparationOnly()
         {
             var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(
                 "Assets/Resources/Ui/BattleCardItem.prefab");
@@ -427,15 +577,14 @@ namespace Hearthstone.Tests
             var controllerScript = AssetDatabase.LoadAssetAtPath<MonoScript>(
                 "Assets/Scripts/Hearthstone/Ui/Controller/BattleCardItemController.cs");
             Assert.NotNull(controllerScript);
-            StringAssert.Contains("SetHoverEnabled(preparationMode && (occupied || m_PreparationCardLocked))", controllerScript.text);
+            StringAssert.Contains("? occupied || m_PreparationCardLocked", controllerScript.text);
+            StringAssert.Contains(": m_Card != null", controllerScript.text);
             StringAssert.Contains("var dragEnabled = preparationMode && occupied", controllerScript.text);
             StringAssert.Contains("PreparationEmptyAttemptListener.enabled = false", controllerScript.text);
             StringAssert.Contains("emptyInput.raycastTarget = false", controllerScript.text);
             StringAssert.Contains("HidePreparationEmptyStates();", controllerScript.text);
             StringAssert.Contains("m_View.CardBackground.color = Color.clear", controllerScript.text);
             StringAssert.Contains("m_PreparationPage?.ForwardCardPoolScroll(eventData)", controllerScript.text);
-            StringAssert.Contains("var restoredSlotPosition = m_View.transform.localPosition", controllerScript.text);
-            StringAssert.Contains("transformSetter?.PosWrapper.SetLocalPositionOnce", controllerScript.text);
             StringAssert.DoesNotContain("m_View.transform.localPosition = Vector3.zero", controllerScript.text);
             StringAssert.DoesNotContain("emptyFrame.sprite = ResourceApi.LoadSprite", controllerScript.text);
             StringAssert.DoesNotContain("CardFrameBlue-v2", controllerScript.text);
@@ -522,8 +671,23 @@ namespace Hearthstone.Tests
             Assert.AreEqual(sharedAspect, poolSlotSize.x / poolSlotSize.y, 0.0001f);
             var battleSlotSize = preparationView.BattleSlotList.ConstantSlotSize;
             Assert.AreEqual(sharedAspect, battleSlotSize.x / battleSlotSize.y, 0.0001f);
+            var expectedBattleSlotScale = Mathf.Min(
+                battleSlotSize.x * 0.82f / sharedSize.x,
+                battleSlotSize.y * 0.82f / sharedSize.y);
+            Assert.AreEqual(0.6724f, expectedBattleSlotScale, 0.0001f);
+            Assert.Less(expectedBattleSlotScale, 1f);
+            var battleSlotGap = battleSlotSize.x - sharedSize.x * expectedBattleSlotScale;
+            Assert.AreEqual(36.9f, battleSlotGap, 0.001f);
+            Assert.Greater(battleSlotGap, 0f);
             var fusionSlotSize = preparationView.FusionSlotList.ConstantSlotSize;
             Assert.AreEqual(sharedAspect, fusionSlotSize.x / fusionSlotSize.y, 0.0001f);
+            var expectedFusionSlotScale = Mathf.Min(
+                fusionSlotSize.x * 0.82f / sharedSize.x,
+                fusionSlotSize.y * 0.82f / sharedSize.y);
+            Assert.AreEqual(0.6232f, expectedFusionSlotScale, 0.0001f);
+            var fusionSlotGap = fusionSlotSize.x - sharedSize.x * expectedFusionSlotScale;
+            Assert.AreEqual(34.2f, fusionSlotGap, 0.001f);
+            Assert.Greater(fusionSlotGap, 0f);
 
             var controllerScript = AssetDatabase.LoadAssetAtPath<MonoScript>(
                 "Assets/Scripts/Hearthstone/Ui/Controller/PreparationController.cs");
@@ -531,6 +695,16 @@ namespace Hearthstone.Tests
             StringAssert.Contains(
                 "BattleSlotList.ItemWrapper.AddItem<BattleCardItemController>()",
                 controllerScript.text);
+            StringAssert.Contains(
+                "m_View.BattleSlotList.ConstantSlotSize",
+                controllerScript.text);
+            StringAssert.Contains("PreparationSlotVisualFillRatio = 0.82f", controllerScript.text);
+            StringAssert.AreEqualIgnoringCase(
+                "PreparationPoolEmptySlot",
+                sharedView.PreparationBattleSlotEmptyState.GetComponent<Image>().sprite.name);
+            Assert.AreSame(
+                sharedView.PreparationBattleSlotEmptyState.GetComponent<Image>().sprite,
+                sharedView.PreparationFusionSlotEmptyState.GetComponent<Image>().sprite);
             StringAssert.Contains(
                 "FusionSlotList.ItemWrapper.AddItem<BattleCardItemController>()",
                 controllerScript.text);
@@ -541,6 +715,49 @@ namespace Hearthstone.Tests
             StringAssert.DoesNotContain("DebugApi.Log(", controllerScript.text);
             Assert.IsTrue(
                 typeof(UnityEngine.EventSystems.IScrollHandler).IsAssignableFrom(typeof(BattleCardItemController)));
+
+            var itemControllerScript = AssetDatabase.LoadAssetAtPath<MonoScript>(
+                "Assets/Scripts/Hearthstone/Ui/Controller/BattleCardItemController.cs");
+            Assert.NotNull(itemControllerScript);
+            StringAssert.Contains("ApplyContainedSlotScale(slotSize);", itemControllerScript.text);
+            StringAssert.Contains("slotSize.x / cardRect.rect.width", itemControllerScript.text);
+            StringAssert.Contains("slotSize.y / cardRect.rect.height", itemControllerScript.text);
+            StringAssert.Contains("Mathf.Min(1f, scale)", itemControllerScript.text);
+            StringAssert.Contains("transform.localScale = Vector3.one;", itemControllerScript.text);
+        }
+
+        [Test]
+        public void BattleCardListsUseCenteredFixedSpacingForThreeToSixCards()
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(
+                "Assets/Resources/Ui/BattleView.prefab");
+            Assert.NotNull(prefab);
+
+            var view = prefab.GetComponent<BattleView>();
+            Assert.NotNull(view);
+            AssertBattleCardListSpacing(view.EnemyCardList);
+            AssertBattleCardListSpacing(view.PlayerCardList);
+            Assert.IsNull(prefab.transform.Find("TurnText"));
+            Assert.IsNull(prefab.transform.Find("ResultText"));
+
+            var divider = prefab.transform.Find("BattleCenterDivider")?.GetComponent<Image>();
+            Assert.NotNull(divider);
+            Assert.AreSame(ResourceApi.LoadSprite("BattleCenterDividerCarving"), divider.sprite);
+            Assert.IsFalse(divider.raycastTarget);
+            Assert.That(divider.color.a, Is.EqualTo(0.58f).Within(0.001f));
+            Assert.AreEqual(new Vector2(1260f, 160f), divider.rectTransform.sizeDelta);
+
+            var controllerScript = AssetDatabase.LoadAssetAtPath<MonoScript>(
+                "Assets/Scripts/Hearthstone/Ui/Controller/BattleController.cs");
+            Assert.NotNull(controllerScript);
+            StringAssert.Contains("list.RefreshLayout();", controllerScript.text);
+            StringAssert.DoesNotContain("TurnText", controllerScript.text);
+            StringAssert.DoesNotContain("ResultText", controllerScript.text);
+
+            var preparationPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(
+                "Assets/Resources/Ui/PreparationView.prefab");
+            Assert.NotNull(preparationPrefab);
+            Assert.IsNull(preparationPrefab.transform.Find("BattleOperation/BattleSlotHeader"));
         }
 
         [Test]
@@ -896,6 +1113,34 @@ namespace Hearthstone.Tests
             {
                 side = BattleRules.GetOppositeSide(side);
                 Assert.AreEqual(expectedSide, side);
+            }
+        }
+
+        private static void AssertBattleCardListSpacing(BbxCommon.Ui.UiList list)
+        {
+            Assert.NotNull(list);
+            Assert.AreEqual(BbxCommon.Ui.UiList.EArrangement.AreaFit, list.ArragementType);
+            Assert.AreEqual(BbxCommon.Ui.UiList.EDirection.Horizontal, list.AreaDirection);
+            Assert.AreEqual(278f, list.AreaSlotSize.x, 0.001f);
+            Assert.AreEqual(360f, list.AreaSlotSize.y, 0.001f);
+
+            var rect = ((RectTransform)list.transform).rect;
+            Assert.GreaterOrEqual(rect.width, list.AreaSlotSize.x * RunCardRules.MaximumBattleSlotCount);
+            var cardPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(
+                "Assets/Resources/Ui/BattleCardItem.prefab");
+            Assert.NotNull(cardPrefab);
+            Assert.Greater(list.AreaSlotSize.x, ((RectTransform)cardPrefab.transform).rect.width);
+
+            for (var count = RunCardRules.InitialBattleSlotCount;
+                 count <= RunCardRules.MaximumBattleSlotCount;
+                 count++)
+            {
+                var requiredWidth = list.AreaSlotSize.x * count;
+                var start = (rect.width - requiredWidth) * 0.5f;
+                var first = rect.xMin + start + list.AreaSlotSize.x * 0.5f;
+                var last = first + list.AreaSlotSize.x * (count - 1);
+                Assert.AreEqual(0f, (first + last) * 0.5f, 0.001f);
+                Assert.AreEqual(list.AreaSlotSize.x * (count - 1), last - first, 0.001f);
             }
         }
 

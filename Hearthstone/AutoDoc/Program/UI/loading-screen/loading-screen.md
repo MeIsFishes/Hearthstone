@@ -28,7 +28,7 @@
 
 ### 2.3 不同Controller之间的跳转关系
 
-`HearthstoneGameEngine.OnAwake()` 通过 `SetLoadingUi<LoadingController>()` 把页面注册到 `UiGameEngineScene` 的 `Loading` 分组。底层 `GameEngineBase.StartLoading()` 在 Stage 操作批次开始前调用 `Show()`，在全部卸载与加载完成后调用 `Hide()`；加载界面不自行打开目标页面，也不参与战斗界面与备战界面的跳转决定。
+`HearthstoneGameEngine.OnAwake()` 通过 `SetLoadingUi<LoadingController>()` 把页面注册到 `UiGameEngineScene` 的 `Loading` 分组。底层 `GameEngineBase.StartLoading()` 在 Stage 操作批次开始前调用 `Show()`，在全部卸载与加载完成后调用 `Hide()`；加载界面不自行打开目标页面，也不参与主菜单、战斗界面与备战界面的跳转决定。
 
 ## 3. 所属GameStage
 

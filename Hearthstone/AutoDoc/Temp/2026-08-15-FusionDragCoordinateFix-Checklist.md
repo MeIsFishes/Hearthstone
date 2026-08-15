@@ -1,0 +1,28 @@
+# 融合拖拽坐标修复检查清单
+
+- [x] 通过——用户要求：融合界面中的单位拖离融合区后视为回到牌库，卡牌不得发生视觉错位。
+  - 证据：`OnPreparationDragReturned()` 保留融合区域外的 `RemoveFusionMaterial()` 规则，并移除了释放偏移回写。
+- [x] 通过——修正卡牌 View 返回 Controller 父节点后的本地坐标恢复，避免把释放点偏移写回卡牌。
+  - 证据：`UiDragable.OnEndDragCallback()` 先执行 `SetTopUiBack()`，再提交原始局部位置；业务 Controller 不再读取 `m_View.transform.localPosition`。
+- [x] 通过——修正 `UiDragable` 的屏幕坐标与 UI 世界坐标换算，兼容 CanvasScaler 非 1 缩放。
+  - 证据：拖拽位置统一通过 `RectTransformUtility.ScreenPointToWorldPointInRectangle()` 换算，源码中已无 `eventData.position.AsVector3XY()`。
+- [x] 通过——保持 `UiDragable` 现有公开接口、拖拽偏移配置、Top 层切换与回原位语义兼容。
+  - 证据：公开字段、Wrapper 回调和优先级入口未改变；相对偏移改为经完整 Transform 换算的局部 UI 偏移。
+- [x] 通过——为坐标恢复与换算补充可执行或静态回归验证，覆盖融合槽拖回牌库路径。
+  - 证据：`RunCardRulesTests.FusionMaterialDragReturnIsResolvedAfterTopLayerRestoreAndOutsideFusionArea()` 新增坐标转换、恢复顺序和旧补丁移除断言；手工静态断言通过。
+- [x] 通过——框架边界审计：确认修复落在既有 `UiDragable` / `UiList` / Controller 生命周期内，不保留业务层平行拖拽补丁。
+  - 证据：通用屏幕坐标换算和原父节点恢复位于 `UiDragable`；`UiList` 继续只排列 Controller；业务层只保留融合规则判断。
+- [x] 通过——代码审计：检查新增函数和字段的复用价值，删除不必要的一次性抽象。
+  - 证据：只新增复用的拖拽 Transform、世界拖拽位置和屏幕转世界位置入口；删除一次性优先级常量及释放点位置补偿。
+- [x] 通过——UI 组件文档：按 `bbxcommon-ui-item` 规范更新 `UiDragable` 使用文档，并核对组件总索引。
+  - 证据：已更新 `AutoDoc/UIItem/UiDragable/UiDragable.md`；`UiItemIndex.md` 已包含 `UiDragable`，名称与用途未变化，无需改动索引。
+- [x] 通过——玩家视角设计文档：读取 `design-doc-format`，核对本次玩家可见行为是否需要同步。
+  - 证据：`AutoDoc/Design/Specific/preparation-card-pool/preparation-card-pool.md` 已记录拖离融合区退回牌库且不消失/错位；修复使实现重新符合现状，无需改文档。
+- [x] 不适用——美术文档：读取 `art-doc-writer`，核对本次是否改变视觉资产或美术规格。
+  - 证据：本次仅修改坐标换算和拖拽恢复逻辑，没有修改 Sprite、Prefab 视觉层级或美术规格。
+- [x] 通过——程序文档：读取 `program-doc-format`，核对相关 UI/备战程序文档并按实际实现同步。
+  - 证据：已按 UI 界面文档格式更新 `AutoDoc/Program/UI/preparation/preparation.md` 的拖拽坐标与 Controller/View 职责说明。
+- [x] 通过——验证代码编译/测试结果，并检查未误改无关文件或用户已有修改。
+  - 证据：使用 Unity 2022.3.62f3c1 的 Roslyn 响应文件独立编译 `BbxCommon`、`Hearthstone`、`Hearthstone.Tests` 均成功；`git diff --check` 和静态回归断言通过。未进入 Play Mode，未触碰无关脏文件。
+- [x] 通过——结束审计后仅运行一次 `AutoDoc/CleanupTempDocs.bat`，随后生成对应 Report。
+  - 证据：本任务仅执行一次清理脚本，退出码为 `0`；脚本未匹配的本任务临时编译 DLL/PDB 随后按明确文件名删除，并创建同名 Report。

@@ -2,7 +2,7 @@
 
 ## 1. 组件用途
 
-`UiDragable` 用于让 UI 对象响应指针进入、停留、离开、开始拖拽、拖拽中和结束拖拽事件，并在拖拽中移动 UI 对象。
+`UiDragable` 用于让 UI 对象响应指针进入、停留、离开、开始拖拽、拖拽中和结束拖拽事件，并在拖拽中移动 UI 对象。组件会把指针屏幕坐标换算到当前 UI 平面，因此可用于启用了 `CanvasScaler` 的界面。
 
 适合用于卡牌拖拽、道具拖放、可拖动面板和需要拖拽回调的 UI。
 
@@ -17,10 +17,10 @@
 
 ### TurnBackWhenDragEnd
 
-- 描述：控制拖拽结束后是否返回拖拽开始位置。
+- 描述：控制拖拽结束后是否在归还原父节点后返回拖拽开始时的局部位置。
 - 默认行为：`false` 时结束拖拽后停留在当前位置或其他组件设置的位置。
 - 配置值说明：
-  - `true`：拖拽结束后向 `UiTransformSetter` 发送一次回到原位的请求。
+  - `true`：拖拽结束后归还原父节点，并向 `UiTransformSetter` 发送一次恢复原始局部位置的请求。
   - `false`：拖拽结束时只移除拖拽位置请求。
 
 ### AlwaysRelativeOffset
@@ -35,7 +35,7 @@
 
 - 描述：`AlwaysRelativeOffset` 为 `true` 时使用的指针偏移。
 - 默认行为：使用 Inspector 当前保存的 `Vector2`。
-- 配置值说明：`x` 和 `y` 表示相对指针位置的偏移，会乘以对象当前 localScale。
+- 配置值说明：`x` 和 `y` 表示对象局部坐标系中相对指针位置的偏移；运行时会随对象及其父级的缩放和旋转换算到 UI 世界坐标。零值表示对象中心跟随指针。
 
 ### SetWhenDown
 
@@ -49,7 +49,7 @@
 
 - 描述：接收指针事件的 `UiEventListener`。
 - 默认行为：为空时 PreInit 自动在同一 GameObject 上添加一个 `UiEventListener`。
-- 配置值说明：填写参与射线检测的对象上的 `UiEventListener`；拖拽移动作用于该对象上的 `UiTransformSetter`。
+- 配置值说明：填写参与射线检测的对象上的 `UiEventListener`；拖拽移动作用于该对象上的 `UiTransformSetter`，并使用该对象所属 Canvas 完成屏幕坐标换算。
 
 ### EventBeginDrag
 

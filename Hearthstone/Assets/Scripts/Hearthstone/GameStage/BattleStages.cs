@@ -65,7 +65,17 @@ namespace Hearthstone
 
                 var scenario = startupData.Scenario;
                 var randomSeed = scenario?.RandomSeed ?? CreateRandomSeed();
-                session.Initialize(randomSeed, startupData.PreparationRewardBatch);
+                var playerSlotCount = scenario?.SlotCount ??
+                    startupData.ContinuePlayerLineup?.SlotCount ??
+                    (runState.UnlockedBattleSlotCount == 0
+                        ? RunCardRules.InitialBattleSlotCount
+                        : runState.UnlockedBattleSlotCount);
+                session.Initialize(
+                    randomSeed,
+                    startupData.PreparationRewardBatch,
+                    startupData.BattleNumber,
+                    BattleProgressionCsvData.HasBattle(startupData.BattleNumber + 1) == false,
+                    playerSlotCount);
                 try
                 {
                     EnsureInitialPlayerLineup(runState, ref session.TargetRandom);
@@ -104,6 +114,7 @@ namespace Hearthstone
                 if (runState.GetOwnedCardCount() != 0)
                     return;
 
+                runState.SetUnlockedBattleSlotCount(RunCardRules.InitialBattleSlotCount);
                 var cards = new RunCardInstanceData[BattleRules.CardsPerSide];
                 for (var slot = 0; slot < BattleRules.CardsPerSide; slot++)
                 {
@@ -124,13 +135,13 @@ namespace Hearthstone
                 RunCardRules.InitializeFirstBattleLineup(runState, cards);
             }
 
-            private static void CreatePlayerCards(
+        private static void CreatePlayerCards(
                 RunStateSingletonRawComponent runState,
                 Entity[] destination,
                 BattleScenarioStartupData scenario,
                 BattlePlayerLineupStartupData continueLineup)
             {
-                for (var slot = 0; slot < BattleRules.CardsPerSide; slot++)
+                for (var slot = 0; slot < destination.Length; slot++)
                 {
                     var slotData = scenario?.GetPlayerSlot(slot) ?? default;
                     if (scenario != null && slotData.IsOccupied == false)

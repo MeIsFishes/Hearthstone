@@ -45,6 +45,8 @@ namespace Hearthstone
                 CreateBattleOperation(root.transform, view);
                 CreateFusionOperation(root.transform, view);
                 CreatePool(root.transform, view);
+                CreateFusionRecommendationPopup(root.transform, view);
+                CreateRewardReveal(root.transform, view);
                 CreateFusionReveal(root.transform, view);
 
                 PreparationUiBuilderUtility.SavePrefab(root, PrefabPath, false);
@@ -75,7 +77,6 @@ namespace Hearthstone
         {
             var idle = PreparationUiBuilderUtility.LoadSprite("PreparationContinueButtonIdle");
             var highlighted = PreparationUiBuilderUtility.LoadSprite("PreparationContinueButtonHighlighted");
-            var pressed = PreparationUiBuilderUtility.LoadSprite("PreparationContinueButtonPressed");
             var waiting = PreparationUiBuilderUtility.LoadSprite("PreparationContinueButtonWaiting");
 
             var root = PreparationUiBuilderUtility.CreateUiObject("ContinueButton", parent);
@@ -88,11 +89,12 @@ namespace Hearthstone
             var button = root.AddComponent<Button>();
             button.targetGraphic = image;
             button.transition = Selectable.Transition.SpriteSwap;
+            button.navigation = new Navigation { mode = Navigation.Mode.None };
             button.spriteState = new SpriteState
             {
                 highlightedSprite = highlighted,
-                pressedSprite = pressed,
-                selectedSprite = highlighted,
+                pressedSprite = idle,
+                selectedSprite = idle,
                 disabledSprite = waiting,
             };
 
@@ -170,27 +172,15 @@ namespace Hearthstone
         {
             var root = PreparationUiBuilderUtility.CreateUiObject("BattleOperation", parent);
             PreparationUiBuilderUtility.SetRect(root, new Vector2(0.5f, 1f), new Vector2(1200f, 330f), new Vector2(0f, -300f));
-            var header = PreparationUiBuilderUtility.CreateUiObject("BattleSlotHeader", root.transform);
-            PreparationUiBuilderUtility.SetRect(header, new Vector2(0.5f, 1f), new Vector2(800f, 50f), new Vector2(0f, -70f));
-            var lineSprite = PreparationUiBuilderUtility.LoadSprite("PreparationSectionLine");
-            var left = PreparationUiBuilderUtility.CreateUiObject("LeftLine", header.transform);
-            PreparationUiBuilderUtility.SetRect(left, new Vector2(0f, 0.5f), new Vector2(280f, 55f), new Vector2(140f, 0f));
-            PreparationUiBuilderUtility.AddImage(left, lineSprite).preserveAspect = false;
-            var right = PreparationUiBuilderUtility.CreateUiObject("RightLine", header.transform);
-            PreparationUiBuilderUtility.SetRect(right, new Vector2(1f, 0.5f), new Vector2(280f, 55f), new Vector2(-140f, 0f));
-            PreparationUiBuilderUtility.AddImage(right, lineSprite).preserveAspect = false;
-            var text = PreparationUiBuilderUtility.CreateUiObject("Label", header.transform);
-            PreparationUiBuilderUtility.SetRect(text, new Vector2(0.5f, 0.5f), new Vector2(220f, 55f), Vector2.zero);
-            PreparationUiBuilderUtility.AddText(text, "战斗槽位", 34f);
 
             var listObject = PreparationUiBuilderUtility.CreateUiObject("BattleSlotList", root.transform);
-            PreparationUiBuilderUtility.SetRect(listObject, new Vector2(0.5f, 1f), new Vector2(720f, 320f), new Vector2(0f, -130f));
+            PreparationUiBuilderUtility.SetRect(listObject, new Vector2(0.5f, 1f), new Vector2(1260f, 320f), new Vector2(0f, -130f));
             var list = listObject.AddComponent<UiList>();
             list.ArragementType = UiList.EArrangement.ConstantSlot;
             list.ConstantSlotDirection = UiList.EDirection.Horizontal;
             list.ConstantSlotSize = new Vector2(
-                220f,
-                220f * RunCardRules.CardAspectHeight / RunCardRules.CardAspectWidth);
+                205f,
+                205f * RunCardRules.CardAspectHeight / RunCardRules.CardAspectWidth);
             view.BattleOperationRoot = root;
             view.BattleSlotList = list;
         }
@@ -206,11 +196,11 @@ namespace Hearthstone
             areaInteractor.AutoInitUiDragable = false;
 
             var title = PreparationUiBuilderUtility.CreateUiObject("Title", root.transform);
-            PreparationUiBuilderUtility.SetRect(title, new Vector2(0f, 1f), new Vector2(850f, 46f), new Vector2(425f, -70f));
+            PreparationUiBuilderUtility.SetRect(title, new Vector2(0f, 1f), new Vector2(850f, 46f), new Vector2(425f, -40f));
             PreparationUiBuilderUtility.AddText(title, "融合素材", 32f);
 
             var listObject = PreparationUiBuilderUtility.CreateUiObject("FusionSlotList", root.transform);
-            PreparationUiBuilderUtility.SetRect(listObject, new Vector2(0f, 1f), new Vector2(800f, 276f), new Vector2(420f, -180f));
+            PreparationUiBuilderUtility.SetRect(listObject, new Vector2(0f, 1f), new Vector2(800f, 276f), new Vector2(420f, -150f));
             var list = listObject.AddComponent<UiList>();
             list.ArragementType = UiList.EArrangement.ConstantSlot;
             list.ConstantSlotDirection = UiList.EDirection.Horizontal;
@@ -219,22 +209,104 @@ namespace Hearthstone
                 190f * RunCardRules.CardAspectHeight / RunCardRules.CardAspectWidth);
 
             var sumPanel = PreparationUiBuilderUtility.CreateUiObject("FusionSumPanel", root.transform);
-            PreparationUiBuilderUtility.SetRect(sumPanel, new Vector2(1f, 0.5f), new Vector2(480f, 230f), new Vector2(-250f, 0f));
-            PreparationUiBuilderUtility.AddImage(
+            PreparationUiBuilderUtility.SetRect(
                 sumPanel,
-                PreparationUiBuilderUtility.LoadSprite("PreparationFusionSumPanel"));
-            var expression = PreparationUiBuilderUtility.CreateUiObject("Expression", sumPanel.transform);
-            PreparationUiBuilderUtility.SetRect(expression, new Vector2(0.5f, 1f), new Vector2(420f, 50f), new Vector2(0f, -50f));
-            var expressionText = PreparationUiBuilderUtility.AddText(expression, "0", 28f);
-            var result = PreparationUiBuilderUtility.CreateUiObject("Result", sumPanel.transform);
-            PreparationUiBuilderUtility.SetRect(result, new Vector2(0.5f, 1f), new Vector2(420f, 50f), new Vector2(0f, -98f));
-            var resultText = PreparationUiBuilderUtility.AddText(result, "等待融合材料", 27f);
-            view.FusionUnderTargetColor = new Color(1f, 0.76f, 0.28f, 1f);
+                new Vector2(1f, 0.5f),
+                new Vector2(610f, 250f),
+                new Vector2(-315f, 0f));
+            var pointPanelSprite = PreparationUiBuilderUtility.LoadSprite("PreparationFusionSumPanel");
+
+            var currentPointPanel = PreparationUiBuilderUtility.CreateUiObject(
+                "CurrentPointPanel",
+                sumPanel.transform);
+            PreparationUiBuilderUtility.SetRect(
+                currentPointPanel,
+                new Vector2(0.5f, 0.5f),
+                new Vector2(280f, 72f),
+                new Vector2(-150f, 82f));
+            var currentPointPanelImage = PreparationUiBuilderUtility.AddImage(
+                currentPointPanel,
+                pointPanelSprite);
+            currentPointPanelImage.preserveAspect = false;
+            var currentPointLabelObject = PreparationUiBuilderUtility.CreateUiObject(
+                "Label",
+                currentPointPanel.transform);
+            PreparationUiBuilderUtility.SetRect(
+                currentPointLabelObject,
+                new Vector2(0f, 0.5f),
+                new Vector2(158f, 54f),
+                new Vector2(91f, 0f));
+            var currentPointLabel = PreparationUiBuilderUtility.AddText(
+                currentPointLabelObject,
+                "当前点数",
+                24f,
+                TextAlignmentOptions.MidlineLeft);
+            currentPointLabel.color = Color.black;
+            var currentPointValueObject = PreparationUiBuilderUtility.CreateUiObject(
+                "Value",
+                currentPointPanel.transform);
+            PreparationUiBuilderUtility.SetRect(
+                currentPointValueObject,
+                new Vector2(1f, 0.5f),
+                new Vector2(78f, 54f),
+                new Vector2(-55f, 0f));
+            var currentPointValue = PreparationUiBuilderUtility.AddText(
+                currentPointValueObject,
+                "0",
+                28f,
+                TextAlignmentOptions.MidlineRight);
+            currentPointValue.color = Color.black;
+
+            var remainingPointPanel = PreparationUiBuilderUtility.CreateUiObject(
+                "RemainingPointPanel",
+                sumPanel.transform);
+            PreparationUiBuilderUtility.SetRect(
+                remainingPointPanel,
+                new Vector2(0.5f, 0.5f),
+                new Vector2(280f, 72f),
+                new Vector2(-150f, 0f));
+            var remainingPointPanelImage = PreparationUiBuilderUtility.AddImage(
+                remainingPointPanel,
+                pointPanelSprite);
+            remainingPointPanelImage.preserveAspect = false;
+            var remainingPointLabelObject = PreparationUiBuilderUtility.CreateUiObject(
+                "Label",
+                remainingPointPanel.transform);
+            PreparationUiBuilderUtility.SetRect(
+                remainingPointLabelObject,
+                new Vector2(0f, 0.5f),
+                new Vector2(158f, 54f),
+                new Vector2(91f, 0f));
+            var remainingPointLabel = PreparationUiBuilderUtility.AddText(
+                remainingPointLabelObject,
+                "剩余点数",
+                24f,
+                TextAlignmentOptions.MidlineLeft);
+            remainingPointLabel.color = Color.black;
+            var remainingPointValueObject = PreparationUiBuilderUtility.CreateUiObject(
+                "Value",
+                remainingPointPanel.transform);
+            PreparationUiBuilderUtility.SetRect(
+                remainingPointValueObject,
+                new Vector2(1f, 0.5f),
+                new Vector2(78f, 54f),
+                new Vector2(-55f, 0f));
+            var remainingPointValue = PreparationUiBuilderUtility.AddText(
+                remainingPointValueObject,
+                "99",
+                28f,
+                TextAlignmentOptions.MidlineRight);
+            remainingPointValue.color = Color.black;
+            view.FusionUnderTargetColor = Color.black;
             view.FusionExactTargetColor = new Color(0.42f, 1f, 0.48f, 1f);
             view.FusionOverTargetColor = new Color(1f, 0.32f, 0.27f, 1f);
 
             var buttonObject = PreparationUiBuilderUtility.CreateUiObject("FusionButton", sumPanel.transform);
-            PreparationUiBuilderUtility.SetRect(buttonObject, new Vector2(0.5f, 0f), new Vector2(320f, 80f), new Vector2(0f, 48f));
+            PreparationUiBuilderUtility.SetRect(
+                buttonObject,
+                new Vector2(0.5f, 0.5f),
+                new Vector2(300f, 82f),
+                new Vector2(150f, 82f));
             var buttonImage = PreparationUiBuilderUtility.AddImage(
                 buttonObject,
                 PreparationUiBuilderUtility.LoadSprite("PreparationFusionButtonEnabled"),
@@ -251,17 +323,211 @@ namespace Hearthstone
             };
             var buttonLabel = PreparationUiBuilderUtility.CreateUiObject("Label", buttonObject.transform);
             PreparationUiBuilderUtility.Stretch(buttonLabel, 25f, 12f, 25f, 12f);
-            PreparationUiBuilderUtility.AddText(buttonLabel, "融合", 34f);
+            PreparationUiBuilderUtility.AddText(buttonLabel, "融合", 30f);
             var attemptListener = buttonObject.AddComponent<UiEventListener>();
+
+            var recommendationObject = PreparationUiBuilderUtility.CreateUiObject(
+                "FusionRecommendationButton",
+                sumPanel.transform);
+            PreparationUiBuilderUtility.SetRect(
+                recommendationObject,
+                new Vector2(0.5f, 0.5f),
+                new Vector2(216f, 68f),
+                new Vector2(-150f, -82f));
+            var recommendationImage = PreparationUiBuilderUtility.AddImage(
+                recommendationObject,
+                PreparationUiBuilderUtility.LoadSprite("PreparationFusionButtonEnabled"),
+                true);
+            var recommendationButton = recommendationObject.AddComponent<Button>();
+            recommendationButton.targetGraphic = recommendationImage;
+            recommendationButton.transition = Selectable.Transition.SpriteSwap;
+            recommendationButton.spriteState = new SpriteState
+            {
+                highlightedSprite = PreparationUiBuilderUtility.LoadSprite("PreparationFusionButtonEnabled"),
+                pressedSprite = PreparationUiBuilderUtility.LoadSprite("PreparationFusionButtonPressed"),
+                selectedSprite = PreparationUiBuilderUtility.LoadSprite("PreparationFusionButtonEnabled"),
+                disabledSprite = PreparationUiBuilderUtility.LoadSprite("PreparationFusionButtonDisabled"),
+            };
+            var recommendationLabel = PreparationUiBuilderUtility.CreateUiObject(
+                "Label",
+                recommendationObject.transform);
+            PreparationUiBuilderUtility.Stretch(recommendationLabel, 16f, 10f, 16f, 10f);
+            PreparationUiBuilderUtility.AddText(recommendationLabel, "智能推荐", 27f);
+            var recommendationHoverListener = recommendationObject.AddComponent<UiEventListener>();
+
+            var recommendationTooltip = PreparationUiBuilderUtility.CreateUiObject(
+                "Tooltip",
+                recommendationObject.transform);
+            PreparationUiBuilderUtility.SetRect(
+                recommendationTooltip,
+                new Vector2(0.5f, 0.5f),
+                new Vector2(460f, 94f),
+                new Vector2(354f, 0f));
+            var recommendationTooltipBackground = PreparationUiBuilderUtility.AddImage(
+                recommendationTooltip,
+                PreparationUiBuilderUtility.LoadExistingSprite(
+                    "Assets/Resources/Art/BattleCards/UI/BattleBoardBackground.png"));
+            recommendationTooltipBackground.preserveAspect = false;
+            recommendationTooltipBackground.color = new Color32(184, 137, 83, 255);
+            recommendationTooltipBackground.raycastTarget = false;
+            var recommendationTooltipBorder = recommendationTooltip.AddComponent<Outline>();
+            recommendationTooltipBorder.effectColor = new Color32(91, 47, 24, 255);
+            recommendationTooltipBorder.effectDistance = new Vector2(3f, -3f);
+            recommendationTooltipBorder.useGraphicAlpha = true;
+            var recommendationTooltipTextObject = PreparationUiBuilderUtility.CreateUiObject(
+                "Text",
+                recommendationTooltip.transform);
+            PreparationUiBuilderUtility.Stretch(recommendationTooltipTextObject, 24f, 16f, 24f, 16f);
+            var recommendationTooltipText = PreparationUiBuilderUtility.AddText(
+                recommendationTooltipTextObject,
+                "智能寻找牌库中可以融合的组合",
+                20f,
+                TextAlignmentOptions.MidlineLeft);
+            recommendationTooltipText.fontStyle = FontStyles.Bold;
+            recommendationTooltipText.color = new Color32(69, 34, 18, 255);
+            recommendationTooltipText.enableWordWrapping = false;
+            recommendationTooltipText.overflowMode = TextOverflowModes.Overflow;
+            recommendationTooltip.SetActive(false);
 
             view.FusionOperationRoot = root;
             view.FusionSlotList = list;
-            view.FusionExpressionText = expressionText;
-            view.FusionResultText = resultText;
+            view.FusionCurrentPointLabel = currentPointLabel;
+            view.FusionCurrentPointValue = currentPointValue;
+            view.FusionRemainingPointLabel = remainingPointLabel;
+            view.FusionRemainingPointValue = remainingPointValue;
             view.FusionButton = button;
             view.FusionButtonImage = buttonImage;
             view.FusionButtonAttemptListener = attemptListener;
+            view.FusionRecommendationButton = recommendationButton;
+            view.FusionRecommendationHoverListener = recommendationHoverListener;
+            view.FusionRecommendationTooltip = recommendationTooltip;
             view.FusionAreaInteractor = areaInteractor;
+        }
+
+        private static void CreateFusionRecommendationPopup(Transform parent, PreparationView view)
+        {
+            var overlay = PreparationUiBuilderUtility.CreateUiObject(
+                "FusionRecommendationOverlay",
+                parent);
+            PreparationUiBuilderUtility.Stretch(overlay);
+            var dimmer = PreparationUiBuilderUtility.AddImage(overlay, null, true);
+            dimmer.color = new Color(0.02f, 0.04f, 0.08f, 0.78f);
+
+            var panel = PreparationUiBuilderUtility.CreateUiObject("Panel", overlay.transform);
+            PreparationUiBuilderUtility.SetRect(
+                panel,
+                new Vector2(0.5f, 0.5f),
+                new Vector2(1240f, 700f),
+                Vector2.zero);
+            PreparationUiBuilderUtility.AddImage(
+                panel,
+                PreparationUiBuilderUtility.LoadExistingSprite(
+                    "Assets/Resources/Art/BattleCards/UI/BattleBoardBackground.png"),
+                true);
+
+            var parchmentAging = PreparationUiBuilderUtility.CreateUiObject(
+                "ParchmentAgingOverlay",
+                panel.transform);
+            PreparationUiBuilderUtility.Stretch(parchmentAging);
+            var parchmentAgingImage = PreparationUiBuilderUtility.AddImage(
+                parchmentAging,
+                PreparationUiBuilderUtility.LoadSprite("ParchmentAgingOverlay"));
+            parchmentAgingImage.color = new Color(1f, 1f, 1f, 0.14f);
+            parchmentAgingImage.raycastTarget = false;
+
+            var closeObject = PreparationUiBuilderUtility.CreateUiObject("CloseButton", panel.transform);
+            PreparationUiBuilderUtility.SetRect(
+                closeObject,
+                new Vector2(1f, 1f),
+                new Vector2(72f, 72f),
+                new Vector2(-54f, -54f));
+            var closeImage = PreparationUiBuilderUtility.AddImage(
+                closeObject,
+                PreparationUiBuilderUtility.LoadSprite("PreparationTabIdle"),
+                true);
+            closeImage.preserveAspect = true;
+            var closeButton = closeObject.AddComponent<Button>();
+            closeButton.targetGraphic = closeImage;
+            var closeLabel = PreparationUiBuilderUtility.CreateUiObject("Label", closeObject.transform);
+            PreparationUiBuilderUtility.Stretch(closeLabel, 8f);
+            PreparationUiBuilderUtility.AddText(closeLabel, "×", 42f);
+
+            var scrollObject = PreparationUiBuilderUtility.CreateUiObject("ScrollRect", panel.transform);
+            PreparationUiBuilderUtility.SetRect(
+                scrollObject,
+                new Vector2(0.5f, 0.5f),
+                new Vector2(1060f, 560f),
+                new Vector2(0f, -20f));
+            var scrollBackground = PreparationUiBuilderUtility.AddImage(scrollObject, null, true);
+            scrollBackground.color = new Color(1f, 1f, 1f, 0f);
+            var scrollRect = scrollObject.AddComponent<ScrollRect>();
+            scrollRect.horizontal = false;
+            scrollRect.vertical = true;
+            scrollRect.movementType = ScrollRect.MovementType.Clamped;
+            scrollRect.inertia = true;
+            scrollRect.scrollSensitivity = 40f;
+
+            var viewport = PreparationUiBuilderUtility.CreateUiObject("Viewport", scrollObject.transform);
+            PreparationUiBuilderUtility.Stretch(viewport, 26f, 20f, 58f, 20f);
+            viewport.AddComponent<RectMask2D>();
+
+            var content = PreparationUiBuilderUtility.CreateUiObject("Content", viewport.transform);
+            var contentRect = (RectTransform)content.transform;
+            contentRect.anchorMin = new Vector2(0f, 1f);
+            contentRect.anchorMax = new Vector2(1f, 1f);
+            contentRect.pivot = new Vector2(0.5f, 1f);
+            contentRect.sizeDelta = new Vector2(0f, 520f);
+            contentRect.anchoredPosition = Vector2.zero;
+            var recommendationList = content.AddComponent<UiList>();
+            recommendationList.ArragementType = UiList.EArrangement.Manual;
+
+            var emptyTextObject = PreparationUiBuilderUtility.CreateUiObject(
+                "EmptyText",
+                content.transform);
+            PreparationUiBuilderUtility.Stretch(emptyTextObject, 20f);
+            var emptyText = PreparationUiBuilderUtility.AddText(
+                emptyTextObject,
+                "无可用组合",
+                27f,
+                TextAlignmentOptions.Center);
+            emptyText.color = new Color(0.23f, 0.12f, 0.055f, 1f);
+            emptyText.raycastTarget = false;
+
+            var scrollbarObject = PreparationUiBuilderUtility.CreateUiObject(
+                "Scrollbar",
+                scrollObject.transform);
+            PreparationUiBuilderUtility.SetRect(
+                scrollbarObject,
+                new Vector2(1f, 0.5f),
+                new Vector2(28f, 520f),
+                new Vector2(-25f, 0f));
+            var scrollbarTrack = PreparationUiBuilderUtility.AddImage(scrollbarObject, null, true);
+            scrollbarTrack.color = new Color(0.24f, 0.11f, 0.04f, 0.45f);
+            var scrollbar = scrollbarObject.AddComponent<Scrollbar>();
+            scrollbar.direction = Scrollbar.Direction.BottomToTop;
+            var slidingArea = PreparationUiBuilderUtility.CreateUiObject(
+                "SlidingArea",
+                scrollbarObject.transform);
+            PreparationUiBuilderUtility.Stretch(slidingArea, 4f);
+            var handle = PreparationUiBuilderUtility.CreateUiObject("Handle", slidingArea.transform);
+            PreparationUiBuilderUtility.Stretch(handle);
+            var handleImage = PreparationUiBuilderUtility.AddImage(handle, null, true);
+            handleImage.color = new Color(0.83f, 0.63f, 0.25f, 1f);
+            scrollbar.handleRect = (RectTransform)handle.transform;
+            scrollbar.targetGraphic = handleImage;
+
+            scrollRect.viewport = (RectTransform)viewport.transform;
+            scrollRect.content = contentRect;
+            scrollRect.verticalScrollbar = scrollbar;
+            scrollRect.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHideAndExpandViewport;
+            scrollRect.verticalScrollbarSpacing = 12f;
+
+            overlay.SetActive(false);
+            view.FusionRecommendationOverlay = overlay;
+            view.FusionRecommendationCloseButton = closeButton;
+            view.FusionRecommendationScrollRect = scrollRect;
+            view.FusionRecommendationList = recommendationList;
+            view.FusionRecommendationEmptyText = emptyText;
         }
 
         private static void CreatePool(Transform parent, PreparationView view)
@@ -386,7 +652,7 @@ namespace Hearthstone
             var toggle = root.AddComponent<Toggle>();
             toggle.transition = Selectable.Transition.None;
             toggle.targetGraphic = hitArea;
-            toggle.isOn = false;
+            toggle.isOn = true;
             toggle.navigation = new Navigation { mode = Navigation.Mode.None };
 
             var box = PreparationUiBuilderUtility.CreateUiObject("Box", root.transform);
@@ -428,6 +694,8 @@ namespace Hearthstone
 
         private static void CreateFusionReveal(Transform parent, PreparationView view)
         {
+            var questionFaceSprite = PreparationUiBuilderUtility.LoadSprite("FusionRevealQuestionFace");
+            var cardBackSprite = PreparationUiBuilderUtility.LoadSprite("FusionRevealCardBack");
             var overlay = PreparationUiBuilderUtility.CreateUiObject("FusionRevealOverlay", parent);
             PreparationUiBuilderUtility.Stretch(overlay);
             var canvasGroup = overlay.AddComponent<CanvasGroup>();
@@ -436,6 +704,20 @@ namespace Hearthstone
             canvasGroup.blocksRaycasts = true;
             var dimmer = PreparationUiBuilderUtility.AddImage(overlay, null, true);
             dimmer.color = new Color(0.2f, 0.2f, 0.2f, 0.78f);
+            var dismissButton = overlay.AddComponent<Button>();
+            dismissButton.targetGraphic = dimmer;
+            dismissButton.transition = Selectable.Transition.None;
+            dismissButton.interactable = false;
+            var dismissNavigation = dismissButton.navigation;
+            dismissNavigation.mode = Navigation.Mode.None;
+            dismissButton.navigation = dismissNavigation;
+
+            var materialListObject = PreparationUiBuilderUtility.CreateUiObject(
+                "MaterialCardList",
+                overlay.transform);
+            PreparationUiBuilderUtility.Stretch(materialListObject);
+            var materialList = materialListObject.AddComponent<UiList>();
+            materialList.ArragementType = UiList.EArrangement.Manual;
 
             var cardRoot = PreparationUiBuilderUtility.CreateUiObject("CardRoot", overlay.transform);
             PreparationUiBuilderUtility.SetRect(
@@ -444,65 +726,19 @@ namespace Hearthstone
                 new Vector2(FusionRevealCardWidth, FusionRevealCardHeight),
                 Vector2.zero);
 
-            var shadow = PreparationUiBuilderUtility.CreateUiObject("FloatingShadow", cardRoot.transform);
-            PreparationUiBuilderUtility.SetRect(
-                shadow,
-                new Vector2(0.5f, 0.5f),
-                new Vector2(FusionRevealCardWidth + 34f, FusionRevealCardHeight + 34f),
-                new Vector2(0f, -16f));
-            var shadowImage = PreparationUiBuilderUtility.AddImage(shadow, null);
-            shadowImage.color = new Color(0f, 0f, 0f, 0.34f);
-            shadowImage.raycastTarget = false;
-
-            var sealedFace = CreateFusionRevealFace(cardRoot.transform, "SealedFace", new Color(0.16f, 0.18f, 0.2f, 1f));
-            var seal = PreparationUiBuilderUtility.CreateUiObject("Seal", sealedFace.transform);
-            PreparationUiBuilderUtility.SetRect(seal, new Vector2(0.5f, 0.5f), new Vector2(108f, 108f), Vector2.zero);
-            seal.transform.localRotation = Quaternion.Euler(0f, 0f, 45f);
-            var sealImage = PreparationUiBuilderUtility.AddImage(seal, null);
-            sealImage.color = new Color(0.77f, 0.68f, 0.46f, 1f);
-            sealImage.raycastTarget = false;
-            var sealInset = PreparationUiBuilderUtility.CreateUiObject("Inset", seal.transform);
-            PreparationUiBuilderUtility.Stretch(sealInset, 9f);
-            var sealInsetImage = PreparationUiBuilderUtility.AddImage(sealInset, null);
-            sealInsetImage.color = new Color(0.12f, 0.15f, 0.18f, 1f);
-            sealInsetImage.raycastTarget = false;
-            var question = PreparationUiBuilderUtility.CreateUiObject("Question", sealedFace.transform);
-            PreparationUiBuilderUtility.SetRect(question, new Vector2(0.5f, 0.5f), new Vector2(100f, 120f), Vector2.zero);
-            var questionText = PreparationUiBuilderUtility.AddText(question, "?", 78f);
-            questionText.color = new Color(0.96f, 0.84f, 0.48f, 1f);
-
-            var back = CreateFusionRevealFace(cardRoot.transform, "CardBack", new Color(0.035f, 0.12f, 0.26f, 1f));
+            var sealedFace = CreateFusionRevealFace(cardRoot.transform, "SealedFace", questionFaceSprite);
+            var back = CreateFusionRevealFace(cardRoot.transform, "CardBack", cardBackSprite);
             back.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
-            var backDiamond = PreparationUiBuilderUtility.CreateUiObject("CenterDiamond", back.transform);
-            PreparationUiBuilderUtility.SetRect(backDiamond, new Vector2(0.5f, 0.5f), new Vector2(126f, 126f), Vector2.zero);
-            backDiamond.transform.localRotation = Quaternion.Euler(0f, 0f, 45f);
-            var diamondImage = PreparationUiBuilderUtility.AddImage(backDiamond, null);
-            diamondImage.color = new Color(0.86f, 0.7f, 0.28f, 1f);
-            diamondImage.raycastTarget = false;
-            var diamondInset = PreparationUiBuilderUtility.CreateUiObject("Inset", backDiamond.transform);
-            PreparationUiBuilderUtility.Stretch(diamondInset, 11f);
-            var diamondInsetImage = PreparationUiBuilderUtility.AddImage(diamondInset, null);
-            diamondInsetImage.color = new Color(0.04f, 0.23f, 0.5f, 1f);
-            diamondInsetImage.raycastTarget = false;
-            var gem = PreparationUiBuilderUtility.CreateUiObject("Gem", backDiamond.transform);
-            PreparationUiBuilderUtility.SetRect(gem, new Vector2(0.5f, 0.5f), new Vector2(34f, 34f), Vector2.zero);
-            var gemImage = PreparationUiBuilderUtility.AddImage(gem, null);
-            gemImage.color = new Color(0.28f, 0.82f, 1f, 1f);
-            gemImage.raycastTarget = false;
 
             var resultListObject = PreparationUiBuilderUtility.CreateUiObject("ResultCardList", cardRoot.transform);
             PreparationUiBuilderUtility.Stretch(resultListObject);
             var resultList = resultListObject.AddComponent<UiList>();
             resultList.ArragementType = UiList.EArrangement.Manual;
 
-            var flashClip = PreparationUiBuilderUtility.CreateUiObject("FlashClip", cardRoot.transform);
-            PreparationUiBuilderUtility.Stretch(flashClip);
-            flashClip.AddComponent<RectMask2D>();
-            var flash = PreparationUiBuilderUtility.CreateUiObject("Flash", flashClip.transform);
-            PreparationUiBuilderUtility.SetRect(flash, new Vector2(0.5f, 0.5f), new Vector2(84f, 520f), new Vector2(-260f, 0f));
-            flash.transform.localRotation = Quaternion.Euler(0f, 0f, -18f);
+            var flash = PreparationUiBuilderUtility.CreateUiObject("ScreenFlash", overlay.transform);
+            PreparationUiBuilderUtility.Stretch(flash);
             var flashImage = PreparationUiBuilderUtility.AddImage(flash, null);
-            flashImage.color = new Color(0.85f, 0.96f, 1f, 0.9f);
+            flashImage.color = Color.white;
             flashImage.raycastTarget = false;
             var flashCanvasGroup = flash.AddComponent<CanvasGroup>();
             flashCanvasGroup.alpha = 0f;
@@ -514,6 +750,8 @@ namespace Hearthstone
             flash.SetActive(false);
             view.FusionRevealOverlay = overlay;
             view.FusionRevealCanvasGroup = canvasGroup;
+            view.FusionRevealDismissButton = dismissButton;
+            view.FusionRevealMaterialCardList = materialList;
             view.FusionRevealCardRoot = (RectTransform)cardRoot.transform;
             view.FusionRevealCardList = resultList;
             view.FusionRevealSealedFace = sealedFace;
@@ -522,12 +760,58 @@ namespace Hearthstone
             view.FusionRevealFlashCanvasGroup = flashCanvasGroup;
         }
 
-        private static GameObject CreateFusionRevealFace(Transform parent, string name, Color color)
+        private static void CreateRewardReveal(Transform parent, PreparationView view)
+        {
+            var overlay = PreparationUiBuilderUtility.CreateUiObject("RewardRevealOverlay", parent);
+            PreparationUiBuilderUtility.Stretch(overlay);
+            var canvasGroup = overlay.AddComponent<CanvasGroup>();
+            canvasGroup.alpha = 0f;
+            canvasGroup.interactable = false;
+            canvasGroup.blocksRaycasts = true;
+            var dimmer = PreparationUiBuilderUtility.AddImage(overlay, null, true);
+            dimmer.color = new Color(0.2f, 0.2f, 0.2f, 0.78f);
+            var confirmButton = overlay.AddComponent<Button>();
+            confirmButton.targetGraphic = dimmer;
+            confirmButton.transition = Selectable.Transition.None;
+            confirmButton.interactable = false;
+            var confirmNavigation = confirmButton.navigation;
+            confirmNavigation.mode = Navigation.Mode.None;
+            confirmButton.navigation = confirmNavigation;
+
+            var cardListObject = PreparationUiBuilderUtility.CreateUiObject(
+                "RewardCardList",
+                overlay.transform);
+            PreparationUiBuilderUtility.Stretch(cardListObject);
+            var cardList = cardListObject.AddComponent<UiList>();
+            cardList.ArragementType = UiList.EArrangement.Manual;
+
+            var title = PreparationUiBuilderUtility.CreateUiObject(
+                "RewardTitle",
+                overlay.transform);
+            PreparationUiBuilderUtility.SetRect(
+                title,
+                new Vector2(0.5f, 0.5f),
+                new Vector2(620f, 225f),
+                new Vector2(0f, 270f));
+            var titleImage = PreparationUiBuilderUtility.AddImage(
+                title,
+                PreparationUiBuilderUtility.LoadSprite("PreparationRewardTitle"));
+            titleImage.preserveAspect = true;
+            titleImage.raycastTarget = false;
+
+            overlay.SetActive(false);
+            view.RewardRevealOverlay = overlay;
+            view.RewardRevealCanvasGroup = canvasGroup;
+            view.RewardRevealConfirmButton = confirmButton;
+            view.RewardRevealCardList = cardList;
+        }
+
+        private static GameObject CreateFusionRevealFace(Transform parent, string name, Sprite artwork)
         {
             var face = PreparationUiBuilderUtility.CreateUiObject(name, parent);
             PreparationUiBuilderUtility.Stretch(face);
-            var background = PreparationUiBuilderUtility.AddImage(face, null);
-            background.color = color;
+            var background = PreparationUiBuilderUtility.AddImage(face, artwork);
+            background.preserveAspect = false;
             background.raycastTarget = false;
 
             var border = PreparationUiBuilderUtility.CreateUiObject("Border", face.transform);

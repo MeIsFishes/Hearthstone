@@ -42,10 +42,12 @@ namespace Hearthstone
         {
             if (attemptId <= 0)
                 throw new ArgumentOutOfRangeException(nameof(attemptId));
-            if (fromBattleNumber <= 0 || targetBattleNumber != fromBattleNumber + 1)
+            if (fromBattleNumber <= 0 || targetBattleNumber != fromBattleNumber)
                 throw new ArgumentOutOfRangeException(nameof(targetBattleNumber));
-            if (playerLineup == null || playerLineup.SlotCount != RunCardRules.BattleSlotCount)
-                throw new ArgumentException("Continue snapshot requires exactly three battle slots.", nameof(playerLineup));
+            if (playerLineup == null ||
+                playerLineup.SlotCount < RunCardRules.InitialBattleSlotCount ||
+                playerLineup.SlotCount > RunCardRules.MaximumBattleSlotCount)
+                throw new ArgumentException("Continue snapshot has an invalid battle slot count.", nameof(playerLineup));
             if (fusionSlotCardNumbers == null || fusionSlotCardNumbers.Length != RunCardRules.FusionSlotCount)
                 throw new ArgumentException("Continue snapshot requires exactly four fusion slots.", nameof(fusionSlotCardNumbers));
 
@@ -53,7 +55,7 @@ namespace Hearthstone
             FromBattleNumber = fromBattleNumber;
             TargetBattleNumber = targetBattleNumber;
             PlayerLineup = playerLineup.CreateSnapshot();
-            BattleSlotCardNumbers = new int[RunCardRules.BattleSlotCount];
+            BattleSlotCardNumbers = new int[playerLineup.SlotCount];
             for (var slot = 0; slot < BattleSlotCardNumbers.Length; slot++)
                 BattleSlotCardNumbers[slot] = PlayerLineup.GetSlot(slot).CardNumber;
             FusionSlotCardNumbers = (int[])fusionSlotCardNumbers.Clone();

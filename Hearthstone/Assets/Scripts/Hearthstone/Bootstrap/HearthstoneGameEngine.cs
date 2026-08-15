@@ -8,6 +8,7 @@ namespace Hearthstone
     public enum EHearthstoneStageGroup
     {
         None,
+        MainMenu,
         Battle,
         Preparation,
     }
@@ -34,6 +35,17 @@ namespace Hearthstone
 
         private EHearthstoneStageGroup m_LoadingGroup;
         private string m_LoadingKey;
+
+        public void Reset()
+        {
+            RequestedGroup = EHearthstoneStageGroup.None;
+            RequestedKey = null;
+            ActiveGroup = EHearthstoneStageGroup.None;
+            ActiveKey = null;
+            Phase = EStageGroupTransitionPhase.None;
+            m_LoadingGroup = EHearthstoneStageGroup.None;
+            m_LoadingKey = null;
+        }
 
         public bool Request(EHearthstoneStageGroup group, string key)
         {
@@ -92,22 +104,25 @@ namespace Hearthstone
     }
 
     /// <summary>
-    /// 项目运行入口。当前默认进入核心自动战斗模式。
+    /// 项目运行入口。默认先进入主菜单，由玩家开始新一局。
     /// </summary>
     public sealed class HearthstoneGameEngine : GameEngineBase<HearthstoneGameEngine>
     {
         private GameStage m_RunStateStage;
+        private GameStage m_MainMenuStage;
         private GameStage m_BattleStage;
         private GameStage m_PreparationStage;
         private GameStage m_LoadingStage;
         private BattleStageStartupData m_RequestedBattleStartupData;
-        private PreparationRewardBatchStartupData m_RequestedPreparationBatch;
+        private PreparationRoundStartupData m_RequestedPreparationRound;
         private readonly HearthstoneStageGroupTransitionCoordinator m_StageGroupCoordinator = new();
         private EHearthstoneStageGroup m_LoadingGroup;
         private string m_LoadingRequestKey;
         private BattleStageStartupData m_LoadingBattleStartupData;
+        private PreparationRoundStartupData m_LoadingPreparationRound;
         private PreparationContinueTransactionSnapshot m_ContinueSnapshot;
         private long m_NextContinueAttemptId;
+        private int m_RunSerial;
 
         public long CurrentContinueAttemptId => m_ContinueSnapshot?.AttemptId ?? 0;
 
@@ -119,8 +134,17 @@ namespace Hearthstone
                 typeof(InputSystem),
                 typeof(BattleSystem),
                 typeof(TaskSystem));
+        }
 
-            m_RunStateStage = RunStateStages.CreateRunStateStage(this);
+        public void EnterMainMenuStageGroup()
+        {
+            m_StageGroupCoordinator.Request(EHearthstoneStageGroup.MainMenu, "main-menu");
+            TrySubmitRequestedStageGroup();
+        }
+
+        public void StartNewRun()
+        {
+            RestartRun();
         }
 
         /// <summary>
@@ -130,6 +154,7 @@ namespace Hearthstone
         {
             if (startupData == null)
                 throw new ArgumentNullException(nameof(startupData));
+            EnsureRunStateStage();
             var snapshot = startupData.CreateSnapshot();
             m_RequestedBattleStartupData = snapshot;
             m_StageGroupCoordinator.Request(
@@ -151,34 +176,22 @@ namespace Hearthstone
             var runState = EcsApi.GetSingletonRawComponent<RunStateSingletonRawComponent>();
             var session = EcsApi.GetSingletonRawComponent<PreparationSessionSingletonRawComponent>();
             var progression = EcsApi.GetSingletonRawComponent<RunProgressionSingletonRawComponent>();
-            if (runState == null || session == null || progression == null || progression.CurrentBattleNumber <= 0)
+            if (runState == null || session == null || progression == null || session.BattleNumber <= 0)
                 return LogContinueRejected(EPreparationContinueResult.InvalidRuntimeState, "RequiredRuntimeStateMissing", continueState);
 
-            var targetBattleNumber = checked(progression.CurrentBattleNumber + 1);
-            PreparationRewardBatchStartupData rewardBatch;
-            try
-            {
-                var rewardRandom = new Random(
-                    BattleRules.NormalizeSeed(unchecked((uint)DateTime.UtcNow.Ticks)));
-                rewardBatch = PreparationRewardBatchFactory.CreateRandom(
-                    $"battle-{targetBattleNumber:D3}-reward",
-                    runState.HasCard,
-                    ref rewardRandom);
-            }
-            catch (Exception exception)
-            {
-                DebugApi.LogError(
-                    $"[PreparationContinue] Result={EPreparationContinueResult.InvalidProgressionConfig} " +
-                    $"TargetBattleNumber={targetBattleNumber} Reason={exception.Message}");
-                continueState.State.SetValue(EPreparationContinueState.Idle);
-                return EPreparationContinueResult.InvalidProgressionConfig;
-            }
+            var targetBattleNumber = session.BattleNumber;
+            var rewardBatch = new PreparationRewardBatchStartupData(
+                $"battle-{targetBattleNumber:D3}-resolved",
+                Array.Empty<RewardCardGrantStartupData>());
 
             var attemptId = checked(++m_NextContinueAttemptId);
-            var playerLineup = BattlePlayerLineupStartupData.Capture(runState, runState.BattleSlotCardNumbers);
+            var playerLineup = BattlePlayerLineupStartupData.Capture(
+                runState,
+                runState.BattleSlotCardNumbers,
+                runState.UnlockedBattleSlotCount);
             m_ContinueSnapshot = new PreparationContinueTransactionSnapshot(
                 attemptId,
-                progression.CurrentBattleNumber,
+                targetBattleNumber,
                 targetBattleNumber,
                 playerLineup,
                 session.FusionSlotCardNumbers,
@@ -192,7 +205,7 @@ namespace Hearthstone
 
             DebugApi.Log(
                 $"[PreparationContinue] Action=Request Result={EPreparationContinueResult.Accepted} AttemptId={attemptId} " +
-                $"FromBattleNumber={progression.CurrentBattleNumber} TargetBattleNumber={targetBattleNumber} " +
+                $"FromBattleNumber={targetBattleNumber} TargetBattleNumber={targetBattleNumber} " +
                 $"BatchId={rewardBatch.BatchId} BattleSlots=[{string.Join(",", runState.BattleSlotCardNumbers)}] " +
                 $"FusionSlots=[{string.Join(",", session.FusionSlotCardNumbers)}] Owned={runState.GetOwnedCardCount()} " +
                 $"RunRevision={runState.Revision.Value} FusionRevision={session.FusionRevision.Value} " +
@@ -207,34 +220,76 @@ namespace Hearthstone
             return EPreparationContinueResult.Accepted;
         }
 
-        public void EnterPreparationStageGroup(PreparationRewardBatchStartupData rewardBatch)
+        public void EnterPreparationStageGroup(PreparationRoundStartupData round)
         {
-            if (rewardBatch == null)
-                throw new ArgumentNullException(nameof(rewardBatch));
-            var snapshot = rewardBatch.CreateSnapshot();
-            m_RequestedPreparationBatch = snapshot;
+            if (round == null)
+                throw new ArgumentNullException(nameof(round));
+            EnsureRunStateStage();
+            var snapshot = round.CreateSnapshot();
+            m_RequestedPreparationRound = snapshot;
             m_StageGroupCoordinator.Request(
                 EHearthstoneStageGroup.Preparation,
                 CreateBatchRequestKey(snapshot));
             TrySubmitRequestedStageGroup();
         }
 
+        public void EnterPreparationStageGroup(PreparationRewardBatchStartupData rewardBatch)
+        {
+            EnterPreparationStageGroup(new PreparationRoundStartupData(
+                1,
+                RunCardRules.InitialBattleSlotCount,
+                rewardBatch));
+        }
+
+        public void BeginPreparationForBattle(int battleNumber)
+        {
+            var config = BattleProgressionCsvData.GetRequired(battleNumber);
+            var runState = EcsApi.GetSingletonRawComponent<RunStateSingletonRawComponent>();
+            var random = new Random(BattleRules.NormalizeSeed(unchecked((uint)DateTime.UtcNow.Ticks)));
+            var batch = PreparationRewardBatchFactory.CreateRandom(
+                $"run-{m_RunSerial:D3}-battle-{battleNumber:D3}-draw",
+                runState == null ? null : new Predicate<int>(runState.HasCard),
+                config.DrawCardCount,
+                ref random);
+            EnterPreparationStageGroup(new PreparationRoundStartupData(
+                battleNumber,
+                BattleProgressionCsvData.GetUnlockedSlotTotal(battleNumber),
+                batch));
+        }
+
+        public void RestartRun()
+        {
+            m_RunSerial = checked(m_RunSerial + 1);
+            m_StageGroupCoordinator.Reset();
+            m_RequestedBattleStartupData = null;
+            m_RequestedPreparationRound = null;
+            m_LoadingBattleStartupData = null;
+            m_LoadingPreparationRound = null;
+            m_ContinueSnapshot = null;
+            m_RunStateStage = RunStateStages.CreateRunStateStage(this);
+            BeginPreparationForBattle(1);
+        }
+
         protected override void OnStageLoadingCompleted(IReadOnlyList<GameStage> activeStages)
         {
-            if (m_RequestedBattleStartupData == null && m_RequestedPreparationBatch == null)
+            if (!m_StageGroupCoordinator.IsLoading)
             {
-                EnterBattleStageGroup(BattleStageStartupData.CreateDefault());
+                if (m_StageGroupCoordinator.ActiveGroup == EHearthstoneStageGroup.None &&
+                    m_StageGroupCoordinator.RequestedGroup == EHearthstoneStageGroup.None)
+                {
+                    EnterMainMenuStageGroup();
+                }
                 return;
             }
-            if (!m_StageGroupCoordinator.IsLoading)
-                return;
             if (!ContainsStage(activeStages, m_LoadingStage))
                 throw new InvalidOperationException("The requested Hearthstone stage group did not become active.");
 
             m_StageGroupCoordinator.CompleteTransition(m_LoadingGroup, m_LoadingRequestKey);
-            CommitProgressionAfterStageLoad();
+            if (m_LoadingGroup != EHearthstoneStageGroup.MainMenu)
+                CommitProgressionAfterStageLoad();
             m_LoadingStage = null;
             m_LoadingBattleStartupData = null;
+            m_LoadingPreparationRound = null;
             m_LoadingGroup = EHearthstoneStageGroup.None;
             m_LoadingRequestKey = null;
             TrySubmitRequestedStageGroup();
@@ -249,6 +304,11 @@ namespace Hearthstone
             m_LoadingRequestKey = key;
             switch (group)
             {
+                case EHearthstoneStageGroup.MainMenu:
+                    m_MainMenuStage = MainMenuStages.CreateMainMenuStage(this);
+                    m_LoadingStage = m_MainMenuStage;
+                    StageWrapper.SetActiveGameStage(m_MainMenuStage);
+                    break;
                 case EHearthstoneStageGroup.Battle:
                     if (m_RequestedBattleStartupData == null)
                         throw new InvalidOperationException("Requested Battle startup data is missing.");
@@ -258,15 +318,22 @@ namespace Hearthstone
                     StageWrapper.SetActiveGameStage(m_RunStateStage, m_BattleStage);
                     break;
                 case EHearthstoneStageGroup.Preparation:
-                    if (m_RequestedPreparationBatch == null)
-                        throw new InvalidOperationException("Requested Preparation batch is missing.");
-                    m_PreparationStage = PreparationStages.CreatePreparationStage(this, m_RequestedPreparationBatch.CreateSnapshot());
+                    if (m_RequestedPreparationRound == null)
+                        throw new InvalidOperationException("Requested Preparation round is missing.");
+                    m_PreparationStage = PreparationStages.CreatePreparationStage(this, m_RequestedPreparationRound.CreateSnapshot());
+                    m_LoadingPreparationRound = m_RequestedPreparationRound.CreateSnapshot();
                     m_LoadingStage = m_PreparationStage;
                     StageWrapper.SetActiveGameStage(m_RunStateStage, m_PreparationStage);
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(group));
             }
+        }
+
+        private void EnsureRunStateStage()
+        {
+            if (m_RunStateStage == null)
+                m_RunStateStage = RunStateStages.CreateRunStateStage(this);
         }
 
         private static bool ContainsStage(IReadOnlyList<GameStage> stages, GameStage target)
@@ -279,9 +346,16 @@ namespace Hearthstone
             return false;
         }
 
+        private static string CreateBatchRequestKey(PreparationRoundStartupData round)
+        {
+            var batch = round.RewardBatch;
+            return $"Battle={round.BattleNumber}|Slots={round.UnlockedBattleSlotCount}|" +
+                   CreateBatchRequestKey(batch);
+        }
+
         private static string CreateBatchRequestKey(PreparationRewardBatchStartupData batch)
         {
-            var key = batch.BatchId;
+            var key = $"Batch={batch.BatchId}";
             for (var index = 0; index < batch.Grants.Count; index++)
             {
                 var grant = batch.Grants[index];
@@ -344,7 +418,7 @@ namespace Hearthstone
 
             var battleNumber = m_LoadingGroup == EHearthstoneStageGroup.Battle
                 ? m_LoadingBattleStartupData?.BattleNumber ?? 0
-                : progression.CurrentBattleNumber == 0 ? 1 : progression.CurrentBattleNumber;
+                : m_LoadingPreparationRound?.BattleNumber ?? 0;
             if (progression.CurrentBattleNumber != battleNumber)
                 progression.CommitBattle(battleNumber);
 

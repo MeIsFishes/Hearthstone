@@ -9,20 +9,20 @@ namespace Hearthstone
 {
     public static class PreparationStages
     {
-        private const string PreparationStartupDataKey = "PreparationStage.RewardBatch";
+        private const string PreparationStartupDataKey = "PreparationStage.Round";
         private const string PreparationUiAssetPath = "Ui/Preparation";
 
         public static GameStage CreatePreparationStage(
             HearthstoneGameEngine engine,
-            PreparationRewardBatchStartupData rewardBatch)
+            PreparationRoundStartupData round)
         {
             if (engine == null)
                 throw new ArgumentNullException(nameof(engine));
-            if (rewardBatch == null)
-                throw new ArgumentNullException(nameof(rewardBatch));
+            if (round == null)
+                throw new ArgumentNullException(nameof(round));
 
             var stage = engine.StageWrapper.CreateStage("PreparationStage");
-            stage.SetStageData(PreparationStartupDataKey, rewardBatch.CreateSnapshot());
+            stage.SetStageData(PreparationStartupDataKey, round.CreateSnapshot());
             stage.AddLoadItem<InitializePreparationRuntime>();
             TryAddPreparationUi(engine, stage);
             return stage;
@@ -50,9 +50,10 @@ namespace Hearthstone
         {
             public void Load(GameStage stage)
             {
-                var batch = stage.GetStageData(PreparationStartupDataKey) as PreparationRewardBatchStartupData;
-                if (batch == null)
-                    throw new InvalidOperationException("PreparationStage reward batch is missing or invalid.");
+                var round = stage.GetStageData(PreparationStartupDataKey) as PreparationRoundStartupData;
+                if (round == null)
+                    throw new InvalidOperationException("PreparationStage round startup data is missing or invalid.");
+                var batch = round.RewardBatch;
 
                 ValidateGrantReferences(batch);
                 var runState = EcsApi.GetSingletonRawComponent<RunStateSingletonRawComponent>();
@@ -63,16 +64,18 @@ namespace Hearthstone
                 if (EcsApi.GetSingletonRawComponent<PreparationContinueSingletonRawComponent>() != null)
                     throw new InvalidOperationException("Preparation continue state already exists.");
 
+                runState.SetUnlockedBattleSlotCount(round.UnlockedBattleSlotCount);
                 var result = RunCardRules.ApplyRewardBatch(runState, batch);
                 var session = EcsApi.AddSingletonRawComponent<PreparationSessionSingletonRawComponent>();
                 if (session == null)
                     throw new InvalidOperationException("Unable to create PreparationSessionSingletonRawComponent.");
-                session.Initialize(batch, result == ERewardBatchApplyResult.Applied);
+                session.Initialize(round, result == ERewardBatchApplyResult.Applied);
                 if (EcsApi.AddSingletonRawComponent<PreparationContinueSingletonRawComponent>() == null)
                     throw new InvalidOperationException("Unable to create PreparationContinueSingletonRawComponent.");
                 DebugApi.Log(
                     $"[PreparationContinue] StageInitialize Stage=PreparationStage " +
                     $"StageId={RuntimeHelpers.GetHashCode(stage)} SessionId={RuntimeHelpers.GetHashCode(session)} " +
+                    $"BattleNumber={round.BattleNumber} UnlockedSlots={round.UnlockedBattleSlotCount} " +
                     $"BatchId={session.BatchId} RewardApplyResult={result} " +
                     $"AppliedBatchCount={runState.AppliedRewardBatchPayloadFingerprints.Count} " +
                     $"RewardCards=[{FormatRewardCards(session)}] Owned={runState.GetOwnedCardCount()} " +

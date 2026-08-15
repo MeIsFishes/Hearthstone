@@ -9,7 +9,7 @@ namespace BbxCommon.Ui
     /// <summary>
     /// A MonoBehaviour which responses pointer events like moving in, dragging, etc.
     /// </summary>
-    public class UiDragable : MonoBehaviour, IUiPreInit, IUiInit, IUiUpdate, IUiDestroy
+    public class UiDragable : BbxUiItem, IUiPreInit, IUiInit, IUiUpdate, IUiDestroy
     {
         #region Wrapper
         [HideInInspector]
@@ -76,6 +76,7 @@ namespace BbxCommon.Ui
         private PointerEventData m_CurrentData;
         private Vector3 m_DragOffset;
         private Vector3 m_OriginalPos;
+        private Transform DragTransform => EventListener != null ? EventListener.transform : transform;
         #endregion
 
         #region CallbacksAndTick
@@ -162,31 +163,26 @@ namespace BbxCommon.Ui
         {
             OnDrag?.Invoke(eventData);
 
-            if (AlwaysRelativeOffset)
-                m_TransformSetter.PosWrapper.AddPositionRequest(
-                    eventData.position - new Vector2(RelativeOffset.x * transform.localScale.x, RelativeOffset.y * transform.localScale.y),
-                    UiTransformSetter.EPosPriority.Drag);
-            else
-                m_TransformSetter.PosWrapper.AddPositionRequest(
-                    eventData.position.AsVector3XY() + m_DragOffset,
-                    UiTransformSetter.EPosPriority.Drag);
+            m_TransformSetter.PosWrapper.AddPositionRequest(
+                GetDragWorldPosition(eventData),
+                UiTransformSetter.EPosPriority.Drag);
         }
 
         private void OnBeginDragCallback(PointerEventData eventData)
         {
             OnBeginDrag?.Invoke(eventData);
 
-            m_OriginalPos = transform.localPosition;
+            m_OriginalPos = DragTransform.localPosition;
 
             m_Dragging = true;
-            m_DragOffset = transform.position - eventData.position.AsVector3XY();
+            m_DragOffset = DragTransform.position - GetPointerWorldPosition(eventData);
+
+            UiApi.SetUiTop(EventListener.gameObject);
 
             if (AlwaysRelativeOffset && SetWhenDown)
                 m_TransformSetter.PosWrapper.AddPositionRequest(
-                    eventData.position - new Vector2(RelativeOffset.x * transform.localScale.x, RelativeOffset.y * transform.localScale.y),
+                    GetDragWorldPosition(eventData),
                     UiTransformSetter.EPosPriority.Drag);
-
-            UiApi.SetUiTop(EventListener.gameObject);
         }
 
         private void OnEndDragCallback(PointerEventData eventData)
@@ -196,11 +192,43 @@ namespace BbxCommon.Ui
             m_Dragging = false;
 
             m_TransformSetter.PosWrapper.RemovePositionRequest(UiTransformSetter.EPosPriority.Drag);
+            UiApi.SetTopUiBack(EventListener.gameObject);
             if (TurnBackWhenDragEnd)
                 m_TransformSetter.PosWrapper.SetLocalPositionOnce(m_OriginalPos, UiTransformSetter.EPosPriority.Drag);
 
-            UiApi.SetTopUiBack(EventListener.gameObject);
             OnBackFromTop?.Invoke(eventData);
+        }
+
+        private Vector3 GetDragWorldPosition(PointerEventData eventData)
+        {
+            var pointerWorldPosition = GetPointerWorldPosition(eventData);
+            if (AlwaysRelativeOffset == false)
+                return pointerWorldPosition + m_DragOffset;
+
+            var relativeOffset = new Vector3(RelativeOffset.x, RelativeOffset.y, 0f);
+            return pointerWorldPosition - DragTransform.TransformVector(relativeOffset);
+        }
+
+        private Vector3 GetPointerWorldPosition(PointerEventData eventData)
+        {
+            var dragTransform = DragTransform;
+            if (eventData == null || !(dragTransform is RectTransform eventRect))
+                return dragTransform.position;
+
+            var canvas = eventRect.GetComponentInParent<Canvas>();
+            var eventCamera = eventData.pressEventCamera;
+            if (canvas != null)
+                eventCamera = canvas.renderMode == RenderMode.ScreenSpaceOverlay
+                    ? null
+                    : eventCamera ?? canvas.worldCamera;
+
+            return RectTransformUtility.ScreenPointToWorldPointInRectangle(
+                eventRect,
+                eventData.position,
+                eventCamera,
+                out var pointerWorldPosition)
+                ? pointerWorldPosition
+                : DragTransform.position;
         }
         #endregion
     }

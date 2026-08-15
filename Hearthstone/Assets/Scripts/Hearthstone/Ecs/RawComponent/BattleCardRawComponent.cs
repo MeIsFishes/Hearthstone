@@ -17,6 +17,8 @@ namespace Hearthstone
     {
         public int CardNumber;
         public int CardTypeId;
+        public int PresentationCardNumber;
+        public int PresentationCardTypeId;
         public EBattleSide Side;
         public int SlotIndex;
         public int Attack;
@@ -45,6 +47,8 @@ namespace Hearthstone
 
             CardNumber = cardConfig.CardNumber;
             CardTypeId = cardConfig.CardTypeId;
+            PresentationCardNumber = cardConfig.CardNumber;
+            PresentationCardTypeId = cardConfig.CardTypeId;
             Side = side;
             SlotIndex = slotIndex;
             Tier = typeConfig.Tier;
@@ -62,7 +66,15 @@ namespace Hearthstone
             var cardConfig = DataApi.GetData<BattleCardCsvData>(CardNumber);
             if (cardConfig == null)
                 throw new InvalidOperationException($"Battle card configuration {CardNumber} is missing.");
+            var presentationCardConfig = DataApi.GetData<BattleCardCsvData>(instance.PresentationCardNumber);
+            if (presentationCardConfig == null)
+            {
+                throw new InvalidOperationException(
+                    $"Battle card presentation configuration {instance.PresentationCardNumber} is missing.");
+            }
             CardTypeId = cardConfig.CardTypeId;
+            PresentationCardNumber = presentationCardConfig.CardNumber;
+            PresentationCardTypeId = presentationCardConfig.CardTypeId;
             Side = EBattleSide.Player;
             SlotIndex = slotIndex;
             Tier = instance.Tier;
@@ -97,6 +109,8 @@ namespace Hearthstone
                 throw new ArgumentException("Card and type configurations do not reference the same card type.");
             CardNumber = cardConfig.CardNumber;
             CardTypeId = cardConfig.CardTypeId;
+            PresentationCardNumber = cardConfig.CardNumber;
+            PresentationCardTypeId = cardConfig.CardTypeId;
             Side = side;
             SlotIndex = slotIndex;
             Tier = typeConfig.Tier;
@@ -171,6 +185,8 @@ namespace Hearthstone
             IsAlive.MakeInvalid();
             CardNumber = 0;
             CardTypeId = 0;
+            PresentationCardNumber = 0;
+            PresentationCardTypeId = 0;
             Side = EBattleSide.Player;
             SlotIndex = 0;
             Attack = 0;

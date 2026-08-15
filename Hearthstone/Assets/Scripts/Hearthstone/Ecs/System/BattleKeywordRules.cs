@@ -65,8 +65,33 @@ namespace Hearthstone
                 if (Has(keywords, keyword) == false)
                     continue;
                 if (displayedCount > 0)
-                    builder.Append(displayedCount == 2 && Count(keywords) == 4 ? "\n" : " · ");
+                    builder.Append('、');
                 builder.Append(GetDisplayName(keyword));
+                displayedCount++;
+            }
+            return builder.ToString();
+        }
+
+        public static string FormatDescriptionText(EBattleKeyword keywords)
+        {
+            keywords = Normalize(keywords);
+            if (keywords == EBattleKeyword.None)
+                return string.Empty;
+
+            SortDisplayOrderFromConfiguration();
+            var builder = new StringBuilder(256);
+            var displayedCount = 0;
+            for (var index = 0; index < DisplayOrder.Length; index++)
+            {
+                var keyword = DisplayOrder[index];
+                if (Has(keywords, keyword) == false)
+                    continue;
+                if (displayedCount > 0)
+                    builder.Append('\n');
+                var config = GetConfig(keyword);
+                builder.Append(config.DisplayName);
+                builder.Append("：");
+                builder.Append(config.Description);
                 displayedCount++;
             }
             return builder.ToString();
@@ -107,15 +132,5 @@ namespace Hearthstone
             return data ?? throw new InvalidOperationException($"Battle keyword configuration '{keyword}' is missing.");
         }
 
-        private static int Count(EBattleKeyword keywords)
-        {
-            var count = 0;
-            for (var index = 0; index < DisplayOrder.Length; index++)
-            {
-                if (Has(keywords, DisplayOrder[index]))
-                    count++;
-            }
-            return count;
-        }
     }
 }

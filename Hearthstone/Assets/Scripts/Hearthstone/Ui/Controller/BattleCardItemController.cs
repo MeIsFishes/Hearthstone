@@ -1,5 +1,6 @@
 using BbxCommon;
 using BbxCommon.Ui;
+using TMPro;
 using Unity.Entities;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -30,13 +31,25 @@ namespace Hearthstone
             CardPool,
             BattleSlot,
             FusionSlot,
+            FusionRecommendation,
         }
 
         private const string UnifiedCardFrameArtworkKey = "CardFrame-v3";
         private const float PreparationPoolScale = 0.8f;
-        private const float PreparationBattleSlotScale = 0.88f;
-        private const float PreparationFusionSlotScale = 0.76f;
-        private const int PreparationDragReturnPriority = 3000;
+        private const float FusionRecommendationScale = 0.52f;
+        private const float StatTransitionDuration = 0.38f;
+        private const float StatTransitionIncomingDistance = 18f;
+        private const float StatTransitionOutgoingDistance = 24f;
+        private const float DamagePopupDuration = 0.75f;
+        private const float DamagePopupDistance = 54f;
+        private const float KeywordFeedbackDuration = 0.78f;
+        private const float KeywordFeedbackDistance = 84f;
+        private const float KeywordTooltipHorizontalOffset = 318f;
+        private const float KeywordTooltipVerticalOffset = 32f;
+        private const float KeywordTooltipMinHeight = 112f;
+        private const float KeywordTooltipMaxHeight = 240f;
+        private const float KeywordTooltipVerticalPadding = 38f;
+        private const float InactiveFeedbackElapsed = -1f;
 
         public static readonly Color BronzeFrameColor = new Color32(184, 115, 51, 255);
         public static readonly Color SilverFrameColor = new Color32(192, 204, 216, 255);
@@ -59,9 +72,11 @@ namespace Hearthstone
         private EPreparationBindingMode m_PreparationBindingMode;
         private int m_PreparationCardNumber;
         private int m_PreparationDisplayNumber;
+        private int m_PreparationCopyIndex;
         private int m_PreparationSlot = -1;
         private bool m_PreparationCardOwned;
         private bool m_PreparationCardLocked;
+        private EBattleKeyword m_DisplayKeywords;
         private Color m_DefaultFrameColor = BronzeFrameColor;
         private bool m_IsHovered;
         private ListenableItemListener m_HealthListener;
@@ -76,6 +91,23 @@ namespace Hearthstone
         private bool m_HasAnimationOrigin;
         private Vector2 m_AnimationOrigin;
         private Color m_ArtworkBaseColor = Color.white;
+        private int m_LastAttack;
+        private int m_LastHealth;
+        private bool m_HasLastAttack;
+        private bool m_HasLastHealth;
+        private int m_LastKeywordFeedbackSequence;
+        private float m_AttackTransitionElapsed = InactiveFeedbackElapsed;
+        private float m_HealthTransitionElapsed = InactiveFeedbackElapsed;
+        private float m_DamagePopupElapsed = InactiveFeedbackElapsed;
+        private float m_ChargeFeedbackElapsed = InactiveFeedbackElapsed;
+        private float m_LongShotFeedbackElapsed = InactiveFeedbackElapsed;
+        private Vector2 m_AttackTextOrigin;
+        private Vector2 m_HealthTextOrigin;
+        private Vector2 m_DamagePopupOrigin;
+        private Vector2 m_ChargeFeedbackOrigin;
+        private Vector2 m_LongShotFeedbackOrigin;
+        private Transform m_KeywordTooltipHomeParent;
+        private Vector2 m_KeywordTooltipHomePosition;
 
         protected override void InitListeners()
         {
@@ -116,6 +148,9 @@ namespace Hearthstone
             }
             InitializePreparationEmptySlotInteraction();
             CreateAttackEffectOverlay();
+            CacheFeedbackLayout();
+            CacheKeywordTooltipLayout();
+            ResetFeedbackAnimations(true);
             ApplyPreparationState(false, false);
         }
 
@@ -160,6 +195,7 @@ namespace Hearthstone
 
         protected override void OnUiUpdate(float deltaTime)
         {
+            UpdateFeedbackAnimations(deltaTime * BattleRules.AttackPresentationPlaybackSpeed);
             if (m_Session == null ||
                 m_Session.AttackPresentationActive == false ||
                 m_ActivePresentationSequence != m_Session.AttackPresentationSequence.Value)
@@ -175,25 +211,36 @@ namespace Hearthstone
                 UpdateHitPresentation(elapsed);
         }
 
-        internal void BindPreparation(PreparationController page, int cardNumber, int displayNumber)
+        internal void BindPreparation(
+            PreparationController page,
+            int cardNumber,
+            int displayNumber,
+            int copyIndex = 0)
         {
             ResetBinding();
             m_PreparationPage = page;
             m_PreparationBindingMode = EPreparationBindingMode.CardPool;
             m_PreparationCardNumber = cardNumber;
             m_PreparationDisplayNumber = displayNumber;
+            m_PreparationCopyIndex = copyIndex;
             transform.localScale = Vector3.one * PreparationPoolScale;
             UpdatePreparationInteractorData(cardNumber);
         }
 
-        internal void BindPreparationBattleSlot(PreparationController page, int slot)
+        internal void BindPreparationBattleSlot(
+            PreparationController page,
+            int slot,
+            Vector2 slotSize)
         {
-            BindPreparationSlot(page, slot, EPreparationBindingMode.BattleSlot, PreparationBattleSlotScale);
+            BindPreparationSlot(page, slot, EPreparationBindingMode.BattleSlot, slotSize);
         }
 
-        internal void BindPreparationFusionSlot(PreparationController page, int slot)
+        internal void BindPreparationFusionSlot(
+            PreparationController page,
+            int slot,
+            Vector2 slotSize)
         {
-            BindPreparationSlot(page, slot, EPreparationBindingMode.FusionSlot, PreparationFusionSlotScale);
+            BindPreparationSlot(page, slot, EPreparationBindingMode.FusionSlot, slotSize);
         }
 
         internal void BindFusionReveal(RunStateSingletonRawComponent runState, int cardNumber)
@@ -203,13 +250,113 @@ namespace Hearthstone
                 return;
 
             m_PreparationCardNumber = cardNumber;
+            if (m_View.CardNumberText != null)
+                m_View.CardNumberText.text = cardNumber.ToString();
+            if (m_View.CardNumberBadge != null)
+                m_View.CardNumberBadge.gameObject.SetActive(true);
             ShowPreparationCard(runState, cardNumber);
+            SetHoverEnabled(false);
+        }
+
+        internal void BindFusionMaterialReveal(FusionMaterialSnapshot material)
+        {
+            ResetBinding();
+            var cardConfig = DataApi.GetData<BattleCardCsvData>(material.CardNumber);
+            var typeConfig = cardConfig == null
+                ? null
+                : DataApi.GetData<BattleCardTypeCsvData>(cardConfig.CardTypeId);
+            if (cardConfig == null || typeConfig == null)
+            {
+                DebugApi.LogError($"Fusion material card configuration {material.CardNumber} is missing.");
+                return;
+            }
+
+            m_PreparationCardNumber = material.CardNumber;
+            if (m_View.CardNumberText != null)
+                m_View.CardNumberText.text = material.CardNumber.ToString("00");
+            if (m_View.CardNumberBadge != null)
+                m_View.CardNumberBadge.gameObject.SetActive(true);
+            ShowCardPresentation(GetTierFrameColor(typeConfig.Tier));
+            ApplyCardContent(
+                cardConfig,
+                typeConfig,
+                material.Keywords,
+                material.Attack,
+                material.MaxHealth);
+            RefreshAlive(true);
+            RefreshHighlights(Entity.Null);
+            SetHoverEnabled(false);
+        }
+
+        internal void BindPreparationRewardReveal(RunCardInstanceData reward)
+        {
+            ResetBinding();
+            if (reward.IsValid == false)
+                return;
+
+            var cardConfig = DataApi.GetData<BattleCardCsvData>(reward.PresentationCardNumber);
+            var typeConfig = cardConfig == null
+                ? null
+                : DataApi.GetData<BattleCardTypeCsvData>(cardConfig.CardTypeId);
+            if (cardConfig == null || typeConfig == null)
+            {
+                DebugApi.LogError(
+                    $"Preparation reward card configuration {reward.PresentationCardNumber} is missing.");
+                return;
+            }
+
+            m_PreparationCardNumber = reward.CardNumber;
+            if (m_View.CardNumberText != null)
+                m_View.CardNumberText.text = reward.CardNumber.ToString("00");
+            if (m_View.CardNumberBadge != null)
+                m_View.CardNumberBadge.gameObject.SetActive(true);
+            ShowCardPresentation(GetTierFrameColor(reward.Tier));
+            ApplyCardContent(
+                cardConfig,
+                typeConfig,
+                reward.Keywords,
+                reward.Attack,
+                reward.MaxHealth);
+            RefreshAlive(true);
+            RefreshHighlights(Entity.Null);
+            SetHoverEnabled(false);
+        }
+
+        internal void SetFusionRevealInteraction(bool enabled)
+        {
+            SetHoverEnabled(enabled);
+        }
+
+        internal void BindFusionRecommendation(
+            PreparationController page,
+            RunStateSingletonRawComponent runState,
+            int cardNumber,
+            bool selectedAsMaterial)
+        {
+            ResetBinding();
+            if (page == null || runState == null || runState.HasCard(cardNumber) == false)
+                return;
+
+            m_PreparationPage = page;
+            m_PreparationBindingMode = EPreparationBindingMode.FusionRecommendation;
+            m_PreparationCardNumber = cardNumber;
+            m_PreparationDisplayNumber = cardNumber;
+            m_PreparationCardOwned = true;
+            transform.localScale = Vector3.one * FusionRecommendationScale;
+            if (m_View.CardNumberText != null)
+                m_View.CardNumberText.text = cardNumber.ToString("00");
+            if (m_View.CardNumberBadge != null)
+                m_View.CardNumberBadge.gameObject.SetActive(true);
+            ShowPreparationCard(runState, cardNumber);
+            ApplyFusionRecommendationState(selectedAsMaterial);
         }
 
         public void OnScroll(PointerEventData eventData)
         {
             if (m_PreparationBindingMode == EPreparationBindingMode.CardPool)
                 m_PreparationPage?.ForwardCardPoolScroll(eventData);
+            else if (m_PreparationBindingMode == EPreparationBindingMode.FusionRecommendation)
+                m_PreparationPage?.ForwardFusionRecommendationScroll(eventData);
         }
 
         internal void RefreshPreparation(
@@ -248,7 +395,8 @@ namespace Hearthstone
                 return;
             }
 
-            m_PreparationCardOwned = runState.HasCard(m_PreparationCardNumber);
+            m_PreparationCardOwned =
+                m_PreparationCopyIndex < runState.GetCardCopyCount(m_PreparationCardNumber);
             var selectedAsMaterial = false;
             var deployed = false;
             if (session != null)
@@ -287,7 +435,7 @@ namespace Hearthstone
                 return;
             }
 
-            ShowPreparationCard(runState, m_PreparationCardNumber);
+            ShowPreparationCard(runState, m_PreparationCardNumber, m_PreparationCopyIndex);
             ApplyPreparationState(true, deployed);
         }
 
@@ -295,14 +443,33 @@ namespace Hearthstone
             PreparationController page,
             int slot,
             EPreparationBindingMode bindingMode,
-            float scale)
+            Vector2 slotSize)
         {
             ResetBinding();
             m_PreparationPage = page;
             m_PreparationBindingMode = bindingMode;
             m_PreparationSlot = slot;
-            transform.localScale = Vector3.one * scale;
+            ApplyContainedSlotScale(slotSize);
             UpdatePreparationInteractorData(0);
+        }
+
+        private void ApplyContainedSlotScale(Vector2 slotSize)
+        {
+            var cardRect = transform as RectTransform;
+            if (cardRect == null ||
+                cardRect.rect.width <= 0f ||
+                cardRect.rect.height <= 0f ||
+                slotSize.x <= 0f ||
+                slotSize.y <= 0f)
+            {
+                transform.localScale = Vector3.one;
+                return;
+            }
+
+            var scale = Mathf.Min(
+                slotSize.x / cardRect.rect.width,
+                slotSize.y / cardRect.rect.height);
+            transform.localScale = Vector3.one * Mathf.Min(1f, scale);
         }
 
         private void RefreshPreparationSlot(RunStateSingletonRawComponent runState, int cardNumber)
@@ -325,13 +492,17 @@ namespace Hearthstone
             ApplyPreparationState(true, false);
         }
 
-        private void ShowPreparationCard(RunStateSingletonRawComponent runState, int cardNumber)
+        private void ShowPreparationCard(
+            RunStateSingletonRawComponent runState,
+            int cardNumber,
+            int copyIndex = 0)
         {
-            var instance = runState.CardInstances[cardNumber];
-            var cardConfig = DataApi.GetData<BattleCardCsvData>(cardNumber);
+            var instance = runState.GetCardInstance(cardNumber, copyIndex);
+            var cardConfig = DataApi.GetData<BattleCardCsvData>(instance.PresentationCardNumber);
             if (cardConfig == null)
             {
-                DebugApi.LogError($"Battle card configuration {cardNumber} is missing.");
+                DebugApi.LogError(
+                    $"Battle card presentation configuration {instance.PresentationCardNumber} is missing.");
                 HideCardPresentation(false);
                 return;
             }
@@ -418,9 +589,11 @@ namespace Hearthstone
             m_PreparationBindingMode = EPreparationBindingMode.None;
             m_PreparationCardNumber = 0;
             m_PreparationDisplayNumber = 0;
+            m_PreparationCopyIndex = 0;
             m_PreparationSlot = -1;
             m_PreparationCardOwned = false;
             m_PreparationCardLocked = false;
+            m_DisplayKeywords = EBattleKeyword.None;
             m_DefaultFrameColor = BronzeFrameColor;
             m_IsHovered = false;
 
@@ -443,13 +616,14 @@ namespace Hearthstone
 
             ApplyPreparationState(false, false);
             RefreshCardNumber();
-            var cardConfig = DataApi.GetData<BattleCardCsvData>(m_Card.CardNumber);
-            var typeConfig = DataApi.GetData<BattleCardTypeCsvData>(m_Card.CardTypeId);
+            var cardConfig = DataApi.GetData<BattleCardCsvData>(m_Card.PresentationCardNumber);
+            var typeConfig = DataApi.GetData<BattleCardTypeCsvData>(m_Card.PresentationCardTypeId);
             ShowCardPresentation(GetTierFrameColor(m_Card.Tier));
             if (cardConfig == null)
-                DebugApi.LogError($"Battle card configuration {m_Card.CardNumber} is missing.");
+                DebugApi.LogError(
+                    $"Battle card presentation configuration {m_Card.PresentationCardNumber} is missing.");
             else if (typeConfig == null)
-                DebugApi.LogError($"Battle card type {m_Card.CardTypeId} is missing.");
+                DebugApi.LogError($"Battle card presentation type {m_Card.PresentationCardTypeId} is missing.");
             else
                 ApplyCardContent(cardConfig, typeConfig, m_Card.Keywords, m_Card.Attack, m_Card.CurrentHealth.Value);
             RefreshHealth(m_Card.CurrentHealth.Value);
@@ -459,24 +633,99 @@ namespace Hearthstone
 
         private void RefreshHealth(int health)
         {
-            if (m_View.HealthText != null)
-            {
-                m_View.HealthText.text = health.ToString();
-                m_View.HealthText.color = m_Card == null
-                    ? DefaultStatTextColor
-                    : GetStatTextColor(health, m_Card.EntryHealth);
-            }
+            if (m_HasLastHealth && health < m_LastHealth && m_Card != null)
+                StartDamagePopup(m_LastHealth - health);
+            var color = m_Card == null
+                ? DefaultStatTextColor
+                : GetStatTextColor(health, m_Card.EntryHealth);
+            RefreshStatValue(
+                m_View.HealthText,
+                m_View.HealthValueOutgoingText,
+                health,
+                color,
+                ref m_LastHealth,
+                ref m_HasLastHealth,
+                ref m_HealthTransitionElapsed,
+                m_HealthTextOrigin);
         }
 
         private void RefreshAttack(int attack)
         {
-            if (m_View.AttackText != null)
+            var color = m_Card == null
+                ? DefaultStatTextColor
+                : GetStatTextColor(attack, m_Card.EntryAttack);
+            RefreshStatValue(
+                m_View.AttackText,
+                m_View.AttackValueOutgoingText,
+                attack,
+                color,
+                ref m_LastAttack,
+                ref m_HasLastAttack,
+                ref m_AttackTransitionElapsed,
+                m_AttackTextOrigin);
+        }
+
+        private static void RefreshStatValue(
+            TMP_Text currentText,
+            TMP_Text outgoingText,
+            int value,
+            Color color,
+            ref int lastValue,
+            ref bool hasLastValue,
+            ref float transitionElapsed,
+            Vector2 origin)
+        {
+            if (currentText == null)
             {
-                m_View.AttackText.text = attack.ToString();
-                m_View.AttackText.color = m_Card == null
-                    ? DefaultStatTextColor
-                    : GetStatTextColor(attack, m_Card.EntryAttack);
+                lastValue = value;
+                hasLastValue = true;
+                return;
             }
+
+            if (hasLastValue == false)
+            {
+                SetStatValueImmediate(currentText, outgoingText, value, color, ref transitionElapsed, origin);
+            }
+            else if (value > lastValue && outgoingText != null)
+            {
+                outgoingText.text = lastValue.ToString();
+                outgoingText.color = WithAlpha(currentText.color, 1f);
+                outgoingText.rectTransform.anchoredPosition = origin;
+                outgoingText.gameObject.SetActive(true);
+                currentText.text = value.ToString();
+                currentText.color = WithAlpha(color, 0f);
+                currentText.rectTransform.anchoredPosition =
+                    origin + Vector2.down * StatTransitionIncomingDistance;
+                transitionElapsed = 0f;
+            }
+            else if (value < lastValue)
+            {
+                SetStatValueImmediate(currentText, outgoingText, value, color, ref transitionElapsed, origin);
+            }
+            else
+            {
+                currentText.text = value.ToString();
+                currentText.color = WithAlpha(color, currentText.color.a);
+            }
+
+            lastValue = value;
+            hasLastValue = true;
+        }
+
+        private static void SetStatValueImmediate(
+            TMP_Text currentText,
+            TMP_Text outgoingText,
+            int value,
+            Color color,
+            ref float transitionElapsed,
+            Vector2 origin)
+        {
+            currentText.text = value.ToString();
+            currentText.color = WithAlpha(color, 1f);
+            currentText.rectTransform.anchoredPosition = origin;
+            if (outgoingText != null)
+                outgoingText.gameObject.SetActive(false);
+            transitionElapsed = InactiveFeedbackElapsed;
         }
 
         private void ApplyCardContent(
@@ -493,10 +742,22 @@ namespace Hearthstone
             }
 
             var keywordText = BattleKeywordRules.FormatDisplayText(keywords);
+            m_DisplayKeywords = BattleKeywordRules.Normalize(keywords);
             if (m_View.KeywordText != null)
             {
                 m_View.KeywordText.text = keywordText;
                 m_View.KeywordText.gameObject.SetActive(string.IsNullOrEmpty(m_View.KeywordText.text) == false);
+            }
+            if (m_View.KeywordTooltipText != null)
+                m_View.KeywordTooltipText.text = BattleKeywordRules.FormatDescriptionText(m_DisplayKeywords);
+            if (m_IsHovered)
+                ShowKeywordTooltip();
+            else
+                HideKeywordTooltip();
+            if (m_View.TauntShieldOutline != null)
+            {
+                m_View.TauntShieldOutline.gameObject.SetActive(
+                    BattleKeywordRules.Has(keywords, EBattleKeyword.Taunt));
             }
             if (m_Card != null)
             {
@@ -556,6 +817,9 @@ namespace Hearthstone
 
         private void HideCardPresentation(bool hideCardNumber)
         {
+            ResetFeedbackAnimations(true);
+            m_DisplayKeywords = EBattleKeyword.None;
+            HideKeywordTooltip();
             if (m_View.SkillDescriptionText != null)
             {
                 m_View.SkillDescriptionText.text = string.Empty;
@@ -576,6 +840,8 @@ namespace Hearthstone
                 m_AttackEffect.gameObject.SetActive(false);
             if (m_View.CardFrame != null)
                 m_View.CardFrame.gameObject.SetActive(false);
+            if (m_View.TauntShieldOutline != null)
+                m_View.TauntShieldOutline.gameObject.SetActive(false);
             if (m_View.AttackText != null)
             {
                 m_View.AttackText.text = string.Empty;
@@ -633,11 +899,42 @@ namespace Hearthstone
                 if (m_View.PreparationDragable.EventListener != null)
                     m_View.PreparationDragable.EventListener.enabled = dragEnabled;
             }
-            SetHoverEnabled(preparationMode && (occupied || m_PreparationCardLocked));
+            SetHoverEnabled(
+                preparationMode
+                    ? occupied || m_PreparationCardLocked
+                    : m_Card != null);
             if (m_View.CardBackground != null)
             {
                 m_View.CardBackground.color = Color.clear;
-                m_View.CardBackground.raycastTarget = preparationMode;
+                m_View.CardBackground.raycastTarget = preparationMode || m_Card != null;
+            }
+        }
+
+        private void ApplyFusionRecommendationState(bool selectedAsMaterial)
+        {
+            HidePreparationEmptyStates();
+            if (m_View.PreparationMaterialSelectedState != null)
+                m_View.PreparationMaterialSelectedState.SetActive(selectedAsMaterial);
+            if (m_View.PreparationDeployedState != null)
+                m_View.PreparationDeployedState.SetActive(false);
+            if (m_View.PreparationDropHighlight != null)
+                m_View.PreparationDropHighlight.gameObject.SetActive(false);
+            if (m_View.PreparationInteractor != null)
+            {
+                m_View.PreparationInteractor.enabled = false;
+                m_View.PreparationInteractor.Wrapper.ExtraInfo = null;
+            }
+            if (m_View.PreparationDragable != null)
+            {
+                m_View.PreparationDragable.enabled = false;
+                if (m_View.PreparationDragable.EventListener != null)
+                    m_View.PreparationDragable.EventListener.enabled = false;
+            }
+            SetHoverEnabled(true);
+            if (m_View.CardBackground != null)
+            {
+                m_View.CardBackground.color = Color.clear;
+                m_View.CardBackground.raycastTarget = true;
             }
         }
 
@@ -653,6 +950,7 @@ namespace Hearthstone
                 return;
 
             m_IsHovered = false;
+            HideKeywordTooltip();
             ApplyFrameColors();
         }
 
@@ -724,12 +1022,32 @@ namespace Hearthstone
                 return;
 
             m_ActivePresentationSequence = sequence;
-            m_AttackPresentationConfig = DataApi.GetData<BattleCardTypeCsvData>(attacker.CardTypeId);
+            m_AttackPresentationConfig =
+                DataApi.GetData<BattleCardTypeCsvData>(attacker.PresentationCardTypeId);
             var rect = (RectTransform)transform;
             m_AnimationOrigin = rect.anchoredPosition;
             m_HasAnimationOrigin = true;
             if (m_View.ArtworkArea != null)
                 m_ArtworkBaseColor = m_View.ArtworkArea.color;
+
+            if (m_BoundEntity == attackerEntity && m_LastKeywordFeedbackSequence != sequence)
+            {
+                m_LastKeywordFeedbackSequence = sequence;
+                if (BattleKeywordRules.Has(attacker.Keywords, EBattleKeyword.Charge))
+                {
+                    StartKeywordFeedback(
+                        m_View.ChargeFeedbackIcon,
+                        ref m_ChargeFeedbackElapsed,
+                        m_ChargeFeedbackOrigin);
+                }
+                if (BattleKeywordRules.Has(attacker.Keywords, EBattleKeyword.LongShot))
+                {
+                    StartKeywordFeedback(
+                        m_View.LongShotFeedbackIcon,
+                        ref m_LongShotFeedbackElapsed,
+                        m_LongShotFeedbackOrigin);
+                }
+            }
 
             if (m_BoundEntity != m_Session.CurrentTarget.Value ||
                 string.IsNullOrWhiteSpace(m_AttackPresentationConfig?.AttackFrameAnimationKey))
@@ -817,6 +1135,232 @@ namespace Hearthstone
             m_HasAnimationOrigin = false;
         }
 
+        private void CacheFeedbackLayout()
+        {
+            if (m_View.AttackText != null)
+                m_AttackTextOrigin = m_View.AttackText.rectTransform.anchoredPosition;
+            if (m_View.HealthText != null)
+                m_HealthTextOrigin = m_View.HealthText.rectTransform.anchoredPosition;
+            if (m_View.DamagePopupBackground != null)
+                m_DamagePopupOrigin = m_View.DamagePopupBackground.rectTransform.anchoredPosition;
+            if (m_View.ChargeFeedbackIcon != null)
+                m_ChargeFeedbackOrigin = m_View.ChargeFeedbackIcon.rectTransform.anchoredPosition;
+            if (m_View.LongShotFeedbackIcon != null)
+                m_LongShotFeedbackOrigin = m_View.LongShotFeedbackIcon.rectTransform.anchoredPosition;
+        }
+
+        private void CacheKeywordTooltipLayout()
+        {
+            if (m_View.KeywordTooltip == null)
+                return;
+            var tooltipRect = (RectTransform)m_View.KeywordTooltip.transform;
+            m_KeywordTooltipHomeParent = tooltipRect.parent;
+            m_KeywordTooltipHomePosition = tooltipRect.anchoredPosition;
+        }
+
+        private void UpdateFeedbackAnimations(float deltaTime)
+        {
+            UpdateStatTransition(
+                m_View.AttackText,
+                m_View.AttackValueOutgoingText,
+                ref m_AttackTransitionElapsed,
+                m_AttackTextOrigin,
+                deltaTime);
+            UpdateStatTransition(
+                m_View.HealthText,
+                m_View.HealthValueOutgoingText,
+                ref m_HealthTransitionElapsed,
+                m_HealthTextOrigin,
+                deltaTime);
+            UpdateDamagePopup(deltaTime);
+            UpdateKeywordFeedback(
+                m_View.ChargeFeedbackIcon,
+                ref m_ChargeFeedbackElapsed,
+                m_ChargeFeedbackOrigin,
+                deltaTime);
+            UpdateKeywordFeedback(
+                m_View.LongShotFeedbackIcon,
+                ref m_LongShotFeedbackElapsed,
+                m_LongShotFeedbackOrigin,
+                deltaTime);
+        }
+
+        private static void UpdateStatTransition(
+            TMP_Text currentText,
+            TMP_Text outgoingText,
+            ref float elapsed,
+            Vector2 origin,
+            float deltaTime)
+        {
+            if (elapsed < 0f || currentText == null || outgoingText == null)
+                return;
+
+            elapsed += deltaTime;
+            var progress = Mathf.Clamp01(elapsed / StatTransitionDuration);
+            var eased = Mathf.SmoothStep(0f, 1f, progress);
+            currentText.rectTransform.anchoredPosition =
+                origin + Vector2.down * Mathf.Lerp(StatTransitionIncomingDistance, 0f, eased);
+            currentText.color = WithAlpha(currentText.color, eased);
+            outgoingText.rectTransform.anchoredPosition =
+                origin + Vector2.up * (StatTransitionOutgoingDistance * eased);
+            outgoingText.color = WithAlpha(outgoingText.color, 1f - eased);
+            if (progress < 1f)
+                return;
+
+            currentText.rectTransform.anchoredPosition = origin;
+            currentText.color = WithAlpha(currentText.color, 1f);
+            outgoingText.gameObject.SetActive(false);
+            elapsed = InactiveFeedbackElapsed;
+        }
+
+        private void StartDamagePopup(int damage)
+        {
+            if (damage <= 0 || m_View.DamagePopupBackground == null || m_View.DamagePopupText == null)
+                return;
+
+            m_View.DamagePopupText.text = $"-{damage}";
+            m_View.DamagePopupBackground.rectTransform.anchoredPosition = m_DamagePopupOrigin;
+            SetGraphicAlpha(m_View.DamagePopupBackground, 1f);
+            SetGraphicAlpha(m_View.DamagePopupText, 1f);
+            m_View.DamagePopupBackground.gameObject.SetActive(true);
+            m_View.DamagePopupBackground.transform.SetAsLastSibling();
+            m_DamagePopupElapsed = 0f;
+        }
+
+        private void UpdateDamagePopup(float deltaTime)
+        {
+            if (m_DamagePopupElapsed < 0f ||
+                m_View.DamagePopupBackground == null ||
+                m_View.DamagePopupText == null)
+                return;
+
+            m_DamagePopupElapsed += deltaTime;
+            var progress = Mathf.Clamp01(m_DamagePopupElapsed / DamagePopupDuration);
+            var eased = Mathf.SmoothStep(0f, 1f, progress);
+            var alpha = 1f - Mathf.InverseLerp(0.24f, 1f, progress);
+            m_View.DamagePopupBackground.rectTransform.anchoredPosition =
+                m_DamagePopupOrigin + Vector2.up * (DamagePopupDistance * eased);
+            SetGraphicAlpha(m_View.DamagePopupBackground, alpha);
+            SetGraphicAlpha(m_View.DamagePopupText, alpha);
+            if (progress < 1f)
+                return;
+
+            m_View.DamagePopupBackground.gameObject.SetActive(false);
+            m_DamagePopupElapsed = InactiveFeedbackElapsed;
+        }
+
+        private static void StartKeywordFeedback(Image icon, ref float elapsed, Vector2 origin)
+        {
+            if (icon == null)
+                return;
+            icon.rectTransform.anchoredPosition = origin;
+            SetGraphicAlpha(icon, 1f);
+            icon.gameObject.SetActive(true);
+            icon.transform.SetAsLastSibling();
+            elapsed = 0f;
+        }
+
+        private static void UpdateKeywordFeedback(
+            Image icon,
+            ref float elapsed,
+            Vector2 origin,
+            float deltaTime)
+        {
+            if (elapsed < 0f || icon == null)
+                return;
+
+            elapsed += deltaTime;
+            var progress = Mathf.Clamp01(elapsed / KeywordFeedbackDuration);
+            var eased = Mathf.SmoothStep(0f, 1f, progress);
+            icon.rectTransform.anchoredPosition =
+                origin + Vector2.up * (KeywordFeedbackDistance * eased);
+            SetGraphicAlpha(icon, 1f - Mathf.InverseLerp(0.18f, 1f, progress));
+            if (progress < 1f)
+                return;
+
+            icon.gameObject.SetActive(false);
+            elapsed = InactiveFeedbackElapsed;
+        }
+
+        private void ResetFeedbackAnimations(bool clearTrackedValues)
+        {
+            ResetStatTransition(
+                m_View?.AttackText,
+                m_View?.AttackValueOutgoingText,
+                ref m_AttackTransitionElapsed,
+                m_AttackTextOrigin);
+            ResetStatTransition(
+                m_View?.HealthText,
+                m_View?.HealthValueOutgoingText,
+                ref m_HealthTransitionElapsed,
+                m_HealthTextOrigin);
+            ResetFloatingFeedback(
+                m_View?.DamagePopupBackground,
+                ref m_DamagePopupElapsed,
+                m_DamagePopupOrigin);
+            ResetFloatingFeedback(
+                m_View?.ChargeFeedbackIcon,
+                ref m_ChargeFeedbackElapsed,
+                m_ChargeFeedbackOrigin);
+            ResetFloatingFeedback(
+                m_View?.LongShotFeedbackIcon,
+                ref m_LongShotFeedbackElapsed,
+                m_LongShotFeedbackOrigin);
+            if (m_View?.DamagePopupText != null)
+            {
+                m_View.DamagePopupText.text = string.Empty;
+                SetGraphicAlpha(m_View.DamagePopupText, 1f);
+            }
+            if (clearTrackedValues == false)
+                return;
+            m_HasLastAttack = false;
+            m_HasLastHealth = false;
+            m_LastKeywordFeedbackSequence = 0;
+        }
+
+        private static void ResetStatTransition(
+            TMP_Text currentText,
+            TMP_Text outgoingText,
+            ref float elapsed,
+            Vector2 origin)
+        {
+            if (currentText != null)
+            {
+                currentText.rectTransform.anchoredPosition = origin;
+                currentText.color = WithAlpha(currentText.color, 1f);
+            }
+            if (outgoingText != null)
+            {
+                outgoingText.text = string.Empty;
+                outgoingText.rectTransform.anchoredPosition = origin;
+                outgoingText.gameObject.SetActive(false);
+            }
+            elapsed = InactiveFeedbackElapsed;
+        }
+
+        private static void ResetFloatingFeedback(Image image, ref float elapsed, Vector2 origin)
+        {
+            if (image != null)
+            {
+                image.rectTransform.anchoredPosition = origin;
+                SetGraphicAlpha(image, 1f);
+                image.gameObject.SetActive(false);
+            }
+            elapsed = InactiveFeedbackElapsed;
+        }
+
+        private static void SetGraphicAlpha(Graphic graphic, float alpha)
+        {
+            if (graphic != null)
+                graphic.color = WithAlpha(graphic.color, alpha);
+        }
+
+        private static Color WithAlpha(Color color, float alpha)
+        {
+            color.a = alpha;
+            return color;
+        }
+
         private void ApplyFrameColors()
         {
             var frameColor = m_IsHovered ? HoverFrameColor : m_DefaultFrameColor;
@@ -856,23 +1400,91 @@ namespace Hearthstone
         {
             m_IsHovered = true;
             ApplyFrameColors();
+            ShowKeywordTooltip();
         }
 
         private void OnCardPointerExit(PointerEventData ignored)
         {
             m_IsHovered = false;
+            HideKeywordTooltip();
             ApplyFrameColors();
         }
 
-        private void OnPreparationDragReturned(PointerEventData ignored)
+        private void ShowKeywordTooltip()
         {
+            if (m_DisplayKeywords == EBattleKeyword.None ||
+                m_View.KeywordTooltip == null ||
+                m_View.KeywordTooltipText == null ||
+                string.IsNullOrWhiteSpace(m_View.KeywordTooltipText.text))
+            {
+                HideKeywordTooltip();
+                return;
+            }
+
+            var tooltipRect = (RectTransform)m_View.KeywordTooltip.transform;
+            m_View.KeywordTooltip.SetActive(true);
+            m_View.KeywordTooltipText.ForceMeshUpdate();
+            var tooltipHeight = Mathf.Clamp(
+                m_View.KeywordTooltipText.preferredHeight + KeywordTooltipVerticalPadding,
+                KeywordTooltipMinHeight,
+                KeywordTooltipMaxHeight);
+            tooltipRect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, tooltipHeight);
+
+            var canvas = GetComponentInParent<Canvas>();
+            var camera = canvas != null && canvas.renderMode != RenderMode.ScreenSpaceOverlay
+                ? canvas.worldCamera
+                : null;
+            var cardScreenPosition = RectTransformUtility.WorldToScreenPoint(
+                camera,
+                ((RectTransform)transform).position);
+            var placeOnLeft = cardScreenPosition.x > Screen.width * 0.58f;
+            var offset = new Vector2(
+                placeOnLeft ? -KeywordTooltipHorizontalOffset : KeywordTooltipHorizontalOffset,
+                KeywordTooltipVerticalOffset);
+            if (canvas != null && canvas.transform is RectTransform canvasRect &&
+                RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                    canvasRect,
+                    cardScreenPosition,
+                    camera,
+                    out var cardCanvasPosition))
+            {
+                tooltipRect.SetParent(canvasRect, false);
+                tooltipRect.anchorMin = new Vector2(0.5f, 0.5f);
+                tooltipRect.anchorMax = new Vector2(0.5f, 0.5f);
+                tooltipRect.localScale = Vector3.one;
+                tooltipRect.anchoredPosition = cardCanvasPosition + offset;
+            }
+            else
+            {
+                tooltipRect.anchoredPosition = offset;
+            }
+            tooltipRect.SetAsLastSibling();
+        }
+
+        private void HideKeywordTooltip()
+        {
+            if (m_View?.KeywordTooltip == null)
+                return;
+            var tooltipRect = (RectTransform)m_View.KeywordTooltip.transform;
+            m_View.KeywordTooltip.SetActive(false);
+            if (m_KeywordTooltipHomeParent == null || tooltipRect.parent == m_KeywordTooltipHomeParent)
+                return;
+            tooltipRect.SetParent(m_KeywordTooltipHomeParent, false);
+            tooltipRect.localScale = Vector3.one;
+            tooltipRect.anchoredPosition = m_KeywordTooltipHomePosition;
+        }
+
+        private void OnPreparationDragReturned(PointerEventData eventData)
+        {
+            var returnFusionMaterialToPool =
+                m_PreparationBindingMode == EPreparationBindingMode.FusionSlot &&
+                m_PreparationCardNumber != 0 &&
+                m_PreparationPage != null &&
+                m_PreparationPage.IsPointerInsideFusionArea(eventData) == false;
             m_View.transform.localRotation = Quaternion.identity;
+            if (returnFusionMaterialToPool)
+                m_PreparationPage.RemoveFusionMaterial(m_PreparationSlot);
             m_PreparationPage?.OnDragReturned();
-            var restoredSlotPosition = m_View.transform.localPosition;
-            var transformSetter = m_View.GetComponent<UiTransformSetter>();
-            transformSetter?.PosWrapper.SetLocalPositionOnce(
-                restoredSlotPosition,
-                PreparationDragReturnPriority);
         }
 
         private void OnPreparationInteractorTouch(Interactor requester)
@@ -901,10 +1513,10 @@ namespace Hearthstone
             switch (m_PreparationBindingMode)
             {
                 case EPreparationBindingMode.CardPool:
-                    if (source.Source == EPreparationCardSource.FusionSlot)
-                        m_PreparationPage.RemoveFusionMaterial(source.SourceSlot);
                     break;
                 case EPreparationBindingMode.BattleSlot:
+                    if (source.Source == EPreparationCardSource.FusionSlot)
+                        break;
                     m_PreparationPage.DropCardOnSlot(source.CardNumber, m_PreparationSlot);
                     break;
                 case EPreparationBindingMode.FusionSlot:

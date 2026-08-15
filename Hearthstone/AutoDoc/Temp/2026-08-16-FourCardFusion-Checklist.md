@@ -1,0 +1,30 @@
+# 四卡融合表现与智能推荐调整检查清单
+
+- [x] 通过——用户要求：四卡融合时，按点数最高的三张卡确定卡面原画、名称、战斗动画等三卡版本表现。
+  - 证据：`RunCardRules.ResolveFusionPresentationCardNumber()` 保留素材卡号/类型配对，按卡号排序后以最高三张类型查询三卡结果；实例、备战卡面和战斗表现链路均读取该来源。
+- [x] 通过——用户要求：四卡融合得到的效果与面板属性仍按四卡融合结算，不得退化为三卡融合。
+  - 证据：实际 `ResultCardNumber` 仍按完整四类型配方查询；`TryFuse()` 仍累计全部四张素材的攻击、最大生命与词条，并写入 Legendary 等阶。测试断言结果号、四卡攻血和传奇等阶均保留。
+- [x] 通过——用户要求：若依赖配置实现，配置结构与读取逻辑必须兼容上述四卡表现规则，卡牌配置不再随意绑定四卡表现。
+  - 证据：未新增静态四卡表现配置；四卡配置仅继续承担结果/公式身份，权威表现来源由实际素材点数在运行时选出，现有三卡配置提供原画、名称、动画与音效。
+- [x] 通过——用户要求：融合面板的智能推荐窗口不再输出融合后的结果。
+  - 证据：`FusionRecommendationItemController` 只创建长度为 `FusionSlotCount` 的素材卡数组并只绑定 `GetCardNumber()`；推荐 View/Builder/Prefab 无 Result 节点，Editor 测试补充无结果卡节点断言。
+- [x] 通过——定位卡牌表格、融合结算、融合表现选择和智能推荐窗口的实际实现及直接依赖。
+  - 证据：已核对两张卡牌 CSV、`RunCardRules`、Run/Battle 卡实例、`BattleSystem`、共享卡面 Controller、推荐条目 Controller/View/Builder/Prefab 与 Editor 测试。
+- [x] 通过——完成修改并验证四卡融合的表现来源与效果/面板结算彼此独立且符合规则。
+  - 证据：新增实例级 `PresentationCardNumber` 与战斗级 `PresentationCardNumber/PresentationCardTypeId`；实际身份继续单独保存在 `CardNumber/CardTypeId`。CSV 核验示例：`2,4,8,85 → 结果177/表现127`，`4,7,8,80 → 结果177/表现143`，证明同一四卡公式可随实际最高三点数组合变化。
+- [x] 通过——验证普通三卡融合及其他既有融合路径不受影响。
+  - 证据：非四卡评估直接令表现卡号等于结果卡号；所有既有 `RunCardInstanceData` 构造调用默认令表现卡号等于自身卡号，保持向后兼容。`dotnet build Hearthstone.Tests.csproj --no-restore` 通过。
+- [x] 通过——检查误改无关文件、遗漏直接依赖及框架边界；不得绕过既有配置、公开 API、生命周期或导出流程。
+  - 证据：实现继续通过 `DataApi` 查询三卡配置、通过 `ResourceApi` 加载表现、沿用 Run state/ECS/UI 对象池生命周期；未手写资源索引、Prefab 导出或平行配置。工作区原有大量未提交改动保持不回退，本任务只对直接数据链和文档做局部补丁。
+- [x] 通过——检查新增函数和字段是否具有复用价值，删除不必要的一次性抽象。
+  - 证据：表现编号需要跨融合、整局状态、备战 UI、战斗 Entity、战斗 System 持久传递，字段均有多个消费点；配对排序 helper 被排序网络复用且无临时数组分配。
+- [x] 通过——玩家视角设计文档：完整读取基础格式 skill，核对现有相关文档和玩家可见变化，按实际现状决定更新或不适用并记录证据。
+  - 证据：已完整读取 `design-doc-format` 及战斗系统格式，更新 `AutoDoc/Design/Specific/preparation-card-pool/preparation-card-pool.md` 与 `combat-system/combat-system.md`，记录四卡动态三卡表现和推荐只显示素材。
+- [x] 通过——美术文档：完整读取基础格式 skill，核对现有相关文档和美术资产/表现变化，按实际现状决定更新或不适用并记录证据。
+  - 证据：已完整读取 `art-doc-writer` 与模块格式，更新战斗卡牌和备战卡池模块文档；本次没有新增或修改位图，因此 UI 美术总览无需变化。
+- [x] 通过——程序文档：完整读取基础格式 skill，核对现有相关文档和程序逻辑变化，按实际现状决定更新或不适用并记录证据。
+  - 证据：已完整读取 `program-doc-format`、战斗特殊格式、玩法模块及 UI 界面格式，更新备战玩法、战斗玩法、备战 UI 与战斗 UI 四篇直接相关文档。
+- [x] 通过——执行与风险相称的静态检查或测试，并记录结果与未覆盖风险。
+  - 证据：两次 `dotnet build Hearthstone.Tests.csproj --no-restore` 均为 0 错误；定向 `git diff --check` 无空白错误；静态检索确认表现消费者不再使用实际四卡类型。Unity Editor 当前由 PID 23324 占用，按项目默认“不进入游戏验证”且不启动第二实例，新增 Editor 用例已编译但未在 Unity Test Runner 内执行。
+- [x] 通过——结束前逐项复核本清单，只运行一次 `AutoDoc/CleanupTempDocs.bat`，随后创建对应 Report。
+  - 证据：已逐项复核；唯一一次清理退出码为 0，清理后 `AutoDoc/Temp/` 含 214 份 Markdown，未达到脚本删除阈值；对应 Report 已在清理后创建。

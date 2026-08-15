@@ -1,0 +1,26 @@
+# 卡牌反馈动效检查清单
+
+- [x] 用户要求：受伤时在血量附近出现黄色爆炸状底板与伤害数字，整体向上飘动并渐隐。（`StartDamagePopup`、`UpdateDamagePopup`）
+- [x] 用户要求：攻击或生命数值上升时，旧数值向上滑动渐隐，新数值从下方向上滑动渐显。（共享 `RefreshStatValue`、`UpdateStatTransition`）
+- [x] 用户要求：发动冲锋时，在卡牌上中偏左出现号角图标，向上飘动渐隐。（`ChargeFeedbackIcon`，位置 `(-48, 92)`）
+- [x] 用户要求：发动远射时，在卡牌上中偏右出现弓箭图标，向上飘动渐隐。（重做后的 `LongShotFeedbackIcon`，位置 `(48, 92)`）
+- [x] 读取 imagegen、generate-art-assets、项目总风格、战斗卡模块和最接近的现有 UI 素材；分别整理三张透明 PNG 的最终提示词。（已读取并记录最终提示词）
+- [x] 使用内置 imagegen 分别生成黄色爆炸底板、冲锋号角、远射弓箭；逐张查看并检查主体、透明区、轮廓、配色、无文字/水印。（初版弓箭被否决后已重新生成简化符号版）
+- [x] 最终素材落入 `Assets/Resources/Art/BattleCards/UI/`，使用唯一英文资源名；不手工创建、编辑或删除 `.meta`。（三张 PNG 已导入，`.meta` 由 Unity 自动创建）
+- [x] 定位生命/攻击监听、入场初值、攻击表现序列、伤害提交时点和嘲讽/冲锋/远射关键词权威来源。（`BattleCardRawComponent`、`BattleSystem`、`BattleKeywordRules`）
+- [x] 由 `BattleCardItemUiBuilder` 维护新增静态层级、布局、Sprite 与序列化引用；不得手写 Prefab YAML 或运行时拼装静态控件。（Builder 已通过 Unity 编辑器执行并保存 Prefab）
+- [x] View 只保存引用；Controller 负责全部监听、计时、缓动、显隐和复用清理。（边界审计通过）
+- [x] 伤害飘字只对生命下降触发，显示实际伤害差值；初次绑定、换绑、治疗/上升和隐藏状态不得误触发。（`m_HasLastHealth && health < m_LastHealth && m_Card != null`）
+- [x] 数值上升动效同时覆盖攻击和生命；下降保持现有即时刷新并由伤害飘字反馈，不错误播放上升动画。（两项数值共用同一实现）
+- [x] 冲锋与远射只在携带对应关键词的攻击者实际发动攻击时各触发一次；多词条可同时显示且位置互不遮挡。（攻击者 Entity 与序列去重；左右各 `48 px`）
+- [x] 动画持续时间与现有 `AttackPresentationPlaybackSpeed`/共享攻击表现时钟关系明确，避免同一序列重复触发。（反馈计时统一乘 `0.8` 系数）
+- [x] 动画中断、回池、关闭、重新绑定和对象复用时恢复文字位置、Alpha、内容与图标默认隐藏，避免残留。（`ResetFeedbackAnimations`）
+- [x] 框架边界审计：复用 BbxCommon View/Controller/Builder、ModelWrapper、Resource/Prefab 和现有 UI 对象池，不建立平行 UI、计时或资源系统。（审计通过）
+- [x] 抽象审计：新增字段、状态和函数按两类数值/两类关键词反馈适度复用，删除无必要的一次性包装。（数值与关键词各自使用共享函数）
+- [x] 增补 Builder/Prefab/表现逻辑相关测试，执行 Unity 定向 EditMode、关键词回归和三个相关程序集编译。（反馈/嘲讽 2/2；关键词 9/9；三个工程均 0 错误）
+- [x] 核验图片尺寸与 Alpha、Prefab 层级和默认状态、布局位置、图标互不遮挡及动画参数。（三图四角 Alpha 均为 0；结构测试覆盖其余项目）
+- [x] 检查修改范围和直接依赖，保留工作区既有攻击节奏、嘲讽盾牌和备战拖拽改动。（范围审计完成；未回退既有脏工作区内容）
+- [x] 玩家视角设计文档：读取基础与战斗专项格式，更新当前玩家可见反馈。（`AutoDoc/Design/Specific/combat-system/combat-system.md`）
+- [x] 美术文档：读取基础与战斗卡模块格式，记录三张新素材的规格、尺寸、用途与路径。（`AutoDoc/Art/Modules/battle-card/battle-card.md`）
+- [x] 程序文档：读取基础与战斗/UI 专项格式，记录触发源、Prefab 层级、动画状态与生命周期。（两份战斗程序文档已更新）
+- [x] 结束前重新读取本清单并逐项记录证据；仅运行一次 `AutoDoc/CleanupTempDocs.bat`，随后创建同名报告。（本次复核已完成；待执行清理并写报告）

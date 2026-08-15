@@ -12,8 +12,18 @@ namespace Hearthstone
         protected override void OnSystemUpdate()
         {
             var session = GetSingletonRawComponent<BattleSessionSingletonRawComponent>();
-            if (session == null || BattleRules.CanAct(session.Result.Value) == false)
+            if (session == null)
                 return;
+            if (session.Result.Value != EBattleResult.InProgress)
+            {
+                AdvanceOutcomePresentation(session);
+                return;
+            }
+            if (session.ResultSettlementPending)
+            {
+                AdvanceResultSettlement(session);
+                return;
+            }
 
             if (session.AttackPresentationActive)
             {
@@ -35,7 +45,7 @@ namespace Hearthstone
             var result = BattleRules.EvaluateResult(playerAliveMask, enemyAliveMask);
             if (result != EBattleResult.InProgress)
             {
-                session.Result.SetValue(result);
+                BeginResultSettlement(session, result);
                 return;
             }
 
@@ -46,10 +56,11 @@ namespace Hearthstone
             var targetMask = actingSide == EBattleSide.Player ? enemyAliveMask : playerAliveMask;
             var attackerSlot = BattleRules.FindNextLivingSlot(
                 session.GetAttackCursor(actingSide),
-                attackerMask);
+                attackerMask,
+                attackerCards.Length);
             if (attackerSlot < 0)
             {
-                session.Result.SetValue(BattleRules.EvaluateResult(playerAliveMask, enemyAliveMask));
+                BeginResultSettlement(session, BattleRules.EvaluateResult(playerAliveMask, enemyAliveMask));
                 return;
             }
 
@@ -70,7 +81,7 @@ namespace Hearthstone
                 $"AttackerSlot={attackerSlot} AttackerCard={attacker.CardNumber} " +
                 $"TauntMask=0x{tauntMask:X} CandidateMask=0x{candidateMask:X} TargetSlot={targetSlot}");
 
-            session.SetAttackCursor(actingSide, BattleRules.GetNextCursor(attackerSlot));
+            session.SetAttackCursor(actingSide, BattleRules.GetNextCursor(attackerSlot, attackerCards.Length));
             session.CurrentAttacker.SetValue(attackerEntity);
             session.CurrentTarget.SetValue(targetEntity);
 
@@ -79,11 +90,11 @@ namespace Hearthstone
                 ? BattleKeywordRules.GetConfig(EBattleKeyword.Blast).BlastDistance
                 : 0;
             var adjacentMask = damage.BlastDamage > 0
-                ? BattleRules.GetAdjacentLivingMask(targetSlot, targetMask, blastDistance)
+                ? BattleRules.GetAdjacentLivingMask(targetSlot, targetMask, blastDistance, targetCards.Length)
                 : 0u;
             var attackerHealthBefore = attacker.CurrentHealth.Value;
             var targetHealthBefore = target.CurrentHealth.Value;
-            var presentationConfig = DataApi.GetData<BattleCardTypeCsvData>(attacker.CardTypeId);
+            var presentationConfig = DataApi.GetData<BattleCardTypeCsvData>(attacker.PresentationCardTypeId);
             session.AttackPresentationActive = true;
             session.AttackPresentationElapsed = 0f;
             session.AttackPresentationDuration = BattleRules.GetAttackPresentationDuration(presentationConfig);
@@ -106,7 +117,8 @@ namespace Hearthstone
 
         private static void AdvanceAttackPresentation(BattleSessionSingletonRawComponent session)
         {
-            session.AttackPresentationElapsed += TimeApi.DeltaTime;
+            session.AttackPresentationElapsed +=
+                TimeApi.DeltaTime * BattleRules.AttackPresentationPlaybackSpeed;
             while (session.PendingNextAttackAudioIndex < session.PendingAttackAudioDelays.Length &&
                    session.AttackPresentationElapsed >= session.PendingAttackAudioDelays[session.PendingNextAttackAudioIndex])
             {
@@ -217,7 +229,6 @@ namespace Hearthstone
             var playerAliveMask = BuildAliveMask(session.PlayerCards);
             var enemyAliveMask = BuildAliveMask(session.EnemyCards);
             var result = BattleRules.EvaluateResult(playerAliveMask, enemyAliveMask);
-            session.Result.SetValue(result);
             DebugApi.Log(
                 $"[BattleKeyword] Result Action={session.ActionIndex} " +
                 $"PlayerAliveMask=0x{playerAliveMask:X} EnemyAliveMask=0x{enemyAliveMask:X} Result={result}");
@@ -226,9 +237,48 @@ namespace Hearthstone
             session.ClearPendingAttackPresentation();
             session.CurrentAttacker.SetValue(Entity.Null);
             session.CurrentTarget.SetValue(Entity.Null);
-            session.ActionCountdown = BattleRules.ActionInterval;
+            session.ActionCountdown = BattleRules.AttackEndWaitDuration;
             if (result == EBattleResult.InProgress)
                 session.CurrentSide.SetValue(BattleRules.GetOppositeSide(actingSide));
+            else
+                BeginResultSettlement(session, result);
+        }
+
+        private static void BeginResultSettlement(
+            BattleSessionSingletonRawComponent session,
+            EBattleResult result)
+        {
+            if (result == EBattleResult.InProgress || session.ResultSettlementPending)
+                return;
+            session.ResultSettlementPending = true;
+            session.PendingResult = result;
+            session.ResultSettlementCountdown = BattleRules.ResultSettlementDelay;
+        }
+
+        private static void AdvanceResultSettlement(BattleSessionSingletonRawComponent session)
+        {
+            session.ResultSettlementCountdown -= TimeApi.DeltaTime;
+            if (session.ResultSettlementCountdown > 0f)
+                return;
+            session.ResultSettlementPending = false;
+            session.ResultSettlementCountdown = 0f;
+            var result = session.PendingResult;
+            session.PendingResult = EBattleResult.InProgress;
+            if (result == EBattleResult.PlayerVictory)
+                session.OutcomePresentationCountdown = BattleRules.VictoryBannerTotalDuration;
+            session.Result.SetValue(result);
+        }
+
+        private static void AdvanceOutcomePresentation(BattleSessionSingletonRawComponent session)
+        {
+            if (session.Result.Value != EBattleResult.PlayerVictory ||
+                session.OutcomePresentationCompleted.Value)
+                return;
+            session.OutcomePresentationCountdown -= TimeApi.DeltaTime;
+            if (session.OutcomePresentationCountdown > 0f)
+                return;
+            session.OutcomePresentationCountdown = 0f;
+            session.OutcomePresentationCompleted.SetValue(true);
         }
 
         private static void ApplyCharge(Entity[] cards)
