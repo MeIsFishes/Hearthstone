@@ -8,11 +8,9 @@ namespace Hearthstone
 {
     public sealed class PreparationView : UiViewBase
     {
-        public TMP_Text RewardText;
         public Button ContinueButton;
         public Image ContinueButtonImage;
         public TMP_Text ContinueMainText;
-        public TMP_Text ContinueAuxiliaryText;
         public GameObject ContinueWaitingInputBlocker;
         public UiEventListener ContinueWaitingAttemptListener;
         public Button BattleTabButton;
@@ -32,10 +30,20 @@ namespace Hearthstone
         public Image FusionButtonImage;
         public UiEventListener FusionButtonAttemptListener;
         public UiInteractor FusionAreaInteractor;
+        public GameObject FusionRevealOverlay;
+        public CanvasGroup FusionRevealCanvasGroup;
+        public RectTransform FusionRevealCardRoot;
+        public UiList FusionRevealCardList;
+        public GameObject FusionRevealSealedFace;
+        public GameObject FusionRevealCardBack;
+        public RectTransform FusionRevealFlash;
+        public CanvasGroup FusionRevealFlashCanvasGroup;
         public ScrollRect CardPoolScrollRect;
         public UiList CardPoolList;
         public Scrollbar CardPoolScrollbar;
         public UiInteractor CardPoolInteractor;
+        public Toggle OwnedOnlyToggle;
+        public TMP_Text OwnedOnlyLabel;
 
         public override Type GetControllerType()
         {

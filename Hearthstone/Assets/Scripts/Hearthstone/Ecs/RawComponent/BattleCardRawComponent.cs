@@ -20,8 +20,11 @@ namespace Hearthstone
         public EBattleSide Side;
         public int SlotIndex;
         public int Attack;
+        public int EntryAttack;
         public EBattleKeyword Keywords;
+        public EBattleCardTier Tier;
         public int MaxHealth;
+        public int EntryHealth;
         public readonly ListenableVariable<int> AttackValue = new(0);
         public readonly ListenableVariable<int> CurrentHealth = new(0);
         public readonly ListenableVariable<bool> IsAlive = new(false);
@@ -44,6 +47,7 @@ namespace Hearthstone
             CardTypeId = cardConfig.CardTypeId;
             Side = side;
             SlotIndex = slotIndex;
+            Tier = typeConfig.Tier;
             var attack = typeConfig.RollAttack(ref random);
             var maxHealth = typeConfig.RollHealth(ref random);
             InitializeValues(attack, maxHealth, maxHealth, typeConfig.InitialKeyword);
@@ -61,6 +65,7 @@ namespace Hearthstone
             CardTypeId = cardConfig.CardTypeId;
             Side = EBattleSide.Player;
             SlotIndex = slotIndex;
+            Tier = instance.Tier;
             InitializeValues(instance.Attack, instance.MaxHealth, instance.MaxHealth, instance.Keywords);
         }
 
@@ -94,6 +99,7 @@ namespace Hearthstone
             CardTypeId = cardConfig.CardTypeId;
             Side = side;
             SlotIndex = slotIndex;
+            Tier = typeConfig.Tier;
             InitializeValues(attack, maxHealth, currentHealth, typeConfig.InitialKeyword);
         }
 
@@ -149,6 +155,8 @@ namespace Hearthstone
                 throw new ArgumentOutOfRangeException(nameof(maxHealth));
             if (currentHealth < 0 || currentHealth > maxHealth)
                 throw new ArgumentOutOfRangeException(nameof(currentHealth));
+            EntryAttack = attack;
+            EntryHealth = currentHealth;
             SetAttack(attack);
             MaxHealth = maxHealth;
             CurrentHealth.SetValue(currentHealth);
@@ -166,8 +174,11 @@ namespace Hearthstone
             Side = EBattleSide.Player;
             SlotIndex = 0;
             Attack = 0;
+            EntryAttack = 0;
             Keywords = EBattleKeyword.None;
+            Tier = EBattleCardTier.Bronze;
             MaxHealth = 0;
+            EntryHealth = 0;
             AttackValue.SetValue(0);
             CurrentHealth.SetValue(0);
             IsAlive.SetValue(false);

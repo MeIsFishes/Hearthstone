@@ -1,15 +1,28 @@
 # UiBuilder Unity MCP 启动流程检查清单
 
-- [ ] 用户要求：在 `UiBuilder` 流程中明确先从全部可用工具中查找 Unity MCP；发现时使用 MCP 启动 Builder。
-- [ ] 用户要求：Unity MCP 只用于启动 Builder，后续流程允许不再使用 MCP。
-- [ ] 保留 Unity MCP 不可用时的既有可执行通道与“不因 MCP 不可用而阻塞”边界。
-- [ ] Skill 类型与位置核对：目标为既有底层 skill `.codex/private-skills/bbxcommon-ui/SKILL.md`，不新增 skill、不改变 agent 关联。
-- [ ] Skill 结构核对：保留既有英文 `name`、精简中文 `description`、YAML frontmatter 与引用路径。
-- [ ] 条件访问核对：新增规则仅修改 UiBuilder 执行通道选择，不引入需要拆分文件的新条件资料。
-- [ ] 框架边界审计：修改不绕过 BbxCommon UI、UiBuilder、Unity Editor、UiSceneExporter 或资产配置源，不引入菜单、自动回调、手写 YAML 或平行 Builder 流程。
-- [ ] 误改与依赖核对：只修改目标 UiBuilder 流程及本任务检查清单/报告，不触碰无关文件或 `.meta`。
-- [ ] 玩家视角设计文档：读取格式 skill，依据实际修改判断是否需要同步。
-- [ ] 美术文档：读取格式 skill，依据实际修改判断是否需要同步。
-- [ ] 程序文档：读取格式 skill，依据实际修改判断是否需要同步。
-- [ ] 验证：复读修改段落并检查前后规则无自相矛盾，确认目标语句可被后续代理直接执行。
-- [ ] 结束审计：逐项记录证据，只运行一次 `AutoDoc/CleanupTempDocs.bat`，随后创建同名 `*-Report.md`。
+- [通过] 用户要求：在 `UiBuilder` 流程中明确先从全部可用工具中查找 Unity MCP；发现时使用 MCP 启动 Builder。
+  - 证据：`.codex/private-skills/bbxcommon-ui/SKILL.md` §2.7 第 5 条已加入“执行 Builder 前先在全部可用工具中查找 Unity MCP；若发现，则使用 MCP 启动 Builder”。
+- [通过] 用户要求：Unity MCP 只用于启动 Builder，后续流程允许不再使用 MCP。
+  - 证据：同一条明确写入“MCP 只用于启动 Builder，后续核验、UiScene 与导出流程可以不走 MCP”。
+- [通过] 保留 Unity MCP 不可用时的既有可执行通道与“不因 MCP 不可用而阻塞”边界。
+  - 证据：同一条保留其他正式 Unity Editor 操作通道，并保留“不得仅因 MCP 不可用而中断 Builder 流程”。
+- [通过] Skill 类型与位置核对：目标为既有底层 skill `.codex/private-skills/bbxcommon-ui/SKILL.md`，不新增 skill、不改变 agent 关联。
+  - 证据：Git 定向差异只有既有 `bbxcommon-ui/SKILL.md`；未修改主代理索引或 subagent 配置。
+- [通过] Skill 结构核对：保留既有英文 `name`、精简中文 `description`、YAML frontmatter 与引用路径。
+  - 证据：frontmatter 未产生差异；以 `PYTHONUTF8=1` 运行 `skill-creator/scripts/quick_validate.py`，结果为 `Skill is valid!`。
+- [通过] 条件访问核对：新增规则仅修改 UiBuilder 执行通道选择，不引入需要拆分文件的新条件资料。
+  - 证据：仅修改 §2.7 第 5 条一段，无新增脚本、引用、资产或辅助文档。
+- [通过] 框架边界审计：修改不绕过 BbxCommon UI、UiBuilder、Unity Editor、UiSceneExporter 或资产配置源，不引入菜单、自动回调、手写 YAML 或平行 Builder 流程。
+  - 证据：§2.7 第 4、6～8 条保持不变；新规则仅选择 Builder 启动通道，仍禁止菜单、自动回调、手写资产和替代导出源。
+- [通过] 误改与依赖核对：只修改目标 UiBuilder 流程及本任务检查清单/报告，不触碰无关文件或 `.meta`。
+  - 证据：目标 skill 的 Git diff 仅一行规则替换；工作区其余既有改动均未编辑，本任务没有创建、编辑或删除 `.meta`。
+- [不适用] 玩家视角设计文档：读取格式 skill，依据实际修改判断是否需要同步。
+  - 证据：已完整读取 `design-doc-format`；本次只调整代理执行 Builder 时的工具选择，不改变玩家可见界面、操作或功能现状。
+- [不适用] 美术文档：读取格式 skill，依据实际修改判断是否需要同步。
+  - 证据：已完整读取 `art-doc-writer`；本次没有修改任何图片、美术规格、Prefab 视觉或资源引用。
+- [不适用] 程序文档：读取格式 skill，依据实际修改判断是否需要同步。
+  - 证据：已完整读取 `program-doc-format`；本次没有改变游戏代码、运行时接口、UiBuilder 产物或当前程序行为。
+- [通过] 验证：复读修改段落并检查前后规则无自相矛盾，确认目标语句可被后续代理直接执行。
+  - 证据：`rg` 命中 §2.7 第 5 条的全部工具查找、仅启动用途、后续可不用及缺失兜底；`git diff --check` 通过。
+- [通过] 结束审计：逐项记录证据，只运行一次 `AutoDoc/CleanupTempDocs.bat`，随后创建同名 `*-Report.md`。
+  - 证据：已逐项复核；清理脚本只执行一次并返回 `CleanupExitCode=0`，随后创建同名报告。

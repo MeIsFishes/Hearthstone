@@ -6,6 +6,7 @@ using UnityEngine.UI;
 
 namespace Hearthstone
 {
+    // Serialized compatibility shell for the retired preparation battle-slot prefab.
     public sealed class PreparationSlotItemView : UiViewBase
     {
         public GameObject EmptyState;
@@ -20,9 +21,6 @@ namespace Hearthstone
         public UiDragable Dragable;
         public UiInteractor Interactor;
 
-        public override Type GetControllerType()
-        {
-            return typeof(PreparationSlotItemController);
-        }
+        public override Type GetControllerType() => typeof(PreparationSlotItemController);
     }
 }

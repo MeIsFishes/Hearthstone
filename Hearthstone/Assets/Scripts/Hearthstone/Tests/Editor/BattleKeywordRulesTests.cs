@@ -21,6 +21,15 @@ namespace Hearthstone.Tests
         [SetUp]
         public void SetUp()
         {
+            DataApi.ReleaseAllData<BattleCardCsvData>(false);
+            DataApi.ReleaseAllData<BattleCardTypeCsvData>(false);
+            ResourceApi.Initialize();
+            CsvApi.ReadFromString<BattleCardTypeCsvData>(
+                nameof(BattleCardTypeCsvData),
+                ResourceApi.LoadTextAsset(nameof(BattleCardTypeCsvData)).text);
+            CsvApi.ReadFromString<BattleCardCsvData>(
+                nameof(BattleCardCsvData),
+                ResourceApi.LoadTextAsset(nameof(BattleCardCsvData)).text);
             CsvApi.ReadFromString<BattleKeywordCsvData>(nameof(BattleKeywordCsvData), DefaultKeywordCsv);
         }
 
@@ -28,6 +37,7 @@ namespace Hearthstone.Tests
         public void TearDown()
         {
             DataApi.ReleaseAllData<BattleKeywordCsvData>(false);
+            DataApi.ReleaseAllData<BattleCardCsvData>(false);
             DataApi.ReleaseAllData<BattleCardTypeCsvData>(false);
         }
 
@@ -149,7 +159,7 @@ namespace Hearthstone.Tests
         }
 
         [Test]
-        public void FusionUnionsMaterialKeywordsAndStillRejectsNinetyNineAsMaterial()
+        public void FusionUnionsAllMaterialKeywordsAndRejectsLockedAndFusionCardsAsMaterials()
         {
             var runState = new RunStateSingletonRawComponent();
             var session = new PreparationSessionSingletonRawComponent();
@@ -177,7 +187,10 @@ namespace Hearthstone.Tests
             Assert.AreEqual(result.Keywords, transaction.ResultCard.Keywords);
             Assert.AreEqual(
                 EFusionOperationResult.ResultCardCannotBeMaterial,
-                RunCardRules.TrySetFusionMaterial(runState, session, 99, 0));
+                RunCardRules.TrySetFusionMaterial(runState, session, RunCardRules.LockedCardNumber, 0));
+            Assert.AreEqual(
+                EFusionOperationResult.ResultCardCannotBeMaterial,
+                RunCardRules.TrySetFusionMaterial(runState, session, result.CardNumber, 0));
         }
 
         [Test]
@@ -252,11 +265,9 @@ namespace Hearthstone.Tests
         }
 
         [Test]
-        public void SharedBattleCardAndPreparationSlotsExposeKeywordText()
+        public void SharedBattleCardExposesKeywordTextForBattleAndPreparationLists()
         {
             AssertKeywordText<BattleCardItemView>("Assets/Resources/Ui/BattleCardItem.prefab", view => view.KeywordText);
-            AssertKeywordText<PreparationSlotItemView>("Assets/Resources/Ui/PreparationSlotItem.prefab", view => view.KeywordText);
-            AssertKeywordText<PreparationFusionSlotItemView>("Assets/Resources/Ui/PreparationFusionSlotItem.prefab", view => view.KeywordText);
         }
 
         private static void AssertKeywordText<TView>(string path, Func<TView, TMPro.TMP_Text> selector)

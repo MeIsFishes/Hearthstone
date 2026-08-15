@@ -15,47 +15,47 @@ MonoBehaviour:
   LoadingItemTimeDic:
     m_Items:
     - Key: Game Engine Stage.Load.InitReflectionAndResource
-      Value: 126040600
+      Value: 873762200
     - Key: Game Engine Stage.Load.Scene
-      Value: 130300
+      Value: 131800
     - Key: Game Engine Stage.Load.UI
-      Value: 66400
+      Value: 58400
     - Key: Game Engine Stage.Load.Data
-      Value: 43797000
+      Value: 178588700
     - Key: Game Engine Stage.Load.Other
-      Value: 1829400
+      Value: 1874000
     - Key: Game Engine Stage.Load.LoadLocTranslations
-      Value: 338400
+      Value: 365800
     - Key: BattleStage.Load.InitializeBattleRuntime
-      Value: 10475800
+      Value: 10777100
     - Key: BattleStage.Load.Scene
-      Value: 500
-    - Key: BattleStage.Load.UI
-      Value: 342307900
-    - Key: BattleStage.Load.Data
-      Value: 8900
-    - Key: BattleStage.Load.Other
-      Value: 612400
-    - Key: RunStateStage.Load.InitializeRunStateRuntime
-      Value: 2775300
-    - Key: RunStateStage.Load.Scene
       Value: 600
+    - Key: BattleStage.Load.UI
+      Value: 3028073700
+    - Key: BattleStage.Load.Data
+      Value: 12100
+    - Key: BattleStage.Load.Other
+      Value: 1052000
+    - Key: RunStateStage.Load.InitializeRunStateRuntime
+      Value: 14052700
+    - Key: RunStateStage.Load.Scene
+      Value: 800
     - Key: RunStateStage.Load.UI
-      Value: 200
+      Value: 500
     - Key: RunStateStage.Load.Data
-      Value: 8600
+      Value: 15300
     - Key: RunStateStage.Load.Other
-      Value: 22700
+      Value: 45300
     - Key: BattleStage.Unload
-      Value: 11871500
+      Value: 12409800
     - Key: PreparationStage.Load.InitializePreparationRuntime
-      Value: 3712400
+      Value: 3756100
     - Key: PreparationStage.Load.Scene
-      Value: 400
+      Value: 600
     - Key: PreparationStage.Load.UI
-      Value: 308956500
+      Value: 3612705400
     - Key: PreparationStage.Load.Data
-      Value: 9100
+      Value: 9600
     - Key: PreparationStage.Load.Other
       Value: 26600
     - Key: PreparationStage.Unload

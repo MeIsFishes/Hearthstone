@@ -6,10 +6,11 @@ using UnityEngine.UI;
 
 namespace Hearthstone
 {
+    // Serialized compatibility shell for the retired preparation card prefab.
     public sealed class PreparationCardItemView : UiViewBase
     {
-        public GameObject EmptyState;
         public GameObject OwnedState;
+        public GameObject EmptyState;
         public GameObject MaterialSelectedState;
         public TMP_Text MaterialSelectedText;
         public Image ArtworkArea;
@@ -24,9 +25,6 @@ namespace Hearthstone
         public UiInteractor Interactor;
         public UiEventListener EmptyAttemptListener;
 
-        public override Type GetControllerType()
-        {
-            return typeof(PreparationCardItemController);
-        }
+        public override Type GetControllerType() => typeof(PreparationCardItemController);
     }
 }

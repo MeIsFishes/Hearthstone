@@ -51,6 +51,13 @@ namespace BbxCommon
 #endif
         }
 
+        internal bool RemoveUi(string controllerTypeName)
+        {
+            if (string.IsNullOrEmpty(controllerTypeName))
+                return false;
+            return UiDatas.Remove(controllerTypeName);
+        }
+
         internal UiViewBase GetUiPrefabBy<TController>() where TController : UiControllerBase
         {
 #if UNITY_EDITOR

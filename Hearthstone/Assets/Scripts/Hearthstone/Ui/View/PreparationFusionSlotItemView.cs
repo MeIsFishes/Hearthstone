@@ -6,6 +6,7 @@ using UnityEngine.UI;
 
 namespace Hearthstone
 {
+    // Serialized compatibility shell for the retired preparation fusion-slot prefab.
     public sealed class PreparationFusionSlotItemView : UiViewBase
     {
         public GameObject EmptyState;

@@ -10,13 +10,15 @@ namespace Hearthstone
         public int Attack { get; }
         public int MaxHealth { get; }
         public EBattleKeyword Keywords { get; }
+        public EBattleCardTier Tier { get; }
         public bool IsValid => CardNumber != 0;
 
         public RunCardInstanceData(
             int cardNumber,
             int attack,
             int maxHealth,
-            EBattleKeyword? keywords = null)
+            EBattleKeyword? keywords = null,
+            EBattleCardTier? tier = null)
         {
             if (cardNumber < RunCardRules.FirstCardNumber || cardNumber > RunCardRules.LastCardNumber)
                 throw new ArgumentOutOfRangeException(nameof(cardNumber));
@@ -28,6 +30,7 @@ namespace Hearthstone
             Attack = attack;
             MaxHealth = maxHealth;
             Keywords = BattleKeywordRules.Normalize(keywords ?? ResolveInitialKeywords(cardNumber));
+            Tier = tier ?? ResolveDefaultTier(cardNumber);
         }
 
         public bool Equals(RunCardInstanceData other)
@@ -35,7 +38,8 @@ namespace Hearthstone
             return CardNumber == other.CardNumber &&
                    Attack == other.Attack &&
                    MaxHealth == other.MaxHealth &&
-                   Keywords == other.Keywords;
+                   Keywords == other.Keywords &&
+                   Tier == other.Tier;
         }
 
         public override bool Equals(object obj)
@@ -51,6 +55,7 @@ namespace Hearthstone
                 hashCode = (hashCode * 397) ^ Attack;
                 hashCode = (hashCode * 397) ^ MaxHealth;
                 hashCode = (hashCode * 397) ^ (int)Keywords;
+                hashCode = (hashCode * 397) ^ (int)Tier;
                 return hashCode;
             }
         }
@@ -62,6 +67,15 @@ namespace Hearthstone
                 return EBattleKeyword.None;
             var typeConfig = DataApi.GetData<BattleCardTypeCsvData>(cardConfig.CardTypeId);
             return typeConfig == null ? EBattleKeyword.None : typeConfig.InitialKeyword;
+        }
+
+        private static EBattleCardTier ResolveDefaultTier(int cardNumber)
+        {
+            var cardConfig = DataApi.GetData<BattleCardCsvData>(cardNumber);
+            if (cardConfig == null)
+                return EBattleCardTier.Bronze;
+            var typeConfig = DataApi.GetData<BattleCardTypeCsvData>(cardConfig.CardTypeId);
+            return typeConfig == null ? EBattleCardTier.Bronze : typeConfig.Tier;
         }
     }
 

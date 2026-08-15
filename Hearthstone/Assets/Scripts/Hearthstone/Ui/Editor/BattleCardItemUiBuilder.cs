@@ -16,6 +16,10 @@ namespace Hearthstone
             "Assets/Resources/Art/BattleCards/UI/AttackBadgeFrame.png";
         private const string HealthBadgePath =
             "Assets/Resources/Art/BattleCards/UI/HealthDropBadge.png";
+        private const string ChineseFontAssetPath =
+            "Assets/Resources/Fonts/NotoSansSC-SemiBold Dynamic SDF.asset";
+        private const float FrameBottomInset = 24f;
+        private static readonly Vector2 ArtworkRenderSize = new Vector2(210f, 297f);
 
         public static void Build()
         {
@@ -24,6 +28,9 @@ namespace Hearthstone
                 throw new InvalidOperationException($"Full-card battle frame is missing at '{FullCardFramePath}'.");
             var attackBadge = LoadSprite(AttackBadgePath, "Attack badge");
             var healthBadge = LoadSprite(HealthBadgePath, "Health badge");
+            var chineseFont = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(ChineseFontAssetPath);
+            if (chineseFont == null)
+                throw new InvalidOperationException($"Chinese font is missing at '{ChineseFontAssetPath}'.");
 
             var root = PrefabUtility.LoadPrefabContents(PrefabPath);
             try
@@ -32,22 +39,35 @@ namespace Hearthstone
                 if (view == null)
                     throw new InvalidOperationException("BattleCardItemView is missing from the card prefab root.");
 
+                ConfigureFont(root, chineseFont);
                 ConfigureFrame(view.CardFrame, fullCardFrame, "CardFrameOverlay");
                 ConfigureFrame(view.AttackerHighlight, fullCardFrame, "AttackerHighlight");
                 ConfigureFrame(view.TargetHighlight, fullCardFrame, "TargetHighlight");
                 ConfigureArtwork(view.ArtworkArea);
                 ConfigureKeywordArea(view);
+                ConfigureCardBasePattern(view);
                 ConfigureBadge(view.HealthText, healthBadge, Vector2.zero, new Vector2(30f, 30f), "HealthBadge");
                 ConfigureBadge(view.AttackText, attackBadge, new Vector2(1f, 0f), new Vector2(-30f, 30f), "AttackBadge");
+                ConfigureHoverInput(root, view);
                 ConfigurePreparationFeatures(root, view);
                 ConfigureLayerOrder(view);
 
                 UiApi.EditorOperation.PreInitializeView(view);
+                ConfigurePreparationInteractionDefaults(view);
                 PrefabUtility.SaveAsPrefabAsset(root, PrefabPath);
             }
             finally
             {
                 PrefabUtility.UnloadPrefabContents(root);
+            }
+        }
+
+        private static void ConfigureFont(GameObject root, TMP_FontAsset font)
+        {
+            foreach (var label in root.GetComponentsInChildren<TMP_Text>(true))
+            {
+                label.font = font;
+                label.fontSharedMaterial = font.material;
             }
         }
 
@@ -98,6 +118,32 @@ namespace Hearthstone
             view.KeywordText = keywordText;
         }
 
+        private static void ConfigureCardBasePattern(BattleCardItemView view)
+        {
+            if (view.SkillDescriptionText == null)
+                throw new InvalidOperationException("Battle card name text reference is missing.");
+
+            var skillArea = view.SkillDescriptionText.transform.parent;
+            var patternObject = FindOrCreate(skillArea, "CardBasePattern");
+            Stretch((RectTransform)patternObject.transform, 5f);
+            patternObject.transform.SetAsFirstSibling();
+
+            var patternText = GetOrAdd<TextMeshProUGUI>(patternObject);
+            patternText.font = view.SkillDescriptionText.font;
+            patternText.fontSharedMaterial = view.SkillDescriptionText.fontSharedMaterial != null
+                ? view.SkillDescriptionText.fontSharedMaterial
+                : view.SkillDescriptionText.font.material;
+            patternText.text = "◇  ·        ·  ◇\n  ∽          ∽";
+            patternText.fontSize = 15f;
+            patternText.fontStyle = FontStyles.Normal;
+            patternText.alignment = TextAlignmentOptions.Center;
+            patternText.color = new Color(1f, 0.9f, 0.68f, 0.12f);
+            patternText.enableWordWrapping = false;
+            patternText.overflowMode = TextOverflowModes.Overflow;
+            patternText.richText = false;
+            patternText.raycastTarget = false;
+        }
+
         private static void ConfigureFrame(Image image, Sprite sprite, string objectName)
         {
             if (image == null)
@@ -106,8 +152,8 @@ namespace Hearthstone
             var rectTransform = image.rectTransform;
             rectTransform.anchorMin = Vector2.zero;
             rectTransform.anchorMax = Vector2.one;
-            rectTransform.anchoredPosition = Vector2.zero;
-            rectTransform.sizeDelta = Vector2.zero;
+            rectTransform.offsetMin = new Vector2(0f, FrameBottomInset);
+            rectTransform.offsetMax = Vector2.zero;
             rectTransform.localRotation = Quaternion.identity;
             rectTransform.localScale = Vector3.one;
 
@@ -115,6 +161,30 @@ namespace Hearthstone
             image.type = Image.Type.Simple;
             image.preserveAspect = false;
             image.raycastTarget = false;
+            image.color = Color.white;
+        }
+
+        private static void ConfigureHoverInput(GameObject root, BattleCardItemView view)
+        {
+            var obsoleteHoverInput = root.transform.Find("HoverInput");
+            if (obsoleteHoverInput != null)
+                UnityEngine.Object.DestroyImmediate(obsoleteHoverInput.gameObject);
+
+            view.CardHoverInput = view.CardBackground;
+            view.CardHoverListener = GetOrAdd<UiEventListener>(root);
+            view.CardHoverListener.enabled = false;
+        }
+
+        private static void ConfigurePreparationInteractionDefaults(BattleCardItemView view)
+        {
+            view.CardBackground.raycastTarget = false;
+            view.CardHoverListener.enabled = false;
+            view.CardHoverInput.raycastTarget = false;
+            view.PreparationDragable.enabled = false;
+            if (view.PreparationDragable.EventListener != null)
+                view.PreparationDragable.EventListener.enabled = false;
+            view.PreparationInteractor.enabled = false;
+            view.PreparationEmptyAttemptListener.enabled = false;
         }
 
         private static void ConfigureArtwork(Image artwork)
@@ -122,8 +192,17 @@ namespace Hearthstone
             if (artwork == null)
                 throw new InvalidOperationException("ArtworkArea image reference is missing.");
 
+            var rectTransform = artwork.rectTransform;
+            rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
+            rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+            rectTransform.pivot = new Vector2(0.5f, 0.5f);
+            rectTransform.anchoredPosition = Vector2.zero;
+            rectTransform.sizeDelta = ArtworkRenderSize;
+            rectTransform.localRotation = Quaternion.identity;
+            rectTransform.localScale = Vector3.one;
+
             artwork.type = Image.Type.Simple;
-            artwork.preserveAspect = true;
+            artwork.preserveAspect = false;
             artwork.raycastTarget = false;
         }
 
@@ -136,11 +215,19 @@ namespace Hearthstone
                 view.DeadOverlay.transform.SetAsLastSibling();
             if (view.PreparationEmptyState != null)
                 view.PreparationEmptyState.transform.SetAsLastSibling();
+            if (view.PreparationBattleSlotEmptyState != null)
+                view.PreparationBattleSlotEmptyState.transform.SetAsLastSibling();
+            if (view.PreparationFusionSlotEmptyState != null)
+                view.PreparationFusionSlotEmptyState.transform.SetAsLastSibling();
+            if (view.PreparationDropHighlight != null)
+                view.PreparationDropHighlight.transform.SetAsLastSibling();
             view.HealthText.transform.parent.SetAsLastSibling();
             view.AttackText.transform.parent.SetAsLastSibling();
             view.CardNumberBadge.transform.SetAsLastSibling();
             if (view.PreparationMaterialSelectedState != null)
                 view.PreparationMaterialSelectedState.transform.SetAsLastSibling();
+            if (view.PreparationDeployedState != null)
+                view.PreparationDeployedState.transform.SetAsLastSibling();
         }
 
         private static void ConfigurePreparationFeatures(GameObject root, BattleCardItemView view)
@@ -148,13 +235,14 @@ namespace Hearthstone
             view.CardBackground.raycastTarget = true;
 
             var emptyState = FindOrCreate(root.transform, "PreparationEmptyState");
-            Stretch((RectTransform)emptyState.transform, 5f);
+            Stretch((RectTransform)emptyState.transform, 0f);
             var emptyImage = GetOrAdd<Image>(emptyState);
             emptyImage.sprite = LoadSprite(
                 "Assets/Resources/Art/Preparation/UI/PreparationPoolEmptySlot.png",
                 "Preparation pool empty slot");
             emptyImage.type = Image.Type.Simple;
             emptyImage.preserveAspect = true;
+            emptyImage.color = Color.white;
             emptyImage.raycastTarget = false;
 
             var emptyAttempt = FindOrCreate(emptyState.transform, "EmptyAttempt");
@@ -164,6 +252,30 @@ namespace Hearthstone
             emptyAttemptImage.color = new Color(1f, 1f, 1f, 0.001f);
             emptyAttemptImage.raycastTarget = true;
             var emptyAttemptListener = GetOrAdd<UiEventListener>(emptyAttempt);
+
+            var battleSlotEmpty = ConfigurePreparationEmptyState(
+                root.transform,
+                "PreparationBattleSlotEmptyState",
+                "Assets/Resources/Art/Preparation/UI/PreparationBattleSlotFrame.png",
+                "Preparation battle slot frame",
+                5f);
+            var fusionSlotEmpty = ConfigurePreparationEmptyState(
+                root.transform,
+                "PreparationFusionSlotEmptyState",
+                "Assets/Resources/Art/Preparation/UI/PreparationPoolEmptySlot.png",
+                "Preparation pool empty slot",
+                0f);
+
+            var dropHighlight = FindOrCreate(root.transform, "PreparationDropHighlight");
+            Stretch((RectTransform)dropHighlight.transform, 0f);
+            var dropHighlightImage = GetOrAdd<Image>(dropHighlight);
+            dropHighlightImage.sprite = LoadSprite(
+                "Assets/Resources/Art/Preparation/UI/PreparationDropHighlight.png",
+                "Preparation drop highlight");
+            dropHighlightImage.type = Image.Type.Simple;
+            dropHighlightImage.preserveAspect = true;
+            dropHighlightImage.color = new Color(1f, 1f, 1f, 0.72f);
+            dropHighlightImage.raycastTarget = false;
 
             var materialSelected = FindOrCreate(root.transform, "PreparationMaterialSelected");
             SetRect(
@@ -192,21 +304,63 @@ namespace Hearthstone
             materialText.lineSpacing = -18f;
             materialText.raycastTarget = false;
 
+            var deployedState = FindOrCreate(root.transform, "PreparationDeployedState");
+            SetRect(
+                (RectTransform)deployedState.transform,
+                new Vector2(1f, 1f),
+                new Vector2(92f, 30f),
+                new Vector2(-52f, -18f));
+            var deployedText = GetOrAdd<TextMeshProUGUI>(deployedState);
+            deployedText.font = view.SkillDescriptionText.font;
+            deployedText.fontSharedMaterial = view.SkillDescriptionText.fontSharedMaterial;
+            deployedText.text = "已出战";
+            deployedText.fontSize = 18f;
+            deployedText.fontStyle = FontStyles.Bold;
+            deployedText.alignment = TextAlignmentOptions.TopRight;
+            deployedText.color = new Color32(139, 82, 38, 255);
+            deployedText.raycastTarget = false;
+
             var dragable = GetOrAdd<UiDragable>(root);
             dragable.TurnBackWhenDragEnd = true;
             dragable.AlwaysRelativeOffset = false;
+            dragable.EventListener = view.CardHoverListener;
             var interactor = GetOrAdd<UiInteractor>(root);
             interactor.TransformOverride = root.transform;
             interactor.AutoInitUiDragable = true;
             interactor.UiDragableRef = dragable;
 
             emptyState.SetActive(false);
+            battleSlotEmpty.SetActive(false);
+            fusionSlotEmpty.SetActive(false);
+            dropHighlight.SetActive(false);
             materialSelected.SetActive(false);
+            deployedState.SetActive(false);
             view.PreparationEmptyState = emptyState;
+            view.PreparationBattleSlotEmptyState = battleSlotEmpty;
+            view.PreparationFusionSlotEmptyState = fusionSlotEmpty;
             view.PreparationMaterialSelectedState = materialSelected;
+            view.PreparationDeployedState = deployedState;
+            view.PreparationDropHighlight = dropHighlightImage;
             view.PreparationDragable = dragable;
             view.PreparationInteractor = interactor;
             view.PreparationEmptyAttemptListener = emptyAttemptListener;
+        }
+
+        private static GameObject ConfigurePreparationEmptyState(
+            Transform parent,
+            string objectName,
+            string spritePath,
+            string label,
+            float inset)
+        {
+            var emptyState = FindOrCreate(parent, objectName);
+            Stretch((RectTransform)emptyState.transform, inset);
+            var image = GetOrAdd<Image>(emptyState);
+            image.sprite = LoadSprite(spritePath, label);
+            image.type = Image.Type.Simple;
+            image.preserveAspect = true;
+            image.raycastTarget = false;
+            return emptyState;
         }
 
         private static GameObject FindOrCreate(Transform parent, string name)

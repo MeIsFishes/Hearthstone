@@ -313,6 +313,21 @@ namespace BbxCommon.Ui
                 }
                 ExportPreLoadUiController(uiView);
             }
+
+            /// <summary>
+            /// Removes a generated preload mapping whose UI controller and prefab were retired.
+            /// </summary>
+            public static bool RemovePreloadedView(string controllerTypeName)
+            {
+                if (string.IsNullOrEmpty(controllerTypeName))
+                    throw new ArgumentException("Controller type name cannot be empty.", nameof(controllerTypeName));
+                var preLoadUiData = ResourceApi.EditorOperation.LoadOrCreateAssetInResources<PreLoadUiData>(
+                    BbxVar.ExportPreLoadUiPathInResources);
+                var removed = preLoadUiData.RemoveUi(controllerTypeName);
+                if (removed)
+                    ResourceApi.EditorOperation.SetDirtyAndSave(preLoadUiData);
+                return removed;
+            }
         }
 
         /// <summary>

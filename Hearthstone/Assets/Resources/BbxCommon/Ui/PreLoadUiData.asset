@@ -17,15 +17,6 @@ MonoBehaviour:
     - Key: Hearthstone.BattleCardItemController
       Value:
         UiViewPrefabPath: Ui/BattleCardItem
-    - Key: Hearthstone.PreparationCardItemController
-      Value:
-        UiViewPrefabPath: Ui/PreparationCardItem
-    - Key: Hearthstone.PreparationSlotItemController
-      Value:
-        UiViewPrefabPath: Ui/PreparationSlotItem
-    - Key: Hearthstone.PreparationFusionSlotItemController
-      Value:
-        UiViewPrefabPath: Ui/PreparationFusionSlotItem
     - Key: Hearthstone.LoadingController
       Value:
         UiViewPrefabPath: Ui/LoadingView

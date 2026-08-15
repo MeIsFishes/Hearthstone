@@ -1,11 +1,8 @@
 namespace Hearthstone
 {
-    // Compatibility entry for existing automation. It no longer owns a separate card visual.
+    // Compatibility entry only. The retired preparation prefab is no longer generated.
     public static class PreparationCardItemUiBuilder
     {
-        public static void Build()
-        {
-            BattleCardItemUiBuilder.Build();
-        }
+        public static void Build() => BattleCardItemUiBuilder.Build();
     }
 }

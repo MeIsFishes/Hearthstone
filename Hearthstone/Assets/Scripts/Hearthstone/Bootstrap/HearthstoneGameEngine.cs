@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using BbxCommon;
+using Random = Unity.Mathematics.Random;
 
 namespace Hearthstone
 {
@@ -120,7 +121,6 @@ namespace Hearthstone
                 typeof(TaskSystem));
 
             m_RunStateStage = RunStateStages.CreateRunStateStage(this);
-            EnterBattleStageGroup(BattleStageStartupData.CreateDefault());
         }
 
         /// <summary>
@@ -158,17 +158,12 @@ namespace Hearthstone
             PreparationRewardBatchStartupData rewardBatch;
             try
             {
-                var progressionConfig = DataApi.GetData<BattleProgressionCsvData>(targetBattleNumber)
-                    ?? throw new InvalidOperationException($"Battle progression {targetBattleNumber} is missing.");
-                rewardBatch = progressionConfig.CreateRewardBatchSnapshot();
-                for (var index = 0; index < rewardBatch.Grants.Count; index++)
-                {
-                    if (runState.HasCard(rewardBatch.Grants[index].CardNumber))
-                    {
-                        throw new InvalidOperationException(
-                            $"Battle progression {targetBattleNumber} reward card {rewardBatch.Grants[index].CardNumber} is already owned.");
-                    }
-                }
+                var rewardRandom = new Random(
+                    BattleRules.NormalizeSeed(unchecked((uint)DateTime.UtcNow.Ticks)));
+                rewardBatch = PreparationRewardBatchFactory.CreateRandom(
+                    $"battle-{targetBattleNumber:D3}-reward",
+                    runState.HasCard,
+                    ref rewardRandom);
             }
             catch (Exception exception)
             {
@@ -226,6 +221,11 @@ namespace Hearthstone
 
         protected override void OnStageLoadingCompleted(IReadOnlyList<GameStage> activeStages)
         {
+            if (m_RequestedBattleStartupData == null && m_RequestedPreparationBatch == null)
+            {
+                EnterBattleStageGroup(BattleStageStartupData.CreateDefault());
+                return;
+            }
             if (!m_StageGroupCoordinator.IsLoading)
                 return;
             if (!ContainsStage(activeStages, m_LoadingStage))

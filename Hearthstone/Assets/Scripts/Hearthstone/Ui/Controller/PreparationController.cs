@@ -1,5 +1,4 @@
 using System;
-using System.Runtime.CompilerServices;
 using System.Text;
 using BbxCommon;
 using BbxCommon.Ui;
@@ -11,6 +10,21 @@ namespace Hearthstone
 {
     public sealed class PreparationController : UiControllerBase<PreparationView>
     {
+        private const float FusionRevealFadeInDuration = 0.18f;
+        private const float FusionRevealRotationDelay = 0.24f;
+        private const float FusionRevealRotationDuration = 1.5f;
+        private const float FusionRevealFlashDuration = 0.55f;
+        private const float FusionRevealHoldDuration = 0.8f;
+        private const float FusionRevealFadeOutDuration = 0.3f;
+        private const float FusionRevealPlaybackSpeed = 0.8f;
+        private const float FusionRevealInitialScale = 0.72f;
+        private const float FusionRevealPeakScale = 1.28f;
+        private const float FusionRevealRestScale = 1f;
+        private const float FusionRevealResultRotationProgress = 0.75f;
+        private const string FusionRevealMotionAudioKey = "card-shuffle";
+        private const string FusionRevealMomentAudioKey = "highUp";
+        private const string FusionRevealAudioGroup = "UiFusionReveal";
+
         private enum EOperationTab
         {
             Battle,
@@ -24,12 +38,20 @@ namespace Hearthstone
         private ListenableItemListener m_FusionRevisionListener;
         private ListenableItemListener m_ContinueStateListener;
         private EOperationTab m_Tab;
+        private BattleCardItemController m_FusionRevealCard;
+        private AudioHandle m_FusionRevealMotionAudio;
+        private AudioHandle m_FusionRevealMomentAudio;
+        private float m_FusionRevealElapsed;
+        private bool m_FusionRevealActive;
+        private bool m_FusionRevealMomentAudioPlayed;
+        private bool m_ShowOwnedOnly;
+        private readonly bool[] m_OwnedCardSnapshot = new bool[RunCardRules.LastCardNumber + 1];
 
         protected override void InitListeners()
         {
             m_RevisionListener = ModelWrapper.CreateVariableDirtyListener<int>(
                 EControllerLifeCycle.Open,
-                ignored => RefreshAll());
+                ignored => OnRunStateRevision());
             m_FusionRevisionListener = ModelWrapper.CreateVariableDirtyListener<int>(
                 EControllerLifeCycle.Open,
                 ignored => RefreshAll());
@@ -43,12 +65,17 @@ namespace Hearthstone
             m_View.BattleTabButton.onClick.AddListener(() => SelectTab(EOperationTab.Battle));
             m_View.FusionTabButton.onClick.AddListener(() => SelectTab(EOperationTab.Fusion));
             m_View.FusionButton.onClick.AddListener(OnFuseClicked);
-            m_View.FusionButtonAttemptListener.AddCallback(EUiEvent.PointerClick, OnFusionButtonAttempt);
             m_View.ContinueButton.onClick.AddListener(OnContinueClicked);
-            m_View.ContinueWaitingAttemptListener.AddCallback(EUiEvent.PointerClick, OnDuplicateContinueClicked);
-            m_View.CardPoolScrollRect.onValueChanged.AddListener(OnCardPoolScrollChanged);
-            m_View.FusionAreaInteractor.Wrapper.OnInteract += OnFusionAreaInteract;
+            m_View.OwnedOnlyToggle.onValueChanged.AddListener(OnOwnedOnlyChanged);
+            m_View.CardPoolScrollRect.scrollSensitivity *= 1.5f;
             m_View.CardPoolInteractor.Wrapper.OnInteract += OnCardPoolInteract;
+            ResetFusionReveal();
+        }
+
+        protected override void OnUiUpdate(float deltaTime)
+        {
+            if (m_FusionRevealActive)
+                UpdateFusionReveal(deltaTime);
         }
 
         protected override void OnUiOpen()
@@ -65,11 +92,12 @@ namespace Hearthstone
             m_RevisionListener.RebindTarget(m_RunState.Revision);
             m_FusionRevisionListener.RebindTarget(m_Session.FusionRevision);
             m_ContinueStateListener.RebindTarget(m_ContinueState.State);
-            if (m_View.RewardText != null)
-                m_View.RewardText.text = $"本轮获得 {RunCardRules.RewardGrantCount} 张卡";
+            m_ShowOwnedOnly = false;
+            m_View.OwnedOnlyToggle.SetIsOnWithoutNotify(false);
             PopulateItems();
             SelectTab(EOperationTab.Battle);
             ApplyContinueState(m_ContinueState.State.Value);
+            ResetFusionReveal();
             RefreshAll();
         }
 
@@ -81,6 +109,14 @@ namespace Hearthstone
             m_RunState = null;
             m_Session = null;
             m_ContinueState = null;
+            m_FusionRevealCard = null;
+            m_ShowOwnedOnly = false;
+            ResetFusionReveal();
+        }
+
+        protected override void OnUiHide()
+        {
+            ResetFusionReveal();
         }
 
         internal void DropCardOnSlot(int cardNumber, int targetSlot)
@@ -97,21 +133,13 @@ namespace Hearthstone
                 cardNumber,
                 targetSlot,
                 sourceFusionSlot);
-            LogFusion("SetMaterial", result, cardNumber, targetSlot);
             if (result != EFusionOperationResult.Applied)
                 RefreshAll();
         }
 
-        internal void ReportUnownedCardAttempt(int cardNumber)
-        {
-            if (m_Tab == EOperationTab.Fusion)
-                LogFusion("SetMaterial", EFusionOperationResult.UnownedCard, cardNumber, -1);
-        }
-
-        internal void RemoveFusionMaterial(int cardNumber, int sourceSlot)
+        internal void RemoveFusionMaterial(int sourceSlot)
         {
             var result = RunCardRules.TryRemoveFusionMaterial(m_Session, sourceSlot);
-            LogFusion("RemoveMaterial", result, cardNumber, sourceSlot);
             if (result != EFusionOperationResult.Applied)
                 RefreshAll();
         }
@@ -127,33 +155,118 @@ namespace Hearthstone
             RefreshAll();
         }
 
+        internal void ForwardCardPoolScroll(PointerEventData eventData)
+        {
+            if (eventData != null)
+                m_View.CardPoolScrollRect.OnScroll(eventData);
+        }
+
         private void PopulateItems()
         {
-            m_View.CardPoolList.ItemWrapper.ClearItems();
-            for (var cardNumber = RunCardRules.FirstCardNumber; cardNumber <= RunCardRules.LastCardNumber; cardNumber++)
-            {
-                var item = m_View.CardPoolList.ItemWrapper.AddItem<BattleCardItemController>();
-                if (item == null)
-                    throw new InvalidOperationException("BattleCardItemController preload mapping is missing.");
-                item.BindPreparation(this, cardNumber);
-            }
+            PopulateCardPoolItems();
 
             m_View.BattleSlotList.ItemWrapper.ClearItems();
             for (var slot = 0; slot < RunCardRules.BattleSlotCount; slot++)
             {
-                var item = m_View.BattleSlotList.ItemWrapper.AddItem<PreparationSlotItemController>();
+                var item = m_View.BattleSlotList.ItemWrapper.AddItem<BattleCardItemController>();
                 if (item == null)
-                    throw new InvalidOperationException("PreparationSlotItemController preload mapping is missing.");
-                item.Bind(this, slot);
+                    throw new InvalidOperationException("BattleCardItemController preload mapping is missing.");
+                item.BindPreparationBattleSlot(this, slot);
             }
             m_View.FusionSlotList.ItemWrapper.ClearItems();
             for (var slot = 0; slot < RunCardRules.FusionSlotCount; slot++)
             {
-                var item = m_View.FusionSlotList.ItemWrapper.AddItem<PreparationFusionSlotItemController>();
+                var item = m_View.FusionSlotList.ItemWrapper.AddItem<BattleCardItemController>();
                 if (item == null)
-                    throw new InvalidOperationException("PreparationFusionSlotItemController preload mapping is missing.");
-                item.Bind(this, slot);
+                    throw new InvalidOperationException("BattleCardItemController preload mapping is missing.");
+                item.BindPreparationFusionSlot(this, slot);
             }
+
+            m_View.FusionRevealCardList.ItemWrapper.ClearItems();
+            m_FusionRevealCard = m_View.FusionRevealCardList.ItemWrapper.AddItem<BattleCardItemController>();
+            if (m_FusionRevealCard == null)
+                throw new InvalidOperationException("BattleCardItemController preload mapping is missing for fusion reveal.");
+        }
+
+        private void PopulateCardPoolItems()
+        {
+            var itemCount = 0;
+            var nextLegendaryDisplayNumber = RunCardRules.FirstLegendaryCardNumber;
+            m_View.CardPoolList.ItemWrapper.ClearItems();
+            for (var cardNumber = RunCardRules.FirstCardNumber;
+                 cardNumber <= RunCardRules.LastCardNumber;
+                 cardNumber++)
+            {
+                var displayNumber = cardNumber;
+                var cardConfig = DataApi.GetData<BattleCardCsvData>(cardNumber);
+                var typeConfig = cardConfig == null
+                    ? null
+                    : DataApi.GetData<BattleCardTypeCsvData>(cardConfig.CardTypeId);
+                if (typeConfig != null && typeConfig.Tier == EBattleCardTier.Legendary)
+                    displayNumber = nextLegendaryDisplayNumber++;
+                if (m_ShowOwnedOnly && m_RunState.HasCard(cardNumber) == false)
+                    continue;
+
+                var item = m_View.CardPoolList.ItemWrapper.AddItem<BattleCardItemController>();
+                if (item == null)
+                    throw new InvalidOperationException("BattleCardItemController preload mapping is missing.");
+                item.BindPreparation(this, cardNumber, displayNumber);
+                itemCount++;
+            }
+
+            var rowCount = Mathf.Max(1, Mathf.CeilToInt(itemCount / (float)RunCardRules.CardsPerRow));
+            var poolContent = (RectTransform)m_View.CardPoolList.transform;
+            poolContent.SetSizeWithCurrentAnchors(
+                RectTransform.Axis.Vertical,
+                Mathf.Max(
+                    m_View.CardPoolScrollRect.viewport.rect.height,
+                    m_View.CardPoolList.ConstantSlotSize.y * rowCount));
+            m_View.CardPoolList.RefreshLayout();
+            m_View.CardPoolScrollRect.StopMovement();
+            m_View.CardPoolScrollRect.verticalNormalizedPosition = 1f;
+            CaptureOwnedCardSet();
+        }
+
+        private void OnOwnedOnlyChanged(bool showOwnedOnly)
+        {
+            if (m_RunState == null || m_ShowOwnedOnly == showOwnedOnly)
+                return;
+
+            m_ShowOwnedOnly = showOwnedOnly;
+            PopulateCardPoolItems();
+            RefreshAll();
+        }
+
+        private void OnRunStateRevision()
+        {
+            if (m_RunState == null)
+                return;
+
+            if (m_ShowOwnedOnly && HasOwnedCardSetChanged())
+                PopulateCardPoolItems();
+            RefreshAll();
+        }
+
+        private void CaptureOwnedCardSet()
+        {
+            for (var cardNumber = RunCardRules.FirstCardNumber;
+                 cardNumber <= RunCardRules.LastCardNumber;
+                 cardNumber++)
+            {
+                m_OwnedCardSnapshot[cardNumber] = m_RunState.HasCard(cardNumber);
+            }
+        }
+
+        private bool HasOwnedCardSetChanged()
+        {
+            for (var cardNumber = RunCardRules.FirstCardNumber;
+                 cardNumber <= RunCardRules.LastCardNumber;
+                 cardNumber++)
+            {
+                if (m_OwnedCardSnapshot[cardNumber] != m_RunState.HasCard(cardNumber))
+                    return true;
+            }
+            return false;
         }
 
         private void RefreshAll()
@@ -166,13 +279,19 @@ namespace Hearthstone
                     m_Session,
                     m_Tab == EOperationTab.Fusion);
             for (var index = 0; index < m_View.BattleSlotList.ItemWrapper.Count; index++)
-                m_View.BattleSlotList.ItemWrapper.GetItem<PreparationSlotItemController>(index).Refresh(m_RunState);
+                m_View.BattleSlotList.ItemWrapper.GetItem<BattleCardItemController>(index).RefreshPreparation(
+                    m_RunState,
+                    m_Session,
+                    false);
             for (var index = 0; index < m_View.FusionSlotList.ItemWrapper.Count; index++)
-                m_View.FusionSlotList.ItemWrapper.GetItem<PreparationFusionSlotItemController>(index).Refresh(m_RunState, m_Session);
+                m_View.FusionSlotList.ItemWrapper.GetItem<BattleCardItemController>(index).RefreshPreparation(
+                    m_RunState,
+                    m_Session,
+                    true);
 
             var evaluation = RunCardRules.EvaluateFusion(m_RunState, m_Session);
             m_View.FusionExpressionText.text = BuildFusionExpression();
-            m_View.FusionResultText.text = $"合计 {evaluation.CardNumberSum} / {RunCardRules.FusionTargetCardNumberSum}";
+            m_View.FusionResultText.text = BuildFusionResultText(evaluation);
             ApplyFusionEvaluationVisual(evaluation);
             m_View.FusionButton.interactable = evaluation.CanFuse;
         }
@@ -184,12 +303,10 @@ namespace Hearthstone
             m_View.BattleOperationRoot.SetActive(battle);
             m_View.FusionOperationRoot.SetActive(!battle);
             m_View.BattleTabImage.sprite = ResourceApi.LoadSprite(
-                battle ? "PreparationTabSelected" : "PreparationTabIdle");
+                battle ? "PreparationTabSelectedV2" : "PreparationTabIdleV2");
             m_View.FusionTabImage.sprite = ResourceApi.LoadSprite(
-                battle ? "PreparationTabIdle" : "PreparationTabSelected");
+                battle ? "PreparationTabIdleV2" : "PreparationTabSelectedV2");
             RefreshAll();
-            LogFusion("SelectTab", EFusionOperationResult.Applied, 0, -1);
-            LogContinuePageState("TabChanged");
         }
 
         private void OnContinueClicked()
@@ -203,14 +320,6 @@ namespace Hearthstone
             engine.TryEnterNextBattleStageGroup();
         }
 
-        private void OnDuplicateContinueClicked(PointerEventData ignored)
-        {
-            var engine = HearthstoneGameEngine.Instance;
-            DebugApi.Log(
-                $"[PreparationContinue] Action=DuplicateIgnored Result={EPreparationContinueResult.DuplicateIgnored} " +
-                $"AttemptId={(engine == null ? 0 : engine.CurrentContinueAttemptId)} ButtonState={m_ContinueState?.State.Value}");
-        }
-
         private void ApplyContinueState(EPreparationContinueState state)
         {
             if (m_View.ContinueButton == null || m_View.ContinueWaitingInputBlocker == null)
@@ -220,55 +329,161 @@ namespace Hearthstone
             m_View.ContinueWaitingInputBlocker.SetActive(waiting);
         }
 
-        private void OnCardPoolScrollChanged(Vector2 ignored)
-        {
-            LogContinuePageState("ScrollChanged");
-        }
-
-        private void LogContinuePageState(string action)
-        {
-            if (m_RunState == null || m_Session == null || m_View.ContinueButton == null)
-                return;
-            var progression = EcsApi.GetSingletonRawComponent<RunProgressionSingletonRawComponent>();
-            DebugApi.Log(
-                $"[PreparationContinue] Action={action} Tab={m_Tab} " +
-                $"Scroll={m_View.CardPoolScrollRect.verticalNormalizedPosition:F3} " +
-                $"ButtonActive={m_View.ContinueButton.gameObject.activeInHierarchy} " +
-                $"ButtonInteractable={m_View.ContinueButton.interactable} " +
-                $"BattleNumber={(progression == null ? 0 : progression.CurrentBattleNumber)} " +
-                $"BattleStageCreationCount={(progression == null ? 0 : progression.BattleStageCreationCount)}");
-        }
-
         private void OnFuseClicked()
         {
+            if (m_FusionRevealActive)
+                return;
+
             var result = RunCardRules.TryFuse(
                 m_RunState,
                 m_Session,
-                out var card,
-                out var transaction);
-            if (result == EFusionOperationResult.Applied)
-                LogFusionCommit(transaction);
+                out var resultCard,
+                out _);
+            if (result != EFusionOperationResult.Applied)
+            {
+                RefreshAll();
+                return;
+            }
+
+            StartFusionReveal(resultCard.CardNumber);
+        }
+
+        private void StartFusionReveal(int cardNumber)
+        {
+            if (m_FusionRevealCard == null)
+            {
+                DebugApi.LogError("Fusion reveal card UI was not initialized.");
+                return;
+            }
+
+            m_FusionRevealCard.BindFusionReveal(m_RunState, cardNumber);
+            StopFusionRevealAudio();
+            m_FusionRevealElapsed = 0f;
+            m_FusionRevealActive = true;
+            m_FusionRevealMomentAudioPlayed = false;
+            m_View.FusionRevealOverlay.SetActive(true);
+            m_View.FusionRevealCanvasGroup.alpha = 0f;
+            m_View.FusionRevealSealedFace.SetActive(true);
+            m_View.FusionRevealCardBack.SetActive(false);
+            m_View.FusionRevealCardList.gameObject.SetActive(false);
+            m_View.FusionRevealFlash.gameObject.SetActive(false);
+            m_View.FusionRevealFlashCanvasGroup.alpha = 0f;
+            m_View.FusionRevealCardRoot.localRotation = Quaternion.identity;
+            m_View.FusionRevealCardRoot.localScale = Vector3.one * FusionRevealInitialScale;
+            m_View.FusionRevealCardRoot.anchoredPosition = new Vector2(0f, -35f);
+            m_FusionRevealMotionAudio = PlayFusionRevealAudio(
+                FusionRevealMotionAudioKey,
+                0.55f,
+                96,
+                "FusionRevealMotion");
+        }
+
+        private void UpdateFusionReveal(float deltaTime)
+        {
+            m_FusionRevealElapsed += Mathf.Max(0f, deltaTime) * FusionRevealPlaybackSpeed;
+            var rotationEnd = FusionRevealRotationDelay + FusionRevealRotationDuration;
+            var flashEnd = rotationEnd + FusionRevealFlashDuration;
+            var holdEnd = flashEnd + FusionRevealHoldDuration;
+            var animationEnd = holdEnd + FusionRevealFadeOutDuration;
+
+            var fadeIn = Mathf.Clamp01(m_FusionRevealElapsed / FusionRevealFadeInDuration);
+            var fadeOut = Mathf.Clamp01((m_FusionRevealElapsed - holdEnd) / FusionRevealFadeOutDuration);
+            m_View.FusionRevealCanvasGroup.alpha = Mathf.SmoothStep(0f, 1f, fadeIn) * (1f - fadeOut);
+
+            var intro = Mathf.Clamp01(m_FusionRevealElapsed / FusionRevealRotationDelay);
+            var rotationProgress = Mathf.Clamp01(
+                (m_FusionRevealElapsed - FusionRevealRotationDelay) / FusionRevealRotationDuration);
+            var easedRotation = Mathf.SmoothStep(0f, 1f, rotationProgress);
+            var rotationY = easedRotation * 360f;
+            m_View.FusionRevealCardRoot.localRotation = Quaternion.Euler(0f, rotationY, 0f);
+            float revealScale;
+            if (intro < 1f)
+            {
+                revealScale = Mathf.Lerp(
+                    FusionRevealInitialScale,
+                    FusionRevealPeakScale,
+                    Mathf.SmoothStep(0f, 1f, intro));
+            }
             else
             {
-                LogFusion("Fuse", result, card.CardNumber, -1);
-                RefreshAll();
+                var shrinkProgress = Mathf.Clamp01(rotationProgress / FusionRevealResultRotationProgress);
+                revealScale = Mathf.Lerp(
+                    FusionRevealPeakScale,
+                    FusionRevealRestScale,
+                    Mathf.SmoothStep(0f, 1f, shrinkProgress));
             }
+            m_View.FusionRevealCardRoot.localScale = Vector3.one * revealScale;
+            m_View.FusionRevealCardRoot.anchoredPosition = new Vector2(
+                0f,
+                Mathf.Lerp(-35f, 0f, Mathf.SmoothStep(0f, 1f, intro)) + Mathf.Sin(m_FusionRevealElapsed * 4.5f) * 5f);
+
+            var showBack = rotationY >= 90f && rotationY < 270f;
+            var showResult = rotationY >= 270f;
+            m_View.FusionRevealSealedFace.SetActive(showBack == false && showResult == false);
+            m_View.FusionRevealCardBack.SetActive(showBack);
+            m_View.FusionRevealCardList.gameObject.SetActive(showResult);
+            if (showResult && m_FusionRevealMomentAudioPlayed == false)
+            {
+                m_FusionRevealMomentAudioPlayed = true;
+                m_FusionRevealMomentAudio = PlayFusionRevealAudio(
+                    FusionRevealMomentAudioKey,
+                    0.72f,
+                    80,
+                    "FusionRevealMoment");
+            }
+
+            var flashProgress = Mathf.Clamp01((m_FusionRevealElapsed - rotationEnd) / FusionRevealFlashDuration);
+            var flashActive = m_FusionRevealElapsed >= rotationEnd && m_FusionRevealElapsed < flashEnd;
+            m_View.FusionRevealFlash.gameObject.SetActive(flashActive);
+            if (flashActive)
+            {
+                m_View.FusionRevealFlash.anchoredPosition = new Vector2(Mathf.Lerp(-260f, 260f, flashProgress), 0f);
+                m_View.FusionRevealFlashCanvasGroup.alpha = Mathf.Sin(flashProgress * Mathf.PI);
+            }
+
+            if (m_FusionRevealElapsed >= animationEnd)
+                ResetFusionReveal();
         }
 
-        private void OnFusionButtonAttempt(PointerEventData ignored)
+        private void ResetFusionReveal()
         {
-            var evaluation = RunCardRules.EvaluateFusion(m_RunState, m_Session);
-            if (evaluation.CanFuse == false)
-                LogFusion("FuseAttempt", evaluation.BlockingResult, 0, -1);
-        }
-
-        private void OnFusionAreaInteract(Interactor requester, Interactor responder)
-        {
-            if (!ReferenceEquals(responder, m_View.FusionAreaInteractor) ||
-                !(requester is UiInteractor uiInteractor) ||
-                !(uiInteractor.Wrapper.ExtraInfo is PreparationInteractorData source))
+            StopFusionRevealAudio();
+            m_FusionRevealActive = false;
+            m_FusionRevealElapsed = 0f;
+            m_FusionRevealMomentAudioPlayed = false;
+            if (m_View.FusionRevealOverlay == null)
                 return;
-            LogFusion("SetMaterial", EFusionOperationResult.InvalidSlot, source.CardNumber, -1);
+
+            m_View.FusionRevealOverlay.SetActive(false);
+            m_View.FusionRevealCanvasGroup.alpha = 0f;
+            m_View.FusionRevealFlash.gameObject.SetActive(false);
+            m_View.FusionRevealFlashCanvasGroup.alpha = 0f;
+            m_View.FusionRevealCardRoot.localRotation = Quaternion.identity;
+            m_View.FusionRevealCardRoot.localScale = Vector3.one;
+            m_View.FusionRevealCardRoot.anchoredPosition = Vector2.zero;
+        }
+
+        private static AudioHandle PlayFusionRevealAudio(
+            string key,
+            float volume,
+            int priority,
+            string concurrencyKey)
+        {
+            var options = AudioPlayOptions.Default;
+            options.Volume = volume;
+            options.Priority = priority;
+            options.GroupKey = FusionRevealAudioGroup;
+            options.ConcurrencyKey = concurrencyKey;
+            options.MaxConcurrent = 1;
+            return AudioApi.Play(key, options);
+        }
+
+        private void StopFusionRevealAudio()
+        {
+            AudioApi.Stop(m_FusionRevealMotionAudio);
+            AudioApi.Stop(m_FusionRevealMomentAudio);
+            m_FusionRevealMotionAudio = default;
+            m_FusionRevealMomentAudio = default;
         }
 
         private void OnCardPoolInteract(Interactor requester, Interactor responder)
@@ -278,7 +493,7 @@ namespace Hearthstone
                 !(uiInteractor.Wrapper.ExtraInfo is PreparationInteractorData source) ||
                 source.Source != EPreparationCardSource.FusionSlot)
                 return;
-            RemoveFusionMaterial(source.CardNumber, source.SourceSlot);
+            RemoveFusionMaterial(source.SourceSlot);
         }
 
         private string BuildFusionExpression()
@@ -302,20 +517,21 @@ namespace Hearthstone
         {
             Color color;
             FontStyles style;
-            if (evaluation.CardNumberSum < RunCardRules.FusionTargetCardNumberSum)
-            {
-                color = m_View.FusionUnderTargetColor;
-                style = FontStyles.Bold;
-            }
-            else if (evaluation.CardNumberSum == RunCardRules.FusionTargetCardNumberSum)
+            if (evaluation.CanFuse)
             {
                 color = m_View.FusionExactTargetColor;
                 style = FontStyles.Bold | FontStyles.Underline;
             }
-            else
+            else if (evaluation.BlockingResult == EFusionOperationResult.RecipeNotFound ||
+                     evaluation.BlockingResult == EFusionOperationResult.ResultAlreadyOwned)
             {
                 color = m_View.FusionOverTargetColor;
                 style = FontStyles.Bold | FontStyles.Italic;
+            }
+            else
+            {
+                color = m_View.FusionUnderTargetColor;
+                style = FontStyles.Bold;
             }
             m_View.FusionExpressionText.color = color;
             m_View.FusionExpressionText.fontStyle = style;
@@ -323,49 +539,31 @@ namespace Hearthstone
             m_View.FusionResultText.fontStyle = style;
         }
 
-        private void LogFusionCommit(FusionTransactionSnapshot transaction)
+        private static string BuildFusionResultText(FusionEvaluationData evaluation)
         {
-            var materials = new StringBuilder();
-            var postMaterialOwnership = new StringBuilder();
-            for (var index = 0; index < transaction.MaterialCount; index++)
+            if (evaluation.ResultCardNumber > 0)
             {
-                if (index > 0)
-                {
-                    materials.Append(';');
-                    postMaterialOwnership.Append(',');
-                }
-                var material = transaction.GetMaterial(index);
-                materials.Append($"FusionSlot={material.FusionSlot},Card={material.CardNumber},Attack={material.Attack},MaxHealth={material.MaxHealth},AffectedBattleSlot={material.BattleSlot}");
-                postMaterialOwnership.Append($"{material.CardNumber}:{m_RunState.HasCard(material.CardNumber)}");
+                var card = DataApi.GetData<BattleCardCsvData>(evaluation.ResultCardNumber);
+                var type = card == null ? null : DataApi.GetData<BattleCardTypeCsvData>(card.CardTypeId);
+                var name = type == null ? $"#{evaluation.ResultCardNumber}" : type.DisplayName;
+                if (evaluation.BlockingResult == EFusionOperationResult.ResultAlreadyOwned)
+                    return $"{name} 已拥有";
+                var prefix = evaluation.MaterialCount == RunCardRules.FusionSlotCount ? "传奇 → " : string.Empty;
+                return $"{prefix}#{evaluation.ResultCardNumber} {name}";
             }
-            var battleBefore = new int[RunCardRules.BattleSlotCount];
-            for (var slot = 0; slot < battleBefore.Length; slot++)
-                battleBefore[slot] = transaction.GetBattleSlotBefore(slot);
 
-            DebugApi.Log(
-                $"[PreparationFusion] Action=Fuse Result=Applied Stage=PreparationStage " +
-                $"SessionId={RuntimeHelpers.GetHashCode(m_Session)} BatchId={m_Session.BatchId} " +
-                $"Materials=[{materials}] BattleSlotsBefore=[{string.Join(",", battleBefore)}] " +
-                $"ResultCard={transaction.ResultCard.CardNumber} ResultAttack={transaction.ResultCard.Attack} " +
-                $"ResultMaxHealth={transaction.ResultCard.MaxHealth} PostFusionSlots=[{string.Join(",", m_Session.FusionSlotCardNumbers)}] " +
-                $"PostBattleSlots=[{string.Join(",", m_RunState.BattleSlotCardNumbers)}] " +
-                $"PostMaterialOwned=[{postMaterialOwnership}] ResultOwned={m_RunState.HasCard(transaction.ResultCard.CardNumber)} " +
-                $"PostOwned={m_RunState.GetOwnedCardCount()} RunRevision={m_RunState.Revision.Value} " +
-                $"FusionRevision={m_Session.FusionRevision.Value}");
+            switch (evaluation.BlockingResult)
+            {
+                case EFusionOperationResult.MaterialCountInvalid:
+                    return "请选择2～4张基础卡";
+                case EFusionOperationResult.RecipeNotFound:
+                    return "没有对应的融合公式";
+                case EFusionOperationResult.ResultCardCannotBeMaterial:
+                    return "融合卡不能作为材料";
+                default:
+                    return "等待融合材料";
+            }
         }
 
-        private void LogFusion(string action, EFusionOperationResult result, int cardNumber, int slot)
-        {
-            var evaluation = RunCardRules.EvaluateFusion(m_RunState, m_Session);
-            DebugApi.Log(
-                $"[PreparationFusion] Action={action} Result={result} Stage=PreparationStage " +
-                $"SessionId={RuntimeHelpers.GetHashCode(m_Session)} BatchId={m_Session.BatchId} Tab={m_Tab} " +
-                $"RewardWasNewlyApplied={m_Session.WasNewlyApplied} " +
-                $"AppliedBatchCount={m_RunState.AppliedRewardBatchPayloadFingerprints.Count} " +
-                $"CardNumber={cardNumber} Slot={slot} FusionSlots=[{string.Join(",", m_Session.FusionSlotCardNumbers)}] " +
-                $"Count={evaluation.MaterialCount} Sum={evaluation.CardNumberSum} CanFuse={evaluation.CanFuse} " +
-                $"RunRevision={m_RunState.Revision.Value} FusionRevision={m_Session.FusionRevision.Value} " +
-                $"Owned={m_RunState.GetOwnedCardCount()} BattleSlots=[{string.Join(",", m_RunState.BattleSlotCardNumbers)}]");
-        }
     }
 }

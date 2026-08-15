@@ -40,6 +40,7 @@ namespace BbxCommon.Ui
                 if (item.DontRemove == false)
                     DestroyImmediate((Component)item);
             }
+            BbxUiItems.RemoveAll(item => item == null);
 
             int loop = 0;
             while (true)

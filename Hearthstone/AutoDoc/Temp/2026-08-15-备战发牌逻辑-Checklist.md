@@ -1,0 +1,28 @@
+# 备战发牌逻辑修改检查清单
+
+- [x] 通过——用户要求：备战时每回合从编号 1～98 的卡片中随机发 5 张。
+  - 证据：首次奖励与后续 `TryEnterNextBattleStageGroup()` 均调用 `PreparationRewardBatchFactory.CreateRandom()`。
+- [x] 通过——定位备战阶段与发牌逻辑的实际入口、卡片编号来源及直接依赖。
+  - 证据：确认奖励由 `BattleStageStartupData` 携带，经 Battle session 在结算后交给 PreparationStage；普通卡边界来自 `RunCardRules.FirstCardNumber` 与 `LastOrdinaryCardNumber`。
+- [x] 通过——按现有框架和生命周期完成修改，不引入平行发牌实现，不绕过既有公开 API、配置源或资源流程。
+  - 证据：随机批次仍使用既有 StartupData、StageGroup、奖励原子应用链路，并通过 `DataApi` 读取正式 CSV 配置。
+- [x] 通过——确认随机范围完整覆盖 1～98；按现有编号唯一持有模型，从尚未持有的普通卡中无放回抽取，首轮排除自动加入阵容的卡；每回合发牌数量为 5。
+  - 证据：工厂遍历完整常量范围并执行部分 Fisher-Yates 抽样；Unity EditMode 测试 `RandomPreparationRewardDealsFiveUniqueAvailableCardsFromOneThroughNinetyEight` 与 `DefaultBattleRandomRewardExcludesInitialPlayerCards` 均通过。
+- [x] 通过——抽中卡牌的攻击力和最大生命值使用对应卡牌类型配置的随机范围，且随机种子可注入以便稳定测试。
+  - 证据：工厂调用 `BattleCardTypeCsvData.RollAttack/RollHealth` 并接收 `ref Unity.Mathematics.Random`；测试验证生成数值位于类型范围内。
+- [x] 通过——检查误改无关文件和遗漏直接依赖。
+  - 证据：本任务仅修改两个玩法代码文件、在既有测试文件追加两项测试，并同步两篇直接相关文档；工作区其余 UI 改动为任务开始前已存在的用户改动，未覆盖或回退。
+- [x] 通过——检查新增函数与字段是否确有复用价值，删除不必要的一次性抽象。
+  - 证据：未新增字段；随机工厂由首轮、后续轮次及测试共同复用，种子重载仅用于默认入口与稳定测试。
+- [x] 通过——执行与修改风险相称的静态检查或自动化验证；除非用户另行要求，不进入游戏验证。
+  - 证据：`Hearthstone.csproj` 与 `Hearthstone.Tests.csproj` 均 0 错误编译；Unity EditMode 新增两项测试均通过。所在测试组共 18/19 通过，唯一失败为既有资源测试仍期待 `Boar`、当前配置实际为 `Boar_001`，与本次逻辑无关。未进入游戏。
+- [x] 通过——玩家视角设计文档：完整读取基础格式 skill，核对现有相关文档和玩家可见变化，并按需同步。
+  - 证据：已读取 `design-doc-format`，并更新 `AutoDoc/Design/Specific/preparation-card-pool/preparation-card-pool.md` 的每轮随机奖励、唯一性和不足 5 张时的表现。
+- [x] 不适用——美术文档：完整读取基础格式 skill，核对本次是否存在美术资产或视觉规范变化，并记录结论。
+  - 证据：已读取 `art-doc-writer`；本次未修改 Sprite、Prefab、布局、文案呈现或任何美术规格，现有美术文档不受影响。
+- [x] 通过——程序文档：完整读取基础格式 skill，核对现有相关文档和实现变化，并按需同步。
+  - 证据：已读取 `program-doc-format` 及玩法模块格式，并更新 `AutoDoc/Program/Specific/preparation-card-pool/preparation-card-pool.md` 的工厂、随机抽样与 Stage 链路。
+- [x] 通过——框架边界审计：检查是否残留框架外代码、重复能力、手写导出产物或对内部管理器的绕过访问。
+  - 证据：实现继续使用 DataApi、StartupData、RunState、StageGroup 协调器和既有批次幂等账本；未改底层框架、未手写导出资产、未访问框架内部管理器。
+- [x] 通过——结束前逐项复核证据，只运行一次 `AutoDoc/CleanupTempDocs.bat`，随后创建同名任务报告。
+  - 证据：本文件已完成逐项复核；清理脚本仅执行一次，退出码 0，随后已创建同名报告。

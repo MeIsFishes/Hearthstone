@@ -24,6 +24,13 @@ namespace Hearthstone
         public const int CardsPerSide = RunCardRules.BattleSlotCount;
         public const int DefaultCardNumber = 1;
         public const float ActionInterval = 0.75f;
+        public const float AttackLungeDuration = 0.36f;
+        public const float AttackLungeDistance = 36f;
+        public const int AttackEffectFrameCount = 8;
+        public const int AttackEffectColumns = 4;
+        public const int AttackEffectRows = 2;
+        public const float AttackEffectFrameInterval = 0.06f;
+        public const float HitFlashDuration = 0.16f;
         public const string CardEntityGroup = "BattleCard";
 
         private static readonly int[] PlayerCardNumbers = { 4, 1, 40 };
@@ -39,6 +46,28 @@ namespace Hearthstone
         public static bool CanAct(EBattleResult result)
         {
             return result == EBattleResult.InProgress;
+        }
+
+        public static float GetAttackPresentationDuration(BattleCardTypeCsvData config)
+        {
+            var hitDelay = GetLatestDelay(config?.HitDelays);
+            var audioDelay = GetLatestDelay(config?.AttackAudioDelays);
+            var effectDuration = string.IsNullOrWhiteSpace(config?.AttackFrameAnimationKey)
+                ? 0f
+                : AttackEffectFrameCount * AttackEffectFrameInterval;
+            return Math.Max(
+                AttackLungeDuration,
+                Math.Max(audioDelay, Math.Max(effectDuration, hitDelay + HitFlashDuration)));
+        }
+
+        private static float GetLatestDelay(float[] delays)
+        {
+            var latest = 0f;
+            if (delays == null)
+                return latest;
+            for (var i = 0; i < delays.Length; i++)
+                latest = Math.Max(latest, delays[i]);
+            return latest;
         }
 
         public static EBattleSide GetOppositeSide(EBattleSide side)

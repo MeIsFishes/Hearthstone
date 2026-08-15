@@ -14,10 +14,10 @@ namespace Hearthstone
     internal static class PreparationUiBuilderUtility
     {
         internal const string ArtRoot = "Assets/Resources/Art/Preparation/UI/";
-        private const string ChineseFontAssetPath = "Assets/Resources/Fonts/NotoSansSC-Dynamic SDF.asset";
+        private const string ChineseFontAssetPath = "Assets/Resources/Fonts/NotoSansSC-SemiBold Dynamic SDF.asset";
         private const string RequiredChineseCharacters =
-            "备战阶段本轮获得张卡槽位池哥布林战士弓手投弹野猪食人魔融合造物出战素材已选合计继续下一关嘲讽远射爆裂冲锋";
-        internal const float CardPoolViewportWidth = 1400f;
+            "备战阶段卡槽位池哥布林战士弓手投弹野猪食人魔融合造物出战素材已选合计继续嘲讽远射爆裂冲锋查看拥有✓";
+        internal const float CardPoolViewportWidth = 1540f;
         internal static float CardPoolCellWidth => CardPoolViewportWidth / RunCardRules.CardsPerRow;
         internal static float CardPoolCellHeight =>
             CardPoolCellWidth * RunCardRules.CardAspectHeight / RunCardRules.CardAspectWidth;
@@ -84,7 +84,7 @@ namespace Hearthstone
             label.font = LoadChineseFont();
             label.text = text;
             label.fontSize = size;
-            label.fontStyle = FontStyles.Bold;
+            label.fontStyle = FontStyles.Normal;
             label.alignment = alignment;
             label.color = new Color(1f, 0.88f, 0.55f, 1f);
             label.raycastTarget = false;

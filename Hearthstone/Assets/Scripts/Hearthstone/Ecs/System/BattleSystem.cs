@@ -15,11 +15,16 @@ namespace Hearthstone
             if (session == null || BattleRules.CanAct(session.Result.Value) == false)
                 return;
 
+            if (session.AttackPresentationActive)
+            {
+                AdvanceAttackPresentation(session);
+                return;
+            }
+
             session.ActionCountdown -= TimeApi.DeltaTime;
             if (session.ActionCountdown > 0f)
                 return;
 
-            session.ActionCountdown = BattleRules.ActionInterval;
             ExecuteAction(session);
         }
 
@@ -78,57 +83,150 @@ namespace Hearthstone
                 : 0u;
             var attackerHealthBefore = attacker.CurrentHealth.Value;
             var targetHealthBefore = target.CurrentHealth.Value;
+            var presentationConfig = DataApi.GetData<BattleCardTypeCsvData>(attacker.CardTypeId);
+            session.AttackPresentationActive = true;
+            session.AttackPresentationElapsed = 0f;
+            session.AttackPresentationDuration = BattleRules.GetAttackPresentationDuration(presentationConfig);
+            session.PendingHitDelays = presentationConfig?.HitDelays ?? System.Array.Empty<float>();
+            session.PendingAttackAudioKeys = presentationConfig?.AttackAudioKeys ?? System.Array.Empty<string>();
+            session.PendingAttackAudioDelays = presentationConfig?.AttackAudioDelays ?? System.Array.Empty<float>();
+            session.PendingAttackAudioVolumes = presentationConfig?.AttackAudioVolumes ?? System.Array.Empty<float>();
+            session.PendingNextHitIndex = 0;
+            session.PendingNextAttackAudioIndex = 0;
+            session.PendingDamageApplied = false;
+            session.PendingActingSide = actingSide;
+            session.PendingAttackerSlot = attackerSlot;
+            session.PendingTargetSlot = targetSlot;
+            session.PendingAdjacentMask = adjacentMask;
+            session.PendingDamage = damage;
+            session.PendingAttackerHealthBefore = attackerHealthBefore;
+            session.PendingTargetHealthBefore = targetHealthBefore;
+            session.AttackPresentationSequence.SetValue(session.ActionIndex + 1);
+        }
 
-            attacker.SetCurrentHealthWithoutAliveCommit(attackerHealthBefore - damage.CounterDamage);
-            target.SetCurrentHealthWithoutAliveCommit(targetHealthBefore - damage.MainDamage);
+        private static void AdvanceAttackPresentation(BattleSessionSingletonRawComponent session)
+        {
+            session.AttackPresentationElapsed += TimeApi.DeltaTime;
+            while (session.PendingNextAttackAudioIndex < session.PendingAttackAudioDelays.Length &&
+                   session.AttackPresentationElapsed >= session.PendingAttackAudioDelays[session.PendingNextAttackAudioIndex])
+            {
+                PlayPendingAttackAudio(session, session.PendingNextAttackAudioIndex);
+                session.PendingNextAttackAudioIndex++;
+            }
+            while (session.PendingNextHitIndex < session.PendingHitDelays.Length &&
+                   session.AttackPresentationElapsed >= session.PendingHitDelays[session.PendingNextHitIndex])
+            {
+                if (session.PendingDamageApplied == false)
+                    ApplyPendingDamage(session);
+                session.PendingNextHitIndex++;
+            }
+
+            if (session.AttackPresentationElapsed < session.AttackPresentationDuration)
+                return;
+
+            if (session.PendingDamageApplied == false)
+                ApplyPendingDamage(session);
+            CompleteAttackPresentation(session);
+        }
+
+        private static void PlayPendingAttackAudio(BattleSessionSingletonRawComponent session, int audioIndex)
+        {
+            var audioKey = session.PendingAttackAudioKeys[audioIndex];
+            if (string.IsNullOrWhiteSpace(audioKey))
+                return;
+
+            var options = AudioPlayOptions.Default;
+            options.Volume = session.PendingAttackAudioVolumes[audioIndex];
+            options.Priority = 96;
+            options.GroupKey = "Combat";
+            options.ConcurrencyKey = "BattleCardAttack";
+            options.MaxConcurrent = 3;
+            options.ConcurrencyVolumeFalloff = 0.72f;
+            AudioApi.Play(audioKey, options);
+        }
+
+        private static void ApplyPendingDamage(BattleSessionSingletonRawComponent session)
+        {
+            session.PendingDamageApplied = true;
+            var attackerEntity = session.CurrentAttacker.Value;
+            var targetEntity = session.CurrentTarget.Value;
+            var attacker = attackerEntity == Entity.Null
+                ? null
+                : attackerEntity.GetRawComponent<BattleCardRawComponent>();
+            var target = targetEntity == Entity.Null
+                ? null
+                : targetEntity.GetRawComponent<BattleCardRawComponent>();
+            if (attacker == null || target == null)
+                return;
+
+            attacker.SetCurrentHealthWithoutAliveCommit(
+                session.PendingAttackerHealthBefore - session.PendingDamage.CounterDamage);
+            target.SetCurrentHealthWithoutAliveCommit(
+                session.PendingTargetHealthBefore - session.PendingDamage.MainDamage);
+
+            var targetCards = session.GetCards(BattleRules.GetOppositeSide(session.PendingActingSide));
             for (var slot = 0; slot < targetCards.Length; slot++)
             {
-                if ((adjacentMask & (1u << slot)) == 0)
+                if ((session.PendingAdjacentMask & (1u << slot)) == 0)
                     continue;
                 var adjacent = targetCards[slot].GetRawComponent<BattleCardRawComponent>();
                 if (adjacent == null)
                     continue;
                 var adjacentHealthBefore = adjacent.CurrentHealth.Value;
-                adjacent.SetCurrentHealthWithoutAliveCommit(adjacentHealthBefore - damage.BlastDamage);
+                adjacent.SetCurrentHealthWithoutAliveCommit(adjacentHealthBefore - session.PendingDamage.BlastDamage);
                 DebugApi.Log(
                     $"[BattleKeyword] AdjacentDamage Action={session.ActionIndex + 1} " +
-                    $"Slot={slot} Card={adjacent.CardNumber} Damage={damage.BlastDamage} " +
+                    $"Slot={slot} Card={adjacent.CardNumber} Damage={session.PendingDamage.BlastDamage} " +
                     $"Health={adjacentHealthBefore}->{adjacent.CurrentHealth.Value}");
             }
+        }
 
-            attacker.CommitAliveState();
-            target.CommitAliveState();
+        private static void CompleteAttackPresentation(BattleSessionSingletonRawComponent session)
+        {
+            var attackerEntity = session.CurrentAttacker.Value;
+            var targetEntity = session.CurrentTarget.Value;
+            var attacker = attackerEntity == Entity.Null
+                ? null
+                : attackerEntity.GetRawComponent<BattleCardRawComponent>();
+            var target = targetEntity == Entity.Null
+                ? null
+                : targetEntity.GetRawComponent<BattleCardRawComponent>();
+            var targetCards = session.GetCards(BattleRules.GetOppositeSide(session.PendingActingSide));
+
+            attacker?.CommitAliveState();
+            target?.CommitAliveState();
             for (var slot = 0; slot < targetCards.Length; slot++)
             {
-                if ((adjacentMask & (1u << slot)) == 0)
-                    continue;
-                targetCards[slot].GetRawComponent<BattleCardRawComponent>()?.CommitAliveState();
+                if ((session.PendingAdjacentMask & (1u << slot)) != 0)
+                    targetCards[slot].GetRawComponent<BattleCardRawComponent>()?.CommitAliveState();
             }
+
             session.ActionIndex++;
+            if (attacker != null && target != null)
+            {
+                DebugApi.Log(
+                    $"[BattleKeyword] Action={session.ActionIndex} Side={session.PendingActingSide} " +
+                    $"AttackerSlot={session.PendingAttackerSlot} AttackerCard={attacker.CardNumber} Keywords={attacker.Keywords} " +
+                    $"TargetSlot={session.PendingTargetSlot} TargetCard={target.CardNumber} " +
+                    $"MainDamage={session.PendingDamage.MainDamage} BlastDamage={session.PendingDamage.BlastDamage} " +
+                    $"CounterDamage={session.PendingDamage.CounterDamage} AdjacentMask=0x{session.PendingAdjacentMask:X} " +
+                    $"AttackerHealth={session.PendingAttackerHealthBefore}->{attacker.CurrentHealth.Value} " +
+                    $"TargetHealth={session.PendingTargetHealthBefore}->{target.CurrentHealth.Value}");
+            }
 
-            DebugApi.Log(
-                $"[BattleKeyword] Action={session.ActionIndex} Side={actingSide} " +
-                $"AttackerSlot={attackerSlot} AttackerCard={attacker.CardNumber} Keywords={attacker.Keywords} " +
-                $"CandidateMask=0x{candidateMask:X} TargetSlot={targetSlot} TargetCard={target.CardNumber} " +
-                $"MainDamage={damage.MainDamage} BlastDamage={damage.BlastDamage} " +
-                $"CounterDamage={damage.CounterDamage} AdjacentMask=0x{adjacentMask:X} " +
-                $"AttackerHealth={attackerHealthBefore}->{attacker.CurrentHealth.Value} " +
-                $"TargetHealth={targetHealthBefore}->{target.CurrentHealth.Value}");
-
-            var targetAliveMaskAfterCommit = BuildAliveMask(targetCards);
-            var submittedTargetDeathMask = targetMask & ~targetAliveMaskAfterCommit;
-            DebugApi.Log(
-                $"[BattleKeyword] DeathCommit Action={session.ActionIndex} " +
-                $"TargetDeathMask=0x{submittedTargetDeathMask:X} " +
-                $"AttackerDied={(attacker.IsAlive.Value == false)}");
-
-            playerAliveMask = BuildAliveMask(session.PlayerCards);
-            enemyAliveMask = BuildAliveMask(session.EnemyCards);
-            result = BattleRules.EvaluateResult(playerAliveMask, enemyAliveMask);
+            var playerAliveMask = BuildAliveMask(session.PlayerCards);
+            var enemyAliveMask = BuildAliveMask(session.EnemyCards);
+            var result = BattleRules.EvaluateResult(playerAliveMask, enemyAliveMask);
             session.Result.SetValue(result);
             DebugApi.Log(
                 $"[BattleKeyword] Result Action={session.ActionIndex} " +
                 $"PlayerAliveMask=0x{playerAliveMask:X} EnemyAliveMask=0x{enemyAliveMask:X} Result={result}");
+
+            var actingSide = session.PendingActingSide;
+            session.ClearPendingAttackPresentation();
+            session.CurrentAttacker.SetValue(Entity.Null);
+            session.CurrentTarget.SetValue(Entity.Null);
+            session.ActionCountdown = BattleRules.ActionInterval;
             if (result == EBattleResult.InProgress)
                 session.CurrentSide.SetValue(BattleRules.GetOppositeSide(actingSide));
         }

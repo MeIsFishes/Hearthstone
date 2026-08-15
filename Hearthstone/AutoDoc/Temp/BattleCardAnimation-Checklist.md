@@ -1,0 +1,27 @@
+# 战斗卡牌动画任务检查清单
+
+- [x] 通过：核验 `BattleSystem`、会话 RawComponent、`BattleCardItemController`、ResourceApi 与 AudioApi 链路；未改动无关 Prefab、框架底层或用户已有工作。
+- [x] 通过：`BattleCardTypeCsvData` 与 CSV 同步增加 `AttackFrameAnimationKey`、`AttackAudioKey`、`AttackAudioDelay`、`HitDelay`；6 行均为 11 列，英文说明与关联注释保留。
+- [x] 通过：CSV 仍由 `CsvDataBase` 解析并用 `DataApi.SetData/GetData` 访问，继续归属既有 `GameEngineDefault` 数据组。
+- [x] 通过：`BattleAttackSwordSlash.png` 为哥布林战士八帧透明剑痕图集，CSV 映射到目标卡面的统一 UV 播放器。
+- [x] 通过：`BattleAttackArrowImpact.png` 为哥布林弓手八帧斜向箭矢图集，CSV 映射到目标卡面的统一 UV 播放器。
+- [x] 通过：`BattleAttackSmallExplosion.png` 为哥布林投弹手八帧小型爆炸图集，CSV 映射到目标卡面的统一 UV 播放器。
+- [x] 通过：`BattleAttackSmallImpact.png` 为野猪八帧小型击打图集，CSV 映射到目标卡面的统一 UV 播放器。
+- [x] 通过：`BattleAttackLargeImpact.png` 为食人魔八帧大型击打图集，CSV 映射到目标卡面的统一 UV 播放器。
+- [x] 通过：五张 PNG 均检测为含 Alpha 的 32 位图，无文字与水印；采用 `4 × 2` 八帧布局并通过 `ResourceApi.LoadSprite` 加载。
+- [x] 通过：攻击者以正弦曲线向对方阵列位移并回到保存的锚点；表现结束、换绑和回池均执行复位。
+- [x] 通过：战斗 System 在 `AttackAudioDelay` 到达时通过 `AudioApi.Play` 只触发一次；空键安全跳过，表现总时长覆盖最长音效延迟。
+- [x] 通过：五个键均来自 `Assets/Resources/BbxCommon/Audio/Library/`，basename 各唯一一次；对应 RPG Audio、Impact Sounds、Sci-fi Sounds 目录均含许可证。使用 `Combat` 分组、最多 3 声并发和 `0.72` 响度衰减；自制 `.music`/WAV 残留检测为 0。
+- [x] 通过：目标在 `HitDelay` 起执行一次 `0.16s` 红色正弦脉冲，结束后恢复保存的原画颜色。
+- [x] 通过：伤害在受击延迟点写入但不提交死亡；完整时长结束后才提交存活、胜负、阵营切换及下一次 `ActionInterval`。
+- [x] 通过：每个池化卡牌 Controller 仅在初始化时创建一个 `RawImage`，攻击间复用纹理与 UV，不逐帧创建 Sprite 或 GameObject。
+- [x] 通过：旧 CSV 缺列安全回退空键/零延迟；空资源键安全跳过；攻击/目标 Entity.Null 有保护；会话回收清空挂起状态。
+- [x] 通过：`Hearthstone.csproj` 与 `Hearthstone.Tests.csproj` 编译均为 0 错误；定向 `git diff --check` 通过；CSV、图片、音效键和许可证完成静态检查。
+- [x] 不适用：按项目默认规则未启动 Unity 进入游戏手工验收；未制造或修改 `.meta`，运行画面仍建议在下次正常打开项目后目视确认一次。
+- [x] 通过：新增方法仅承载表现时长、音效触发、挂起伤害和视觉复位等独立职责，未保留生成音频相关抽象。
+- [x] 通过：未绕过 DataApi、ResourceApi、AudioApi、ECS 会话或 UiList 对象池；编辑器环境由 ResourceManager 扫描 Resources，未手写 `ResourcesDictionary.json`。
+- [x] 通过：已同步 `AutoDoc/Design/Specific/combat-system/combat-system.md` 的玩家可见动画、受击与行动等待规则。
+- [x] 通过：已同步 `AutoDoc/Art/Modules/battle-card/battle-card.md` 的五种图集规格、风格与资产清单。
+- [x] 通过：已同步战斗系统与战斗界面程序文档的数据、时序、资源和对象复用实现。
+- [x] 通过：已逐项复核；所有可在不启动 Unity 的范围内修正的缺口均已修正，剩余风险仅为未做运行画面目视验收。
+- [x] 通过：结束审计后仅运行一次 `AutoDoc/CleanupTempDocs.bat`；退出码为 0，清理前后 Markdown 数量均为 136（未达到 500 的清理阈值），随后创建同名报告。

@@ -20,7 +20,7 @@ namespace Hearthstone
         ResultCardCannotBeMaterial,
         DuplicateMaterial,
         MaterialCountInvalid,
-        SumMismatch,
+        RecipeNotFound,
         ResultAlreadyOwned,
         StatOverflow,
     }
@@ -29,16 +29,22 @@ namespace Hearthstone
     {
         public int MaterialCount { get; }
         public int CardNumberSum { get; }
+        public int RecipeMaterialCount { get; }
+        public int ResultCardNumber { get; }
         public EFusionOperationResult BlockingResult { get; }
         public bool CanFuse => BlockingResult == EFusionOperationResult.Applied;
 
         public FusionEvaluationData(
             int materialCount,
             int cardNumberSum,
+            int recipeMaterialCount,
+            int resultCardNumber,
             EFusionOperationResult blockingResult)
         {
             MaterialCount = materialCount;
             CardNumberSum = cardNumberSum;
+            RecipeMaterialCount = recipeMaterialCount;
+            ResultCardNumber = resultCardNumber;
             BlockingResult = blockingResult;
         }
     }
@@ -94,17 +100,25 @@ namespace Hearthstone
         public const int BattleSlotCount = 3;
         public const int FirstCardNumber = 1;
         public const int LastOrdinaryCardNumber = 98;
-        public const int FusionResultCardNumber = 99;
-        public const int LastCardNumber = FusionResultCardNumber;
+        public const int LockedCardNumber = 99;
+        public const int FirstFusionCardNumber = 100;
+        public const int FirstLegendaryCardNumber = 149;
+        public const int LastFusionCardNumber = 213;
+        public const int LastCardNumber = LastFusionCardNumber;
         public const int CardStorageLength = LastCardNumber + 1;
         public const int CardsPerRow = 7;
-        public const int CardRowCount = 15;
+        public const int CardRowCount = (LastCardNumber + CardsPerRow - 1) / CardsPerRow;
         public const int CardAspectWidth = 25;
         public const int CardAspectHeight = 36;
         public const int RewardGrantCount = 5;
         public const int FusionSlotCount = 4;
-        public const int FusionMinimumMaterialCount = 2;
-        public const int FusionTargetCardNumberSum = 99;
+        public const int FusionMinimumSelectionCount = 2;
+        public const int FusionMaximumSelectionCount = FusionSlotCount;
+        public const int FusionMinimumRecipeMaterialCount = 2;
+        public const int FusionMaximumRecipeMaterialCount = FusionSlotCount;
+        public const int BaseCardTypeCount = 5;
+        public const int OgreCardTypeId = 5;
+        public const int MaximumOgreRecipeCount = 2;
 
         public static ERewardBatchApplyResult ApplyRewardBatch(
             RunStateSingletonRawComponent runState,
@@ -157,7 +171,7 @@ namespace Hearthstone
             if (runState == null || session == null || sourceFusionSlot < -1 ||
                 targetSlot < 0 || targetSlot >= FusionSlotCount)
                 return EFusionOperationResult.InvalidSlot;
-            if (cardNumber == FusionResultCardNumber)
+            if (cardNumber >= LockedCardNumber && cardNumber <= LastCardNumber)
                 return EFusionOperationResult.ResultCardCannotBeMaterial;
             if (cardNumber < FirstCardNumber || cardNumber > LastOrdinaryCardNumber ||
                 runState.HasCard(cardNumber) == false)
@@ -205,11 +219,14 @@ namespace Hearthstone
             PreparationSessionSingletonRawComponent session)
         {
             if (runState == null || session == null)
-                return new FusionEvaluationData(0, 0, EFusionOperationResult.InvalidSlot);
+                return CreateFusionEvaluation(0, 0, 0, 0, EFusionOperationResult.InvalidSlot);
 
             var materialCount = 0;
             var cardNumberSum = 0;
-            var visited = new HashSet<int>();
+            var firstTypeId = 0;
+            var secondTypeId = 0;
+            var thirdTypeId = 0;
+            var fourthTypeId = 0;
             for (var slot = 0; slot < FusionSlotCount; slot++)
             {
                 var cardNumber = session.FusionSlotCardNumbers[slot];
@@ -217,22 +234,79 @@ namespace Hearthstone
                     continue;
                 materialCount++;
                 cardNumberSum += cardNumber;
-                if (cardNumber == FusionResultCardNumber)
-                    return new FusionEvaluationData(materialCount, cardNumberSum, EFusionOperationResult.ResultCardCannotBeMaterial);
+                if (cardNumber >= LockedCardNumber && cardNumber <= LastCardNumber)
+                {
+                    return CreateFusionEvaluation(
+                        materialCount, cardNumberSum, 0, 0, EFusionOperationResult.ResultCardCannotBeMaterial);
+                }
                 if (cardNumber < FirstCardNumber || cardNumber > LastOrdinaryCardNumber ||
                     runState.HasCard(cardNumber) == false)
-                    return new FusionEvaluationData(materialCount, cardNumberSum, EFusionOperationResult.UnownedCard);
-                if (visited.Add(cardNumber) == false)
-                    return new FusionEvaluationData(materialCount, cardNumberSum, EFusionOperationResult.DuplicateMaterial);
+                    return CreateFusionEvaluation(materialCount, cardNumberSum, 0, 0, EFusionOperationResult.UnownedCard);
+                for (var previousSlot = 0; previousSlot < slot; previousSlot++)
+                {
+                    if (session.FusionSlotCardNumbers[previousSlot] == cardNumber)
+                    {
+                        return CreateFusionEvaluation(
+                            materialCount, cardNumberSum, 0, 0, EFusionOperationResult.DuplicateMaterial);
+                    }
+                }
+
+                var cardConfig = BbxCommon.DataApi.GetData<BattleCardCsvData>(cardNumber);
+                if (cardConfig == null || cardConfig.IsFusionResult)
+                    return CreateFusionEvaluation(materialCount, cardNumberSum, 0, 0, EFusionOperationResult.UnownedCard);
+                switch (materialCount)
+                {
+                    case 1:
+                        firstTypeId = cardConfig.CardTypeId;
+                        break;
+                    case 2:
+                        secondTypeId = cardConfig.CardTypeId;
+                        break;
+                    case 3:
+                        thirdTypeId = cardConfig.CardTypeId;
+                        break;
+                    case 4:
+                        fourthTypeId = cardConfig.CardTypeId;
+                        break;
+                }
             }
 
-            if (runState.HasCard(FusionResultCardNumber))
-                return new FusionEvaluationData(materialCount, cardNumberSum, EFusionOperationResult.ResultAlreadyOwned);
-            if (materialCount < FusionMinimumMaterialCount || materialCount > FusionSlotCount)
-                return new FusionEvaluationData(materialCount, cardNumberSum, EFusionOperationResult.MaterialCountInvalid);
-            if (cardNumberSum != FusionTargetCardNumberSum)
-                return new FusionEvaluationData(materialCount, cardNumberSum, EFusionOperationResult.SumMismatch);
-            return new FusionEvaluationData(materialCount, cardNumberSum, EFusionOperationResult.Applied);
+            if (materialCount < FusionMinimumSelectionCount || materialCount > FusionMaximumSelectionCount)
+                return CreateFusionEvaluation(materialCount, cardNumberSum, 0, 0, EFusionOperationResult.MaterialCountInvalid);
+
+            SortFusionTypeIds(
+                ref firstTypeId,
+                ref secondTypeId,
+                ref thirdTypeId,
+                ref fourthTypeId,
+                materialCount);
+            var recipeMaterialCount = materialCount;
+            var resultConfig = BattleCardCsvData.GetFusionResult(
+                firstTypeId,
+                secondTypeId,
+                thirdTypeId,
+                fourthTypeId,
+                recipeMaterialCount);
+            if (resultConfig == null)
+            {
+                return CreateFusionEvaluation(
+                    materialCount, cardNumberSum, recipeMaterialCount, 0, EFusionOperationResult.RecipeNotFound);
+            }
+            if (runState.HasCard(resultConfig.CardNumber))
+            {
+                return CreateFusionEvaluation(
+                    materialCount,
+                    cardNumberSum,
+                    recipeMaterialCount,
+                    resultConfig.CardNumber,
+                    EFusionOperationResult.ResultAlreadyOwned);
+            }
+            return CreateFusionEvaluation(
+                materialCount,
+                cardNumberSum,
+                recipeMaterialCount,
+                resultConfig.CardNumber,
+                EFusionOperationResult.Applied);
         }
 
         public static EFusionOperationResult TryFuse(
@@ -281,10 +355,11 @@ namespace Hearthstone
                 return EFusionOperationResult.StatOverflow;
 
             resultCard = new RunCardInstanceData(
-                FusionResultCardNumber,
+                evaluation.ResultCardNumber,
                 (int)attack,
                 (int)maxHealth,
-                keywords);
+                keywords,
+                GetTierForFusionMaterialCount(evaluation.MaterialCount));
             transaction = new FusionTransactionSnapshot(
                 materialSnapshots,
                 battleSlotsBefore,
@@ -302,7 +377,7 @@ namespace Hearthstone
                     break;
                 }
             }
-            runState.CardInstances[FusionResultCardNumber] = resultCard;
+            runState.CardInstances[evaluation.ResultCardNumber] = resultCard;
             Array.Clear(session.FusionSlotCardNumbers, 0, session.FusionSlotCardNumbers.Length);
             runState.Revision.SetValue(runState.Revision.Value + 1);
             session.FusionRevision.SetValue(session.FusionRevision.Value + 1);
@@ -349,6 +424,21 @@ namespace Hearthstone
             runState.Revision.SetValue(runState.Revision.Value + 1);
         }
 
+        public static EBattleCardTier GetTierForFusionMaterialCount(int materialCount)
+        {
+            switch (materialCount)
+            {
+                case 2:
+                    return EBattleCardTier.Silver;
+                case 3:
+                    return EBattleCardTier.Gold;
+                case 4:
+                    return EBattleCardTier.Legendary;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(materialCount));
+            }
+        }
+
         public static bool TryPlaceCard(
             RunStateSingletonRawComponent runState,
             int cardNumber,
@@ -376,6 +466,51 @@ namespace Hearthstone
             runState.BattleSlotCardNumbers[targetSlot] = cardNumber;
             runState.Revision.SetValue(runState.Revision.Value + 1);
             return true;
+        }
+
+        private static FusionEvaluationData CreateFusionEvaluation(
+            int materialCount,
+            int cardNumberSum,
+            int recipeMaterialCount,
+            int resultCardNumber,
+            EFusionOperationResult result)
+        {
+            return new FusionEvaluationData(
+                materialCount,
+                cardNumberSum,
+                recipeMaterialCount,
+                resultCardNumber,
+                result);
+        }
+
+        private static void SortFusionTypeIds(
+            ref int firstTypeId,
+            ref int secondTypeId,
+            ref int thirdTypeId,
+            ref int fourthTypeId,
+            int materialCount)
+        {
+            SortAscending(ref firstTypeId, ref secondTypeId);
+            if (materialCount >= 3)
+            {
+                SortAscending(ref secondTypeId, ref thirdTypeId);
+                SortAscending(ref firstTypeId, ref secondTypeId);
+            }
+            if (materialCount == 4)
+            {
+                SortAscending(ref thirdTypeId, ref fourthTypeId);
+                SortAscending(ref secondTypeId, ref thirdTypeId);
+                SortAscending(ref firstTypeId, ref secondTypeId);
+            }
+        }
+
+        private static void SortAscending(ref int left, ref int right)
+        {
+            if (left <= right)
+                return;
+            var temporary = left;
+            left = right;
+            right = temporary;
         }
 
         private static int FindFusionSlot(

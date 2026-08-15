@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Reflection;
 using BbxCommon;
 using BbxCommon.Ui;
@@ -13,6 +14,27 @@ namespace Hearthstone.Tests
 {
     public sealed class RunCardRulesTests
     {
+        [SetUp]
+        public void SetUp()
+        {
+            DataApi.ReleaseAllData<BattleCardCsvData>(false);
+            DataApi.ReleaseAllData<BattleCardTypeCsvData>(false);
+            ResourceApi.Initialize();
+            CsvApi.ReadFromString<BattleCardTypeCsvData>(
+                nameof(BattleCardTypeCsvData),
+                ResourceApi.LoadTextAsset(nameof(BattleCardTypeCsvData)).text);
+            CsvApi.ReadFromString<BattleCardCsvData>(
+                nameof(BattleCardCsvData),
+                ResourceApi.LoadTextAsset(nameof(BattleCardCsvData)).text);
+        }
+
+        [TearDown]
+        public void TearDown()
+        {
+            DataApi.ReleaseAllData<BattleCardCsvData>(false);
+            DataApi.ReleaseAllData<BattleCardTypeCsvData>(false);
+        }
+
         [Test]
         public void ApplyRewardBatch_IsAtomicAndIdempotent()
         {
@@ -74,7 +96,7 @@ namespace Hearthstone.Tests
             Assert.IsFalse(runState.HasCard(30));
             Assert.IsFalse(runState.HasCard(35));
             Assert.IsTrue(runState.HasCard(54));
-            Assert.AreEqual(result, runState.CardInstances[RunCardRules.FusionResultCardNumber]);
+            Assert.AreEqual(result, runState.CardInstances[result.CardNumber]);
         }
 
         [Test]
@@ -102,7 +124,7 @@ namespace Hearthstone.Tests
             Assert.Throws<InvalidOperationException>(() => RunCardRules.ApplyRewardBatch(runState, altered));
             Assert.AreEqual(fingerprint, runState.AppliedRewardBatchPayloadFingerprints["fusion-batch"]);
             Assert.AreEqual(revision, runState.Revision.Value);
-            Assert.AreEqual(result, runState.CardInstances[RunCardRules.FusionResultCardNumber]);
+            Assert.AreEqual(result, runState.CardInstances[result.CardNumber]);
             Assert.IsTrue(runState.HasCard(54));
             CollectionAssert.AreEqual(new[] { 0, 0, 0 }, runState.BattleSlotCardNumbers);
         }
@@ -145,7 +167,9 @@ namespace Hearthstone.Tests
             CollectionAssert.AreEqual(new[] { 0, 0, 30, 0 }, session.FusionSlotCardNumbers);
             Assert.AreEqual(EFusionOperationResult.UnownedCard, RunCardRules.TrySetFusionMaterial(runState, session, 2, 0));
             Assert.AreEqual(EFusionOperationResult.ResultCardCannotBeMaterial,
-                RunCardRules.TrySetFusionMaterial(runState, session, RunCardRules.FusionResultCardNumber, 0));
+                RunCardRules.TrySetFusionMaterial(runState, session, RunCardRules.LockedCardNumber, 0));
+            Assert.AreEqual(EFusionOperationResult.ResultCardCannotBeMaterial,
+                RunCardRules.TrySetFusionMaterial(runState, session, RunCardRules.FirstFusionCardNumber, 0));
             Assert.AreEqual(EFusionOperationResult.InvalidSlot, RunCardRules.TrySetFusionMaterial(runState, session, 14, 4));
         }
 
@@ -169,7 +193,7 @@ namespace Hearthstone.Tests
                 () => RunCardRules.TrySetFusionMaterial(
                     runState,
                     session,
-                    RunCardRules.FusionResultCardNumber,
+                    RunCardRules.LockedCardNumber,
                     2));
             AssertRejectedFusionSelection(
                 runState,
@@ -215,7 +239,7 @@ namespace Hearthstone.Tests
                 new[] { 14, 14, 0, 0 },
                 EFusionOperationResult.DuplicateMaterial);
             AssertMalformedFusionSessionIsRejected(
-                new[] { 14, RunCardRules.FusionResultCardNumber, 0, 0 },
+                new[] { 14, RunCardRules.LockedCardNumber, 0, 0 },
                 EFusionOperationResult.ResultCardCannotBeMaterial);
             AssertMalformedFusionSessionIsRejected(
                 new[] { 14, 2, 0, 0 },
@@ -223,7 +247,7 @@ namespace Hearthstone.Tests
         }
 
         [Test]
-        public void FusionEvaluationAndCommit_AreAtomicAndUsePermanentStats()
+        public void FusionEvaluationAndCommit_UsesAllFourCardTypesForLegendaryRecipeAndAllStats()
         {
             var runState = new RunStateSingletonRawComponent();
             var session = new PreparationSessionSingletonRawComponent();
@@ -232,41 +256,38 @@ namespace Hearthstone.Tests
             runState.BattleSlotCardNumbers[1] = 54;
 
             SelectFusionMaterials(runState, session, 14, 20);
-            var under = RunCardRules.EvaluateFusion(runState, session);
-            Assert.AreEqual(34, under.CardNumberSum);
-            Assert.IsFalse(under.CanFuse);
-
-            RunCardRules.TrySetFusionMaterial(runState, session, 30, 2);
-            RunCardRules.TrySetFusionMaterial(runState, session, 54, 3);
-            var over = RunCardRules.EvaluateFusion(runState, session);
-            Assert.AreEqual(118, over.CardNumberSum);
-            Assert.IsFalse(over.CanFuse);
-            var revisionBeforeInvalidFuse = runState.Revision.Value;
-            Assert.AreEqual(EFusionOperationResult.SumMismatch,
-                RunCardRules.TryFuse(runState, session, out _));
-            Assert.AreEqual(revisionBeforeInvalidFuse, runState.Revision.Value);
-            Assert.IsTrue(runState.HasCard(14));
+            var pair = RunCardRules.EvaluateFusion(runState, session);
+            Assert.IsTrue(pair.CanFuse);
+            Assert.AreEqual(2, pair.RecipeMaterialCount);
+            Assert.AreEqual(105, pair.ResultCardNumber);
 
             Assert.AreEqual(EFusionOperationResult.Applied,
-                RunCardRules.TrySetFusionMaterial(runState, session, 35, 3));
-            Assert.IsTrue(RunCardRules.EvaluateFusion(runState, session).CanFuse);
+                RunCardRules.TrySetFusionMaterial(runState, session, 30, 2));
+            Assert.AreEqual(EFusionOperationResult.Applied,
+                RunCardRules.TrySetFusionMaterial(runState, session, 54, 3));
+            var evaluation = RunCardRules.EvaluateFusion(runState, session);
+            Assert.AreEqual(118, evaluation.CardNumberSum);
+            Assert.AreEqual(4, evaluation.RecipeMaterialCount);
+            Assert.AreEqual(187, evaluation.ResultCardNumber);
+            Assert.IsTrue(evaluation.CanFuse);
             Assert.AreEqual(EFusionOperationResult.Applied,
                 RunCardRules.TryFuse(runState, session, out var result));
-            Assert.AreEqual(RunCardRules.FusionResultCardNumber, result.CardNumber);
+            Assert.AreEqual(187, result.CardNumber);
+            Assert.AreEqual(EBattleCardTier.Legendary, result.Tier);
             Assert.AreEqual(11, result.Attack);
-            Assert.AreEqual(15, result.MaxHealth);
+            Assert.AreEqual(12, result.MaxHealth);
             Assert.IsFalse(runState.HasCard(14));
             Assert.IsFalse(runState.HasCard(20));
             Assert.IsFalse(runState.HasCard(30));
-            Assert.IsFalse(runState.HasCard(35));
-            Assert.IsTrue(runState.HasCard(54));
-            Assert.IsTrue(runState.HasCard(RunCardRules.FusionResultCardNumber));
-            CollectionAssert.AreEqual(new[] { 0, 54, 0 }, runState.BattleSlotCardNumbers);
+            Assert.IsFalse(runState.HasCard(54));
+            Assert.IsTrue(runState.HasCard(35));
+            Assert.IsTrue(runState.HasCard(187));
+            CollectionAssert.AreEqual(new[] { 0, 0, 0 }, runState.BattleSlotCardNumbers);
             CollectionAssert.AreEqual(new[] { 0, 0, 0, 0 }, session.FusionSlotCardNumbers);
         }
 
         [Test]
-        public void FusionCommit_AcceptsTwoThreeAndFourMaterialsThatSumTo99()
+        public void FusionCommit_AcceptsTwoThreeAndFourMaterialsFromConfiguredRecipes()
         {
             var combinations = new[]
             {
@@ -297,10 +318,40 @@ namespace Hearthstone.Tests
                     RunCardRules.TryFuse(runState, session, out var result));
                 Assert.AreEqual(expectedAttack, result.Attack);
                 Assert.AreEqual(expectedHealth, result.MaxHealth);
-                Assert.AreEqual(RunCardRules.FusionResultCardNumber, result.CardNumber);
+                Assert.AreEqual(
+                    RunCardRules.GetTierForFusionMaterialCount(combination.Length),
+                    result.Tier);
+                Assert.That(result.CardNumber, Is.InRange(
+                    RunCardRules.FirstFusionCardNumber,
+                    RunCardRules.LastFusionCardNumber));
                 foreach (var cardNumber in combination)
                     Assert.IsFalse(runState.HasCard(cardNumber));
             }
+        }
+
+        [Test]
+        public void FusionRecipes_AreOrderIndependentAndDoNotReserveTripleOgreResult()
+        {
+            var warriorOgre = BattleCardCsvData.GetFusionResult(1, 5, 0, 0, 2);
+            var ogreWarrior = BattleCardCsvData.GetFusionResult(5, 1, 0, 0, 2);
+            Assert.NotNull(warriorOgre);
+            Assert.AreSame(warriorOgre, ogreWarrior);
+            Assert.AreEqual(104, warriorOgre.CardNumber);
+            Assert.IsNull(BattleCardCsvData.GetFusionResult(5, 5, 5, 0, 3));
+            var boarOgreLegendary = BattleCardCsvData.GetFusionResult(4, 5, 4, 5, 4);
+            Assert.NotNull(boarOgreLegendary);
+            Assert.AreEqual(213, boarOgreLegendary.CardNumber);
+
+            var runState = new RunStateSingletonRawComponent();
+            var session = new PreparationSessionSingletonRawComponent();
+            foreach (var cardNumber in new[] { 4, 44, 45, 49 })
+                runState.CardInstances[cardNumber] = new RunCardInstanceData(cardNumber, 1, 1);
+            SelectFusionMaterials(runState, session, 4, 44, 45, 49);
+
+            var evaluation = RunCardRules.EvaluateFusion(runState, session);
+            Assert.AreEqual(4, evaluation.RecipeMaterialCount);
+            Assert.AreEqual(0, evaluation.ResultCardNumber);
+            Assert.AreEqual(EFusionOperationResult.RecipeNotFound, evaluation.BlockingResult);
         }
 
         [Test]
@@ -322,8 +373,9 @@ namespace Hearthstone.Tests
             Assert.IsTrue(runState.HasCard(55));
             CollectionAssert.AreEqual(new[] { 44, 55, 0, 0 }, session.FusionSlotCardNumbers);
 
-            runState.CardInstances[RunCardRules.FusionResultCardNumber] =
-                new RunCardInstanceData(RunCardRules.FusionResultCardNumber, 11, 15);
+            var resultCardNumber = RunCardRules.EvaluateFusion(runState, session).ResultCardNumber;
+            runState.CardInstances[resultCardNumber] =
+                new RunCardInstanceData(resultCardNumber, 11, 15);
             Assert.AreEqual(EFusionOperationResult.ResultAlreadyOwned,
                 RunCardRules.TryFuse(runState, session, out _));
             Assert.AreEqual(runRevision, runState.Revision.Value);
@@ -353,7 +405,7 @@ namespace Hearthstone.Tests
             Assert.Throws<ArgumentException>(() => new PreparationRewardBatchStartupData(
                 "duplicate", new[] { Grant(2), Grant(2), Grant(3), Grant(5), Grant(6) }));
             Assert.Throws<ArgumentOutOfRangeException>(() =>
-                new RewardCardGrantStartupData(RunCardRules.FusionResultCardNumber, 1, 1));
+                new RewardCardGrantStartupData(RunCardRules.LockedCardNumber, 1, 1));
         }
 
         [Test]
@@ -440,18 +492,16 @@ namespace Hearthstone.Tests
         public void PreparationPrefabsUseChineseFontAsset()
         {
             var font = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(
-                "Assets/Resources/Fonts/NotoSansSC-Dynamic SDF.asset");
+                "Assets/Resources/Fonts/NotoSansSC-SemiBold Dynamic SDF.asset");
             Assert.NotNull(font);
             const string requiredCharacters =
-                "备战阶段本轮获得张卡槽位池哥布林战士弓手投弹野猪食人魔融合造物出战素材合计";
+                "备战阶段卡槽位池哥布林战士弓手投弹野猪食人魔融合造物出战素材合计继续";
             Assert.IsTrue(font.HasCharacters(requiredCharacters));
 
             var prefabPaths = new[]
             {
                 "Assets/Resources/Ui/PreparationView.prefab",
-                "Assets/Resources/Ui/PreparationCardItem.prefab",
-                "Assets/Resources/Ui/PreparationSlotItem.prefab",
-                "Assets/Resources/Ui/PreparationFusionSlotItem.prefab",
+                "Assets/Resources/Ui/BattleCardItem.prefab",
             };
             foreach (var path in prefabPaths)
             {
@@ -465,18 +515,15 @@ namespace Hearthstone.Tests
         }
 
         [Test]
-        public void PreparationFusionPrefabsAndResourcesAreFullyExported()
+        public void PreparationSharedCardAndResourcesAreFullyExported()
         {
             ResourceApi.Initialize();
             var pagePrefab = AssetDatabase.LoadAssetAtPath<GameObject>(
                 "Assets/Resources/Ui/PreparationView.prefab");
             var cardPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(
-                "Assets/Resources/Ui/PreparationCardItem.prefab");
-            var fusionSlotPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(
-                "Assets/Resources/Ui/PreparationFusionSlotItem.prefab");
+                "Assets/Resources/Ui/BattleCardItem.prefab");
             Assert.NotNull(pagePrefab);
             Assert.NotNull(cardPrefab);
-            Assert.NotNull(fusionSlotPrefab);
 
             var page = pagePrefab.GetComponent<PreparationView>();
             Assert.NotNull(page.BattleTabButton);
@@ -490,29 +537,208 @@ namespace Hearthstone.Tests
             Assert.NotNull(page.FusionButton);
             Assert.NotNull(page.FusionButtonAttemptListener);
             Assert.NotNull(page.FusionAreaInteractor);
+            Assert.NotNull(page.FusionRevealOverlay);
+            Assert.NotNull(page.FusionRevealCanvasGroup);
+            Assert.NotNull(page.FusionRevealCardRoot);
+            Assert.NotNull(page.FusionRevealCardList);
+            Assert.NotNull(page.FusionRevealSealedFace);
+            Assert.NotNull(page.FusionRevealCardBack);
+            Assert.NotNull(page.FusionRevealFlash);
+            Assert.NotNull(page.FusionRevealFlashCanvasGroup);
+            Assert.IsTrue(page.FusionRevealCanvasGroup.blocksRaycasts);
+            Assert.AreEqual(UiList.EArrangement.Manual, page.FusionRevealCardList.ArragementType);
+            Assert.AreEqual(180f, page.FusionRevealCardBack.transform.localEulerAngles.y, 0.01f);
+            Assert.NotNull(page.FusionRevealFlash.parent.GetComponent<RectMask2D>());
+            Assert.AreEqual(
+                pagePrefab.transform.childCount - 1,
+                page.FusionRevealOverlay.transform.GetSiblingIndex());
             Assert.NotNull(page.CardPoolInteractor);
+            Assert.NotNull(page.OwnedOnlyToggle);
+            Assert.NotNull(page.OwnedOnlyLabel);
+            Assert.IsFalse(page.OwnedOnlyToggle.isOn);
+            Assert.AreEqual("查看拥有", page.OwnedOnlyLabel.text);
+            Assert.AreSame(
+                page.OwnedOnlyToggle.transform,
+                pagePrefab.transform.Find("CardPoolPanel/OwnedOnlyToggle"));
+            Assert.IsNull(pagePrefab.transform.Find("RewardPanel"));
+            Assert.IsNull(pagePrefab.transform.Find("CardPoolPanel/PoolTitle"));
+            Assert.IsNull(pagePrefab.transform.Find("ContinueButton/AuxiliaryLabel"));
+            Assert.AreEqual("继续", page.ContinueMainText.text);
+            Assert.AreEqual("PreparationTabSelectedV2", page.BattleTabImage.sprite.name);
+            Assert.AreEqual("PreparationTabIdleV2", page.FusionTabImage.sprite.name);
 
-            var card = cardPrefab.GetComponent<PreparationCardItemView>();
-            Assert.NotNull(card.MaterialSelectedState);
-            Assert.NotNull(card.EmptyAttemptListener);
-            Assert.NotNull(fusionSlotPrefab.GetComponent<PreparationFusionSlotItemView>());
+            var titleFrame = pagePrefab.transform.Find("TitleFrame");
+            var titleText = titleFrame.Find("Title").GetComponent<TextMeshProUGUI>();
+            Assert.AreEqual(new Vector2(580f, 110f), ((RectTransform)titleFrame).sizeDelta);
+            Assert.AreEqual(46f, titleText.fontSize);
+            Assert.AreEqual(TextAlignmentOptions.Center, titleText.alignment);
+            Assert.AreEqual(new Vector2(0f, 2f), ((RectTransform)titleText.transform).anchoredPosition);
+
+            var battleTabText = page.BattleTabButton.transform.Find("Label").GetComponent<TextMeshProUGUI>();
+            var fusionTabText = page.FusionTabButton.transform.Find("Label").GetComponent<TextMeshProUGUI>();
+            Assert.AreEqual(31f, battleTabText.fontSize);
+            Assert.AreEqual(31f, fusionTabText.fontSize);
+            Assert.AreEqual(TextAlignmentOptions.Center, battleTabText.alignment);
+            Assert.AreEqual(TextAlignmentOptions.Center, fusionTabText.alignment);
+            Assert.AreEqual(new Vector2(0f, 4f), ((RectTransform)battleTabText.transform).anchoredPosition);
+            Assert.AreEqual(new Vector2(0f, 4f), ((RectTransform)fusionTabText.transform).anchoredPosition);
+
+            Assert.AreEqual(TextAlignmentOptions.Center, page.ContinueMainText.alignment);
+            Assert.AreEqual(
+                new Vector2(0f, 3f),
+                ((RectTransform)page.ContinueMainText.transform).anchoredPosition);
+
+            var battleTabRect = (RectTransform)page.BattleTabButton.transform;
+            var fusionTabRect = (RectTransform)page.FusionTabButton.transform;
+            Assert.AreEqual(new Vector2(0f, 1f), battleTabRect.anchorMin);
+            Assert.AreEqual(new Vector2(0f, 1f), fusionTabRect.anchorMin);
+            Assert.That(battleTabRect.anchoredPosition.x, Is.LessThan(fusionTabRect.anchoredPosition.x));
+            Assert.AreEqual(-58f, battleTabRect.anchoredPosition.y);
+            Assert.AreEqual(-58f, fusionTabRect.anchoredPosition.y);
+            Assert.AreEqual(-130f, ((RectTransform)page.BattleSlotList.transform).anchoredPosition.y);
+
+            var poolPanelRect = (RectTransform)page.CardPoolInteractor.transform;
+            Assert.AreEqual(new Vector2(1780f, 630f), poolPanelRect.sizeDelta);
+            Assert.AreEqual(new Vector2(1650f, 510f), ((RectTransform)page.CardPoolScrollRect.transform).sizeDelta);
+            Assert.AreEqual(new Vector2(0f, -10f), ((RectTransform)page.CardPoolScrollRect.transform).anchoredPosition);
+            var ownedOnlyRect = (RectTransform)page.OwnedOnlyToggle.transform;
+            Assert.AreEqual(new Vector2(240f, 42f), ownedOnlyRect.sizeDelta);
+            Assert.AreEqual(new Vector2(-770f, 285f), ownedOnlyRect.anchoredPosition);
+            Assert.AreEqual(
+                "PreparationTabSelected",
+                page.OwnedOnlyToggle.transform.Find("Box").GetComponent<Image>().sprite.name);
+            Assert.AreEqual(
+                "PreparationTabIdle",
+                page.OwnedOnlyToggle.targetGraphic.GetComponent<Image>().sprite.name);
+            var filterFrameTexture = page.OwnedOnlyToggle.targetGraphic.GetComponent<Image>().sprite.texture;
+            Assert.AreEqual(1536, filterFrameTexture.width);
+            Assert.AreEqual(270, filterFrameTexture.height);
+            var filterFrameImporter = AssetImporter.GetAtPath(
+                AssetDatabase.GetAssetPath(filterFrameTexture)) as TextureImporter;
+            Assert.NotNull(filterFrameImporter);
+            Assert.IsTrue(filterFrameImporter.DoesSourceTextureHaveAlpha());
+
+            var card = cardPrefab.GetComponent<BattleCardItemView>();
+            Assert.NotNull(card.PreparationMaterialSelectedState);
+            Assert.NotNull(card.PreparationEmptyAttemptListener);
+            Assert.NotNull(card.PreparationBattleSlotEmptyState);
+            Assert.NotNull(card.PreparationFusionSlotEmptyState);
+            Assert.NotNull(card.PreparationDropHighlight);
 
             var mappings = UiApi.CapturePreloadedUiPrefabPathsForValidation();
-            Assert.AreEqual("Ui/PreparationFusionSlotItem",
-                mappings[typeof(PreparationFusionSlotItemController).FullName]);
+            Assert.AreEqual("Ui/BattleCardItem",
+                mappings[typeof(BattleCardItemController).FullName]);
             Assert.NotNull(Resources.Load<UiSceneAsset>("Ui/Preparation"));
-            Assert.AreEqual(15, RunCardRules.CardRowCount);
-            Assert.AreEqual(99, RunCardRules.LastCardNumber);
+            Assert.AreEqual(31, RunCardRules.CardRowCount);
+            Assert.AreEqual(213, RunCardRules.LastCardNumber);
 
             var spriteKeys = new[]
             {
-                "PreparationTabIdle", "PreparationTabSelected", "PreparationFusionSlotFrame",
+                "PreparationTabIdle", "PreparationTabIdleV2", "PreparationTabSelectedV2",
+                "PreparationTabSelected",
+                "PreparationFusionSlotFrame",
                 "PreparationFusionSumPanel", "PreparationFusionButtonDisabled",
                 "PreparationFusionButtonEnabled", "PreparationFusionButtonPressed",
                 "PreparationMaterialSelected", "FusionCard_099",
             };
             foreach (var key in spriteKeys)
                 Assert.NotNull(ResourceApi.LoadSprite(key), key);
+        }
+
+        [Test]
+        public void PreparationOwnedFilterRebuildsSharedPoolInNumberOrder()
+        {
+            var controllerScript = AssetDatabase.LoadAssetAtPath<MonoScript>(
+                "Assets/Scripts/Hearthstone/Ui/Controller/PreparationController.cs");
+            Assert.NotNull(controllerScript);
+            StringAssert.Contains(
+                "m_View.OwnedOnlyToggle.onValueChanged.AddListener(OnOwnedOnlyChanged)",
+                controllerScript.text);
+            StringAssert.Contains(
+                "for (var cardNumber = RunCardRules.FirstCardNumber;",
+                controllerScript.text);
+            StringAssert.Contains(
+                "m_ShowOwnedOnly && m_RunState.HasCard(cardNumber) == false",
+                controllerScript.text);
+            StringAssert.Contains("item.BindPreparation(this, cardNumber, displayNumber)", controllerScript.text);
+            StringAssert.Contains("nextLegendaryDisplayNumber++", controllerScript.text);
+            StringAssert.Contains("SetIsOnWithoutNotify(false)", controllerScript.text);
+            StringAssert.Contains("verticalNormalizedPosition = 1f", controllerScript.text);
+            StringAssert.Contains("HasOwnedCardSetChanged()", controllerScript.text);
+            var resizeIndex = controllerScript.text.IndexOf("poolContent.SetSizeWithCurrentAnchors", StringComparison.Ordinal);
+            Assert.GreaterOrEqual(resizeIndex, 0);
+            var relayoutIndex = controllerScript.text.IndexOf(
+                "m_View.CardPoolList.RefreshLayout();",
+                resizeIndex,
+                StringComparison.Ordinal);
+            Assert.Greater(
+                relayoutIndex,
+                resizeIndex,
+                "Filtered card items must be laid out again after the scroll content height changes.");
+        }
+
+        [Test]
+        public void FusionRevealUsesScalePulseReducedSpeedAndRegisteredAudio()
+        {
+            ResourceApi.Initialize();
+            var controllerScript = AssetDatabase.LoadAssetAtPath<MonoScript>(
+                "Assets/Scripts/Hearthstone/Ui/Controller/PreparationController.cs");
+            Assert.NotNull(controllerScript);
+            StringAssert.Contains("FusionRevealPlaybackSpeed = 0.8f", controllerScript.text);
+            StringAssert.Contains("FusionRevealPeakScale = 1.28f", controllerScript.text);
+            StringAssert.Contains(
+                "rotationProgress / FusionRevealResultRotationProgress",
+                controllerScript.text);
+            StringAssert.Contains("FusionRevealMotionAudioKey = \"card-shuffle\"", controllerScript.text);
+            StringAssert.Contains("FusionRevealMomentAudioKey = \"highUp\"", controllerScript.text);
+            StringAssert.Contains("m_FusionRevealMomentAudioPlayed == false", controllerScript.text);
+            StringAssert.Contains("StopFusionRevealAudio();", controllerScript.text);
+
+            var motionClip = AssetDatabase.LoadAssetAtPath<AudioClip>(
+                "Assets/Resources/BbxCommon/Audio/Library/Casino Audio/card-shuffle.ogg");
+            var revealClip = AssetDatabase.LoadAssetAtPath<AudioClip>(
+                "Assets/Resources/BbxCommon/Audio/Library/Digital Audio/highUp.ogg");
+            Assert.NotNull(motionClip);
+            Assert.NotNull(revealClip);
+            Assert.NotNull(ResourceApi.GetFile("card-shuffle"));
+            Assert.NotNull(ResourceApi.GetFile("highUp"));
+            Assert.That(motionClip.length, Is.GreaterThan(3f));
+            Assert.That(revealClip.length, Is.InRange(0.5f, 0.6f));
+        }
+
+        [Test]
+        public void PreparationCardPoolPanelUsesSparseLightPatternBehindScrollContent()
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(
+                "Assets/Resources/Ui/PreparationView.prefab");
+            Assert.NotNull(prefab);
+
+            var panel = prefab.transform.Find("CardPoolPanel");
+            var pattern = panel != null ? panel.Find("BluePanelPattern") : null;
+            var scrollRect = panel != null ? panel.Find("ScrollRect") : null;
+            Assert.NotNull(panel);
+            Assert.NotNull(pattern);
+            Assert.NotNull(scrollRect);
+            Assert.That(pattern.GetSiblingIndex(), Is.LessThan(scrollRect.GetSiblingIndex()));
+
+            var patternRect = (RectTransform)pattern;
+            Assert.AreEqual(new Vector2(1600f, 500f), patternRect.sizeDelta);
+            Assert.AreEqual(6, pattern.Cast<Transform>().Count(child => child.name.StartsWith("Diamond")));
+            Assert.AreEqual(12, pattern.Cast<Transform>().Count(child => child.name.StartsWith("Dot")));
+
+            var images = pattern.GetComponentsInChildren<Image>(true);
+            Assert.AreEqual(36, images.Length);
+            foreach (var image in images)
+            {
+                Assert.IsFalse(image.raycastTarget, image.name);
+                Assert.That(image.color.r, Is.EqualTo(0.72f).Within(0.001f), image.name);
+                Assert.That(image.color.g, Is.EqualTo(0.88f).Within(0.001f), image.name);
+                Assert.That(image.color.b, Is.EqualTo(1f).Within(0.001f), image.name);
+                Assert.That(image.color.a, Is.InRange(0.05f, 0.075f), image.name);
+            }
+
+            var raycastablePatternImages = images.Where(image => image.raycastTarget).ToArray();
+            Assert.IsEmpty(raycastablePatternImages);
         }
 
         [Test]
@@ -529,7 +755,7 @@ namespace Hearthstone.Tests
                 var viewPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(
                     "Assets/Resources/Ui/PreparationView.prefab");
                 var itemPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(
-                    "Assets/Resources/Ui/PreparationCardItem.prefab");
+                    "Assets/Resources/Ui/BattleCardItem.prefab");
                 Assert.NotNull(viewPrefab);
                 Assert.NotNull(itemPrefab);
 
@@ -548,7 +774,7 @@ namespace Hearthstone.Tests
                 Assert.NotNull(viewportRectMask);
 
                 controllerObject = new GameObject(
-                    "PreparationCardItemController",
+                    "BattleCardItemController",
                     typeof(RectTransform));
                 controllerObject.transform.SetParent(scrollRect.content, false);
                 var itemObject = UnityEngine.Object.Instantiate(

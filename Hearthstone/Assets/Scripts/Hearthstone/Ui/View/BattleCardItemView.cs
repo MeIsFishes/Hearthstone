@@ -21,10 +21,16 @@ namespace Hearthstone
         public TMP_Text AttackText;
         public TMP_Text HealthText;
         public GameObject PreparationEmptyState;
+        public GameObject PreparationBattleSlotEmptyState;
+        public GameObject PreparationFusionSlotEmptyState;
         public GameObject PreparationMaterialSelectedState;
+        public GameObject PreparationDeployedState;
+        public Image PreparationDropHighlight;
+        public Image CardHoverInput;
         public UiDragable PreparationDragable;
         public UiInteractor PreparationInteractor;
         public UiEventListener PreparationEmptyAttemptListener;
+        public UiEventListener CardHoverListener;
 
         public override Type GetControllerType()
         {

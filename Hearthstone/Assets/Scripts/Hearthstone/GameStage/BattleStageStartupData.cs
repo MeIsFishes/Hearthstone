@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using BbxCommon;
+using Random = Unity.Mathematics.Random;
 
 namespace Hearthstone
 {
@@ -119,6 +121,60 @@ namespace Hearthstone
         }
     }
 
+    public static class PreparationRewardBatchFactory
+    {
+        public static PreparationRewardBatchStartupData CreateRandom(
+            string batchId,
+            Predicate<int> isUnavailable,
+            ref Random random)
+        {
+            if (string.IsNullOrWhiteSpace(batchId))
+                throw new ArgumentException("Reward batch id cannot be empty.", nameof(batchId));
+            if (random.state == 0)
+                throw new ArgumentException("Reward random state cannot be zero.", nameof(random));
+
+            var candidates = new int[
+                RunCardRules.LastOrdinaryCardNumber - RunCardRules.FirstCardNumber + 1];
+            var candidateCount = 0;
+            for (var cardNumber = RunCardRules.FirstCardNumber;
+                 cardNumber <= RunCardRules.LastOrdinaryCardNumber;
+                 cardNumber++)
+            {
+                var card = DataApi.GetData<BattleCardCsvData>(cardNumber)
+                    ?? throw new InvalidOperationException($"Reward card configuration {cardNumber} is missing.");
+                if (DataApi.GetData<BattleCardTypeCsvData>(card.CardTypeId) == null)
+                    throw new InvalidOperationException($"Reward card type {card.CardTypeId} is missing.");
+                if (isUnavailable != null && isUnavailable(cardNumber))
+                    continue;
+                candidates[candidateCount++] = cardNumber;
+            }
+
+            if (candidateCount < RunCardRules.RewardGrantCount)
+            {
+                throw new InvalidOperationException(
+                    $"Only {candidateCount} ordinary reward cards are available; " +
+                    $"{RunCardRules.RewardGrantCount} are required.");
+            }
+
+            var grants = new RewardCardGrantStartupData[RunCardRules.RewardGrantCount];
+            for (var index = 0; index < grants.Length; index++)
+            {
+                var selectedIndex = random.NextInt(index, candidateCount);
+                var cardNumber = candidates[selectedIndex];
+                candidates[selectedIndex] = candidates[index];
+                candidates[index] = cardNumber;
+
+                var card = DataApi.GetData<BattleCardCsvData>(cardNumber);
+                var type = DataApi.GetData<BattleCardTypeCsvData>(card.CardTypeId);
+                grants[index] = new RewardCardGrantStartupData(
+                    cardNumber,
+                    type.RollAttack(ref random),
+                    type.RollHealth(ref random));
+            }
+            return new PreparationRewardBatchStartupData(batchId, grants);
+        }
+    }
+
     public sealed class BattleStageStartupData
     {
         public int BattleNumber { get; }
@@ -162,16 +218,27 @@ namespace Hearthstone
 
         public static BattleStageStartupData CreateDefault()
         {
-            return new BattleStageStartupData(1, new PreparationRewardBatchStartupData(
-                "initial-battle-reward-001",
-                new[]
-                {
-                    new RewardCardGrantStartupData(2, 5, 3),
-                    new RewardCardGrantStartupData(3, 4, 4),
-                    new RewardCardGrantStartupData(5, 3, 5),
-                    new RewardCardGrantStartupData(6, 5, 4),
-                    new RewardCardGrantStartupData(7, 6, 2),
-                }));
+            return CreateDefault(BattleRules.NormalizeSeed(unchecked((uint)DateTime.UtcNow.Ticks)));
+        }
+
+        public static BattleStageStartupData CreateDefault(uint rewardRandomSeed)
+        {
+            var random = new Random(BattleRules.NormalizeSeed(rewardRandomSeed));
+            var rewardBatch = PreparationRewardBatchFactory.CreateRandom(
+                "battle-001-reward",
+                IsInitialPlayerCard,
+                ref random);
+            return new BattleStageStartupData(1, rewardBatch);
+        }
+
+        private static bool IsInitialPlayerCard(int cardNumber)
+        {
+            for (var slot = 0; slot < BattleRules.CardsPerSide; slot++)
+            {
+                if (BattleRules.GetCardNumber(EBattleSide.Player, slot) == cardNumber)
+                    return true;
+            }
+            return false;
         }
     }
 }

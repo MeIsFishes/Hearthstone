@@ -1,0 +1,34 @@
+# 查看拥有筛选消失问题检查清单
+
+- [x] 复现并定位“勾选查看拥有后列表为空、取消勾选后卡片仍消失”的直接原因。
+  - 证据：筛选重建先按旧 Content 高度排卡，随后修改高度却未重排，现存条目坐标因此落在 ScrollRect 裁剪区外；反选时又沿用缩小高度创建全部条目。
+- [x] 勾选“查看拥有”时只显示当前确实拥有的卡牌，并保持既有稳定编号和排序。
+  - 证据：保留原 `HasCard()` 过滤和卡号升序循环，在最终高度上重新调用 `RefreshLayout()`；显示编号仍在过滤前计算。
+- [x] 取消勾选后完整恢复全部卡池条目，不遗留隐藏、关闭或失效的共享卡片实例。
+  - 证据：原 `ClearItems()`/`AddItem<BattleCardItemController>()` 生命周期不变；新高度确定后统一重排所有重新打开的条目。
+- [x] 筛选反复切换时结果可逆且幂等，不重复创建失控条目、不污染拥有状态。
+  - 证据：每次切换仍先由 UiList 回收旧条目再按布尔筛选重建；新增调用只更新布局坐标，不写 Run state。
+- [x] 保持卡片上滚轮转发、空槽滚动、悬停与拖拽等备战交互不变。
+  - 证据：未修改 `BattleCardItemController`、ScrollRect 事件、拖拽返回或输入开关，仅在卡池高度更新后调用现有布局 API。
+- [x] 遵循 BbxCommon UI 与 UiList 生命周期，使用既有列表公开 API，不自行管理 Controller 池。
+  - 证据：修复使用 `m_View.CardPoolList.RefreshLayout()`；条目继续由 `ClearItems()`/`AddItem<T>()` 管理。
+- [x] 检查动态传奇展示编号在过滤前计算，筛选切换后编号不漂移。
+  - 证据：`displayNumber` 与传奇游标递增仍位于 `m_ShowOwnedOnly` 的 continue 判断之前，未被修改。
+- [x] 补充定向 Editor 测试，覆盖拥有筛选、取消筛选及反复切换的列表生成语义。
+  - 证据：扩充 `PreparationOwnedFilterRebuildsSharedPoolInNumberOrder`，断言 Content 改高后必须执行重排；全量 EditMode 68/68 通过。
+- [x] 完成相关程序集编译、Unity 脚本校验和静态检查；默认不主动进入 Play Mode。
+  - 证据：Controller Unity 标准校验 0 warning/0 error；三个程序集均 0 error；定向 `git diff --check` 通过；未进入 Play Mode。
+- [x] 检查工作区已有修改，不回退无关内容，不创建、编辑或删除 `.meta`。
+  - 证据：代码变更仅涉及备战 Controller 和对应测试，另同步直接相关程序文档与临时文档；`.meta` 差异为空。
+- [x] 检查修复是否最小且位于现有 Controller/UiList 数据流内，不新增一次性抽象。
+  - 证据：生产代码只新增一条现有公开 API 调用，没有新增字段、函数、类型或框架修改。
+- [x] 玩家视角设计文档：读取适用格式 skill，按实际筛选行为同步或说明不适用。
+  - 证据：已完整读取 `design-doc-format` 和现有备战卡池设计文档；文档已明确勾选只显示拥有、反选恢复全表、切换后重排并回顶部，修复使实现重新符合该现状，无需改文。
+- [x] 美术文档：读取适用格式 skill，按实际资源与视觉变化同步或说明不适用。
+  - 证据：已完整读取 `art-doc-writer` 与备战卡池美术模块文档；本次不改布局规格、图片、颜色、Prefab 或 Builder，仅修正运行时坐标刷新，现有美术事实不变。
+- [x] 程序文档：读取适用格式 skill，按实际筛选与列表生命周期同步。
+  - 证据：已完整读取 `program-doc-format`、UI 界面格式和备战程序文档；已在 `AutoDoc/Program/UI/preparation/preparation.md` 补充改高后重排的顺序与裁剪边界说明。
+- [x] 框架边界审计：确认未绕过共享卡牌 UI、UiList、Controller 生命周期或 Prefab/Builder 配置源。
+  - 证据：共享卡片、UiList 对象池和 Controller 生命周期保持不变；没有直接操作池、手写 Prefab 或平行列表实现。
+- [x] 结束前逐项复核，仅运行一次 `AutoDoc/CleanupTempDocs.bat`，随后生成同名任务报告。
+  - 证据：本清单已逐项复核；下一步仅执行一次清理并在清理后创建报告。
