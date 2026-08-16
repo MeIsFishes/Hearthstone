@@ -55,3 +55,6 @@ Desktop.ini
 # Unity crash reports
 sysinfo.txt
 crashlytics-build.properties
+
+# Temporary project documentation
+Hearthstone/AutoDoc/Temp/

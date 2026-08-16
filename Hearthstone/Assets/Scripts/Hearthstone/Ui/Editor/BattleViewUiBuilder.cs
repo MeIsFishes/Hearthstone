@@ -88,7 +88,7 @@ namespace Hearthstone
             daggerRect.anchorMax = new Vector2(0f, 1f);
             daggerRect.pivot = new Vector2(0.5f, 0.5f);
             daggerRect.sizeDelta = new Vector2(420f, 630f);
-            daggerRect.anchoredPosition = new Vector2(220f, -280f);
+            daggerRect.anchoredPosition = new Vector2(220f, -250f);
             daggerRect.localScale = new Vector3(-1f, 1f, 1f);
             var daggerImage = PreparationUiBuilderUtility.AddImage(dagger, LoadSprite(CornerDaggerPath));
             daggerImage.preserveAspect = true;

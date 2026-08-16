@@ -36,14 +36,6 @@ namespace BbxCommon.Internal
             return nextHandle;
         }
 
-        internal static void StopBgm(float fadeOutDurationSeconds)
-        {
-            if (m_Driver != null && m_Driver.IsPlaying(m_BgmHandle))
-                m_Driver.FadeOut(m_BgmHandle, fadeOutDurationSeconds);
-            m_BgmHandle = default;
-            m_BgmKey = null;
-        }
-
         internal static void Stop(AudioHandle handle)
         {
             if (m_Driver != null)

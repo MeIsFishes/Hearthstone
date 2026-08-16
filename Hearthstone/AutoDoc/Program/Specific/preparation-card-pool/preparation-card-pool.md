@@ -37,7 +37,7 @@
 
 ## 4. Stage 链路
 
-引擎 `OnAwake()` 不创建本局持久状态，也不在此时读取卡牌配置。Game Engine Stage 完成 `GameEngineDefault` 数据组加载后，首次 `OnStageLoadingCompleted()` 只请求单独的 `MainMenuStage`。玩家点击“开始游戏”时，`StartNewRun()` 才创建 `RunStateStage` 并调用 `BeginPreparationForBattle(1)`，读取 `BattleProgressionCsvData` 第 1 行，随机摸 3 张卡、累计解锁 2 槽并请求 `RunStateStage + PreparationStage`。
+引擎 `OnAwake()` 不创建本局持久状态，也不在此时读取卡牌配置。Game Engine Stage 完成 `GameEngineDefault` 数据组加载后，首次 `OnStageLoadingCompleted()` 只请求单独的 `MainMenuStage`。玩家点击“开始游戏”时，`StartNewRun()` 才创建 `RunStateStage` 并调用 `BeginPreparationForBattle(1)`，读取 `BattleProgressionCsvData` 第 1 行，随机摸 3 张卡、累计解锁 2 槽并请求 `RunStateStage + PreparationStage`。MainMenu 与 Preparation Group 确认加载完成后都调用 `AudioApi.SetBgm("Lobby")`；同曲请求复用正在播放的 BGM，因此首轮备战不会重启大厅曲，战斗结算进入后续备战时则从结算曲切回大厅曲。
 
 玩家战斗 Entity 始终从 Continue 捕获的当前 `2~6` 个已解锁槽位实例创建，当前生命以永久最大生命初始化；因此 `100~213` 的融合卡使用融合得到的永久攻血、词条和运行时等阶，不读取其空白类型数值。玩家 Entity 同时保留实际结果编号/类型与表现编号/类型，四卡结果的卡面和攻击表现读取三卡表现类型，战斗效果仍读取融合实例词条和属性。随机摸牌仍只从 `1~98` 的既有编号与类型 `1~5` 配置生成。进入每轮备战前，引擎以独立种子从 `EnemyLineupCsvData` 的同关多行中抽取一整行：基础卡直接按对应类型范围生成攻血，融合卡先按配方生成基础素材再复用共享融合合成函数，生成完成后的完整敌方实例与随机状态共同写入 `EnemyBattlePreviewStartupData`。
 

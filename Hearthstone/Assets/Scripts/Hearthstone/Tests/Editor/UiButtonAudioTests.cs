@@ -51,6 +51,19 @@ namespace Hearthstone.Tests
         }
 
         [Test]
+        public void BgmAssetsAreInPlayerResourceIndex()
+        {
+            var resourceIndex = AssetDatabase.LoadAssetAtPath<TextAsset>(
+                "Assets/Resources/ResourcesDictionary.json");
+
+            Assert.NotNull(resourceIndex);
+            StringAssert.IsMatch("\\\"(?:\\d+, )?Key\\\":\\\"Lobby\\\",\\\"(?:\\d+, )?Value\\\":\\\"BGM/Lobby\\\"", resourceIndex.text);
+            StringAssert.IsMatch("\\\"(?:\\d+, )?Key\\\":\\\"Battle\\\",\\\"(?:\\d+, )?Value\\\":\\\"BGM/Battle\\\"", resourceIndex.text);
+            StringAssert.IsMatch("\\\"(?:\\d+, )?Key\\\":\\\"Win\\\",\\\"(?:\\d+, )?Value\\\":\\\"BGM/Win\\\"", resourceIndex.text);
+            StringAssert.IsMatch("\\\"(?:\\d+, )?Key\\\":\\\"Failed\\\",\\\"(?:\\d+, )?Value\\\":\\\"BGM/Failed\\\"", resourceIndex.text);
+        }
+
+        [Test]
         public void SetBgmTransitionDurationIsOptional()
         {
             var method = typeof(AudioApi).GetMethod(

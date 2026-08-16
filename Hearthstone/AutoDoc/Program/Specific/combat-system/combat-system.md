@@ -36,6 +36,8 @@
 
 `BattleResultPreparationStageListener` 监听 `OutcomePresentationCompleted`。只有非最终轮的玩家胜利会在横幅完整演出后调用 `BeginPreparationForBattle(BattleNumber + 1)`；失败与最终轮胜利留在当前 BattleStage，由结果弹窗等待玩家返回主菜单。
 
+`BattleBgmStageListener` 监听 `BattleSessionSingletonRawComponent.Result`。结果变为玩家胜利时调用 `AudioApi.SetBgm("Win", 0.5f, loop: false)`，变为敌方胜利时调用 `AudioApi.SetBgm("Failed", 0.5f, loop: false)`；其他结果不触发切换。统一的 `0.5 s` 参数同时驱动旧战斗曲淡出和结算曲淡入，非循环结算曲自然结束后只回收播放句柄，不触发后继 BGM。
+
 ### 2.3 关联Task启动入口
 
 当前无。
@@ -45,7 +47,7 @@
 1. `HearthstoneGameEngine.OnAwake()` 不创建本局状态；`GameEngineDefault` 数据加载完成后先单独进入 `MainMenuStage`。玩家点击“开始游戏”后，引擎创建 `RunStateStage`、调用 `BeginPreparationForBattle(1)`，按轮次表生成首轮 3 张随机卡、累计解锁 2 槽，并进入 `RunStateStage + PreparationStage`。
 2. Continue 捕获当前 `2~6` 个已解锁槽位的防御性阵容快照，进入同轮编号的 `RunStateStage + BattleStage`；`BattleStage.InitializeBattleRuntime.Load()` 按快照创建动态玩家 Entity，从本轮敌方阵容多行配置中随机选一行并创建动态敌方 Entity，同时按轮次表是否存在下一行写入 `IsFinalBattle`。
 3. `BattleUiScene` 通过 `Ui/Battle` 的 `UiSceneAsset` 创建 `BattleView`；`BattleController` 通过两个 `UiList` 创建 `BattleCardItemController` 并绑定卡牌 Entity。
-4. `BattleSystem.OnSystemUpdate()` 按各自实际数组长度选择攻击者与随机存活目标，发布攻击表现序列，以 `0.8` 倍速推进共享表现时钟，并在该时钟到达配置时点后写入伤害；完整表现结束前不推进下一单位，战斗继续时等待 `1.25 s`，一方耗尽时等待 `0.5 s` 后提交结果。
+4. Battle Group 确认加载完成后，引擎通过 `AudioApi.SetBgm("Battle")` 循环播放 `Assets/Resources/BGM/Battle.mp3`，该资源是当前第一首战斗曲。`BattleSystem.OnSystemUpdate()` 按各自实际数组长度选择攻击者与随机存活目标，发布攻击表现序列，以 `0.8` 倍速推进共享表现时钟，并在该时钟到达配置时点后写入伤害；完整表现结束前不推进下一单位，战斗继续时等待 `1.25 s`，一方耗尽时等待 `0.5 s` 后提交结果。
 5. `BattleController` 和卡牌条目 Controller 通过 ModelWrapper 监听会话与卡牌 Component，刷新行动方、结果、攻击、生命、存活状态、高亮以及卡面攻击表现；卡牌首次绑定时根据表现来源编号与类型读取原画、名称和攻击帧，根据实际 `Keywords` 控制嘲讽盾牌轮廓并组合词条说明，攻血数字分别和 Component 中的入场基准比较后显示红、白或蓝色。`CurrentHealth` 下降时监听器按前后值差显示伤害浮字，攻血数值上升时播放双文本滑动过渡；新的攻击表现序列还会按攻击者实际词条触发冲锋号角与远射弓箭图标。
 6. 玩家非最终轮胜利时，横幅从左入场、中央停留、向右离场，完成后 StageListener 进入下一轮备战；失败直接显示结果弹窗，最终轮胜利在横幅后显示整局胜利弹窗。两个弹窗的按钮都会调用 `EnterMainMenuStageGroup()` 返回单独的主菜单 StageGroup，不直接重建 RunStateStage；新一局仍由主菜单“开始游戏”触发。
 
@@ -55,7 +57,7 @@
 
 `InitializeBattleRuntime` 先创建 `BattleSessionSingletonRawComponent`，使用基于当前 UTC ticks 的非零随机种子初始化。玩家编号与永久攻血来自 Continue 捕获的当前 `2~6` 槽阵容；默认流程先以同一随机流从本关所有 `EnemyLineupCsvData` 行中等概率选择一套，并按列表长度创建敌方数组。`EnemyCardFactory` 委托公共 `BattleCardSimulationFactory`：基础敌卡按其种类闭区间生成攻血；融合敌卡按融合公式为每个类型随机选择互不重复的普通卡号、随机生成基础攻血，再调用 `RunCardRules.TryCreateFusionResultInstance()` 合计攻击、生命、词条、等阶与四卡表现来源。该公共模拟入口同时供图鉴以固定种子生成稳定融合预览。任一阵容、编号或种类配置缺失、类型关联失配或卡牌创建失败时，已创建的双方卡牌和会话单例会被清理后重新抛出异常。
 
-每次行动开始前与攻击表现完成后都根据双方实际槽位数和存活掩码调用 `BattleRules.EvaluateResult()`。敌方无存活卡牌时为玩家胜利；玩家无存活卡牌时为敌方胜利。候选结果先写入 `PendingResult` 并启动 `0.5 s` 倒计时，期间不再执行行动；倒计时结束才更新 `Result`。玩家胜利的结果表现倒计时覆盖横幅进入 `0.24 s`、停留 `0.68 s`、离开 `0.24 s`，最终发布完成标志。表现中途离场时，会话回收会清空挂起状态和监听变量。
+每次行动开始前与攻击表现完成后都根据双方实际槽位数和存活掩码调用 `BattleRules.EvaluateResult()`。敌方无存活卡牌时为玩家胜利；玩家无存活卡牌时为敌方胜利。候选结果先写入 `PendingResult` 并启动 `0.5 s` 倒计时，期间不再执行行动；倒计时结束才更新 `Result`，并由 `BattleBgmStageListener` 以 `0.5 s` 过渡切换到对应的非循环胜利或失败 BGM。玩家胜利的结果表现倒计时覆盖横幅进入 `0.24 s`、停留 `0.68 s`、离开 `0.24 s`，最终发布完成标志。表现中途离场时，会话回收会清空挂起状态和监听变量；BGM 由跨 Stage 常驻的音频管理器持有，后续只有实际 StageGroup 切换或新的显式 BGM 请求会替换它。
 
 ### 3.2 回合或阶段推进
 
@@ -82,6 +84,6 @@ Stage 卸载时逐一调用 `EcsApi.DestroyEntity()`。Component 回收时先 In
 | GameStage | 内容 |
 | --- | --- |
 | `RunStateStage` | 整局玩家卡牌实例、六槽阵容与已解锁槽位数；与 BattleStage 同组且在进入 PreparationStage 时继续存活；结算返回主菜单时不再作为活动 Stage，下一次开始游戏时由新局入口替换 |
-| `BattleStage` | `InitializeBattleRuntime` LoadItem、`BattleSystem` Update System、非最终胜利结果 StageListener、`BattleUiScene` 与 `Ui/Battle` 导出资产 |
+| `BattleStage` | `InitializeBattleRuntime` LoadItem、`BattleSystem` Update System、非最终胜利推进与胜负 BGM 两个 StageListener、`BattleUiScene` 与 `Ui/Battle` 导出资产 |
 
 四张战斗相关 CSV 与一张轮次推进 CSV 均属于全局 `GameEngineDefault` 数据组。引擎先初始化资源索引并通过 `ScriptableObjectAssets` 注册入口加载该组数据，进入主菜单；玩家开始新一局后才从第 1 轮 `PreparationStage` 进入战斗流程。

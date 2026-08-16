@@ -1,6 +1,0 @@
-diff --git a/Hearthstone/Assets/Resources/Config/BattleCardCsvData.csv b/Hearthstone/Assets/Resources/Config/BattleCardCsvData.csv
---- a/Hearthstone/Assets/Resources/Config/BattleCardCsvData.csv
-+++ b/Hearthstone/Assets/Resources/Config/BattleCardCsvData.csv
-@@ -44 +44 @@
--41,4,Boar
-+41,4,Boar_041

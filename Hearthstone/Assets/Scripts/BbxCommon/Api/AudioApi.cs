@@ -32,11 +32,6 @@ namespace BbxCommon
                 transitionDurationSeconds);
         }
 
-        public static void StopBgm(float fadeOutDurationSeconds = 0f)
-        {
-            Internal.AudioManager.StopBgm(fadeOutDurationSeconds);
-        }
-
         public static void Stop(AudioHandle handle)
         {
             Internal.AudioManager.Stop(handle);

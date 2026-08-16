@@ -1081,7 +1081,7 @@ namespace Hearthstone.Tests
             Assert.IsFalse(dagger.raycastTarget);
             Assert.AreEqual(new Vector2(0f, 1f), dagger.rectTransform.anchorMin);
             Assert.AreEqual(new Vector2(0f, 1f), dagger.rectTransform.anchorMax);
-            Assert.AreEqual(new Vector2(220f, -280f), dagger.rectTransform.anchoredPosition);
+            Assert.AreEqual(new Vector2(220f, -250f), dagger.rectTransform.anchoredPosition);
             Assert.AreEqual(new Vector2(420f, 630f), dagger.rectTransform.sizeDelta);
             Assert.AreEqual(new Vector3(-1f, 1f, 1f), dagger.rectTransform.localScale);
             Assert.Less(dagger.transform.GetSiblingIndex(), view.EnemyCardList.transform.GetSiblingIndex());
