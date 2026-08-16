@@ -61,7 +61,8 @@ namespace Hearthstone
             PreparationRewardBatchStartupData rewardBatch,
             int battleNumber,
             bool isFinalBattle,
-            int playerSlotCount)
+            int playerSlotCount,
+            int enemySlotCount = BattleRules.CardsPerSide)
         {
             if (rewardBatch == null)
                 throw new ArgumentNullException(nameof(rewardBatch));
@@ -70,8 +71,10 @@ namespace Hearthstone
             if (playerSlotCount < RunCardRules.InitialBattleSlotCount ||
                 playerSlotCount > RunCardRules.MaximumBattleSlotCount)
                 throw new ArgumentOutOfRangeException(nameof(playerSlotCount));
+            if (enemySlotCount <= 0 || enemySlotCount > RunCardRules.MaximumBattleSlotCount)
+                throw new ArgumentOutOfRangeException(nameof(enemySlotCount));
             PlayerCards = new Entity[playerSlotCount];
-            EnemyCards = new Entity[BattleRules.CardsPerSide];
+            EnemyCards = new Entity[enemySlotCount];
             BattleNumber = battleNumber;
             IsFinalBattle = isFinalBattle;
             PlayerAttackCursor = 0;

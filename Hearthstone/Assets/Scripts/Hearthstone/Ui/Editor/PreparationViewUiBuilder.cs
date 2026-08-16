@@ -43,6 +43,7 @@ namespace Hearthstone
                 CreateContinue(root.transform, view);
                 CreateTabs(root.transform, view);
                 CreateBattleOperation(root.transform, view);
+                CreateEnemyPreviewDrawer(root.transform, view);
                 CreateFusionOperation(root.transform, view);
                 CreatePool(root.transform, view);
                 CreateFusionRecommendationPopup(root.transform, view);
@@ -61,42 +62,29 @@ namespace Hearthstone
         {
             var titleFrame = PreparationUiBuilderUtility.CreateUiObject("TitleFrame", parent);
             PreparationUiBuilderUtility.SetRect(titleFrame, new Vector2(0.5f, 1f), new Vector2(580f, 110f), new Vector2(0f, -55f));
-            PreparationUiBuilderUtility.AddImage(
+            var titleFrameImage = PreparationUiBuilderUtility.AddImage(
                 titleFrame,
-                PreparationUiBuilderUtility.LoadSprite("PreparationStageTitleFrame"));
+                PreparationUiBuilderUtility.LoadMedievalParchmentControlSprite());
+            titleFrameImage.preserveAspect = false;
             var title = PreparationUiBuilderUtility.CreateUiObject("Title", titleFrame.transform);
             PreparationUiBuilderUtility.SetRect(
                 title,
                 new Vector2(0.5f, 0.5f),
                 new Vector2(580f, 110f),
                 new Vector2(0f, 2f));
-            PreparationUiBuilderUtility.AddText(title, "备战阶段", 46f);
+            var titleText = PreparationUiBuilderUtility.AddText(title, "备战阶段", 46f);
+            titleText.color = new Color(0.19f, 0.14f, 0.10f, 1f);
         }
 
         private static void CreateContinue(Transform parent, PreparationView view)
         {
-            var idle = PreparationUiBuilderUtility.LoadSprite("PreparationContinueButtonIdle");
-            var highlighted = PreparationUiBuilderUtility.LoadSprite("PreparationContinueButtonHighlighted");
-            var waiting = PreparationUiBuilderUtility.LoadSprite("PreparationContinueButtonWaiting");
-
             var root = PreparationUiBuilderUtility.CreateUiObject("ContinueButton", parent);
             PreparationUiBuilderUtility.SetRect(
                 root,
                 new Vector2(1f, 1f),
                 new Vector2(350f, 144f),
                 new Vector2(-220f, -120f));
-            var image = PreparationUiBuilderUtility.AddImage(root, idle, true);
-            var button = root.AddComponent<Button>();
-            button.targetGraphic = image;
-            button.transition = Selectable.Transition.SpriteSwap;
-            button.navigation = new Navigation { mode = Navigation.Mode.None };
-            button.spriteState = new SpriteState
-            {
-                highlightedSprite = highlighted,
-                pressedSprite = idle,
-                selectedSprite = idle,
-                disabledSprite = waiting,
-            };
+            var button = PreparationUiBuilderUtility.AddMedievalParchmentButton(root, out var image);
 
             var mainLabel = PreparationUiBuilderUtility.CreateUiObject("MainLabel", root.transform);
             PreparationUiBuilderUtility.SetRect(
@@ -105,6 +93,7 @@ namespace Hearthstone
                 new Vector2(250f, 64f),
                 new Vector2(0f, 3f));
             var mainText = PreparationUiBuilderUtility.AddText(mainLabel, "继续", 40f);
+            mainText.color = new Color(0.19f, 0.14f, 0.10f, 1f);
 
             var blocker = PreparationUiBuilderUtility.CreateUiObject("ContinueWaitingInputBlocker", root.transform);
             PreparationUiBuilderUtility.Stretch(blocker);
@@ -122,21 +111,20 @@ namespace Hearthstone
 
         private static void CreateTabs(Transform parent, PreparationView view)
         {
-            var idleSprite = PreparationUiBuilderUtility.LoadSprite("PreparationTabIdleV2");
-            var selectedSprite = PreparationUiBuilderUtility.LoadSprite("PreparationTabSelectedV2");
+            var controlSprite = PreparationUiBuilderUtility.LoadMedievalParchmentControlSprite();
             view.BattleTabButton = CreateTab(
                 parent,
                 "BattleTab",
                 "出战",
                 new Vector2(215f, -58f),
-                selectedSprite,
+                controlSprite,
                 out var battleImage);
             view.FusionTabButton = CreateTab(
                 parent,
                 "FusionTab",
                 "融合",
                 new Vector2(525f, -58f),
-                idleSprite,
+                controlSprite,
                 out var fusionImage);
             view.BattleTabImage = battleImage;
             view.FusionTabImage = fusionImage;
@@ -156,15 +144,29 @@ namespace Hearthstone
                 tab,
                 sprite,
                 true);
+            image.preserveAspect = false;
             var button = tab.AddComponent<Button>();
             button.targetGraphic = image;
+            button.transition = Selectable.Transition.ColorTint;
+            button.navigation = new Navigation { mode = Navigation.Mode.None };
+            button.colors = new ColorBlock
+            {
+                normalColor = Color.white,
+                highlightedColor = new Color(0.92f, 0.88f, 0.78f, 1f),
+                pressedColor = new Color(0.68f, 0.63f, 0.56f, 1f),
+                selectedColor = new Color(0.92f, 0.88f, 0.78f, 1f),
+                disabledColor = new Color(0.55f, 0.53f, 0.49f, 0.58f),
+                colorMultiplier = 1f,
+                fadeDuration = 0.08f,
+            };
             var text = PreparationUiBuilderUtility.CreateUiObject("Label", tab.transform);
             PreparationUiBuilderUtility.SetRect(
                 text,
                 new Vector2(0.5f, 0.5f),
                 new Vector2(250f, 70f),
                 new Vector2(0f, 4f));
-            PreparationUiBuilderUtility.AddText(text, label, 31f);
+            var tabText = PreparationUiBuilderUtility.AddText(text, label, 31f);
+            tabText.color = new Color(0.19f, 0.14f, 0.10f, 1f);
             return button;
         }
 
@@ -174,15 +176,112 @@ namespace Hearthstone
             PreparationUiBuilderUtility.SetRect(root, new Vector2(0.5f, 1f), new Vector2(1200f, 330f), new Vector2(0f, -300f));
 
             var listObject = PreparationUiBuilderUtility.CreateUiObject("BattleSlotList", root.transform);
-            PreparationUiBuilderUtility.SetRect(listObject, new Vector2(0.5f, 1f), new Vector2(1260f, 320f), new Vector2(0f, -130f));
+            PreparationUiBuilderUtility.SetRect(listObject, new Vector2(0.5f, 1f), new Vector2(1110f, 320f), new Vector2(0f, -130f));
             var list = listObject.AddComponent<UiList>();
             list.ArragementType = UiList.EArrangement.ConstantSlot;
             list.ConstantSlotDirection = UiList.EDirection.Horizontal;
             list.ConstantSlotSize = new Vector2(
-                205f,
-                205f * RunCardRules.CardAspectHeight / RunCardRules.CardAspectWidth);
+                185f,
+                185f * RunCardRules.CardAspectHeight / RunCardRules.CardAspectWidth);
             view.BattleOperationRoot = root;
             view.BattleSlotList = list;
+        }
+
+        private static void CreateEnemyPreviewDrawer(Transform parent, PreparationView view)
+        {
+            var drawerRoot = PreparationUiBuilderUtility.CreateUiObject("EnemyPreviewDrawer", parent);
+            var closedPosition = new Vector2(-508f, -300f);
+            var openPosition = new Vector2(978f, -300f);
+            PreparationUiBuilderUtility.SetRect(
+                drawerRoot,
+                new Vector2(0f, 1f),
+                new Vector2(1580f, 410f),
+                closedPosition);
+
+            var panel = PreparationUiBuilderUtility.CreateUiObject("Panel", drawerRoot.transform);
+            PreparationUiBuilderUtility.SetRect(
+                panel,
+                new Vector2(0.5f, 0.5f),
+                new Vector2(1500f, 400f),
+                new Vector2(-228f, 0f));
+            var panelImage = PreparationUiBuilderUtility.AddImage(
+                panel,
+                PreparationUiBuilderUtility.LoadSprite("PreparationEnemyPreviewPanel"));
+            panelImage.preserveAspect = false;
+            panelImage.raycastTarget = false;
+            var panelCanvasGroup = panel.AddComponent<CanvasGroup>();
+            panelCanvasGroup.alpha = 0f;
+            panelCanvasGroup.interactable = false;
+            panelCanvasGroup.blocksRaycasts = false;
+
+            var title = PreparationUiBuilderUtility.CreateUiObject("Title", panel.transform);
+            PreparationUiBuilderUtility.SetRect(
+                title,
+                new Vector2(0.5f, 0.5f),
+                new Vector2(230f, 90f),
+                new Vector2(-610f, 0f));
+            var titleText = PreparationUiBuilderUtility.AddText(title, "敌方阵容", 38f);
+            titleText.color = new Color(0.84f, 0.72f, 0.47f, 1f);
+
+            var listObject = PreparationUiBuilderUtility.CreateUiObject("CardList", panel.transform);
+            PreparationUiBuilderUtility.SetRect(
+                listObject,
+                new Vector2(0.5f, 0.5f),
+                new Vector2(1110f, 266.4f),
+                new Vector2(100f, 0f));
+            var list = listObject.AddComponent<UiList>();
+            list.ArragementType = UiList.EArrangement.ConstantSlot;
+            list.ConstantSlotDirection = UiList.EDirection.Horizontal;
+            list.ConstantSlotSize = new Vector2(
+                185f,
+                185f * RunCardRules.CardAspectHeight / RunCardRules.CardAspectWidth);
+
+            var toggle = PreparationUiBuilderUtility.CreateUiObject("Toggle", drawerRoot.transform);
+            PreparationUiBuilderUtility.SetRect(
+                toggle,
+                new Vector2(0.5f, 0.5f),
+                new Vector2(86f, 156f),
+                new Vector2(551f, 20f));
+            var toggleImage = PreparationUiBuilderUtility.AddImage(
+                toggle,
+                PreparationUiBuilderUtility.LoadSprite("PreparationEnemyPreviewToggle"),
+                true);
+            toggleImage.preserveAspect = false;
+            var toggleButton = toggle.AddComponent<Button>();
+            toggleButton.targetGraphic = toggleImage;
+            toggleButton.transition = Selectable.Transition.ColorTint;
+            toggleButton.navigation = new Navigation { mode = Navigation.Mode.None };
+            toggleButton.colors = new ColorBlock
+            {
+                normalColor = Color.white,
+                highlightedColor = new Color(1f, 0.96f, 0.82f, 1f),
+                pressedColor = new Color(0.72f, 0.66f, 0.55f, 1f),
+                selectedColor = Color.white,
+                disabledColor = new Color(0.55f, 0.52f, 0.47f, 0.55f),
+                colorMultiplier = 1f,
+                fadeDuration = 0.08f,
+            };
+
+            var arrow = PreparationUiBuilderUtility.CreateUiObject("ArrowHead", toggle.transform);
+            PreparationUiBuilderUtility.SetRect(
+                arrow,
+                new Vector2(0.5f, 0.5f),
+                new Vector2(66f, 72f),
+                Vector2.zero);
+            var arrowImage = PreparationUiBuilderUtility.AddImage(
+                arrow,
+                PreparationUiBuilderUtility.LoadSprite("PreparationEnemyPreviewArrow"));
+            arrowImage.preserveAspect = true;
+            arrowImage.raycastTarget = false;
+
+            view.EnemyPreviewDrawerRoot = (RectTransform)drawerRoot.transform;
+            view.EnemyPreviewPanelCanvasGroup = panelCanvasGroup;
+            view.EnemyPreviewToggleButton = toggleButton;
+            view.EnemyPreviewToggleArrow = (RectTransform)arrow.transform;
+            view.EnemyPreviewCardList = list;
+            view.EnemyPreviewClosedPosition = closedPosition;
+            view.EnemyPreviewOpenPosition = openPosition;
+            drawerRoot.SetActive(false);
         }
 
         private static void CreateFusionOperation(Transform parent, PreparationView view)
@@ -234,8 +333,8 @@ namespace Hearthstone
             PreparationUiBuilderUtility.SetRect(
                 currentPointLabelObject,
                 new Vector2(0f, 0.5f),
-                new Vector2(158f, 54f),
-                new Vector2(91f, 0f));
+                new Vector2(100f, 54f),
+                new Vector2(100f, 0f));
             var currentPointLabel = PreparationUiBuilderUtility.AddText(
                 currentPointLabelObject,
                 "当前点数",
@@ -248,8 +347,8 @@ namespace Hearthstone
             PreparationUiBuilderUtility.SetRect(
                 currentPointValueObject,
                 new Vector2(1f, 0.5f),
-                new Vector2(78f, 54f),
-                new Vector2(-55f, 0f));
+                new Vector2(70f, 54f),
+                new Vector2(-95f, 0f));
             var currentPointValue = PreparationUiBuilderUtility.AddText(
                 currentPointValueObject,
                 "0",
@@ -275,8 +374,8 @@ namespace Hearthstone
             PreparationUiBuilderUtility.SetRect(
                 remainingPointLabelObject,
                 new Vector2(0f, 0.5f),
-                new Vector2(158f, 54f),
-                new Vector2(91f, 0f));
+                new Vector2(100f, 54f),
+                new Vector2(100f, 0f));
             var remainingPointLabel = PreparationUiBuilderUtility.AddText(
                 remainingPointLabelObject,
                 "剩余点数",
@@ -289,8 +388,8 @@ namespace Hearthstone
             PreparationUiBuilderUtility.SetRect(
                 remainingPointValueObject,
                 new Vector2(1f, 0.5f),
-                new Vector2(78f, 54f),
-                new Vector2(-55f, 0f));
+                new Vector2(70f, 54f),
+                new Vector2(-95f, 0f));
             var remainingPointValue = PreparationUiBuilderUtility.AddText(
                 remainingPointValueObject,
                 "99",
@@ -307,23 +406,13 @@ namespace Hearthstone
                 new Vector2(0.5f, 0.5f),
                 new Vector2(300f, 82f),
                 new Vector2(150f, 82f));
-            var buttonImage = PreparationUiBuilderUtility.AddImage(
+            var button = PreparationUiBuilderUtility.AddMedievalParchmentButton(
                 buttonObject,
-                PreparationUiBuilderUtility.LoadSprite("PreparationFusionButtonEnabled"),
-                true);
-            var button = buttonObject.AddComponent<Button>();
-            button.targetGraphic = buttonImage;
-            button.transition = Selectable.Transition.SpriteSwap;
-            button.spriteState = new SpriteState
-            {
-                highlightedSprite = PreparationUiBuilderUtility.LoadSprite("PreparationFusionButtonEnabled"),
-                pressedSprite = PreparationUiBuilderUtility.LoadSprite("PreparationFusionButtonPressed"),
-                selectedSprite = PreparationUiBuilderUtility.LoadSprite("PreparationFusionButtonEnabled"),
-                disabledSprite = PreparationUiBuilderUtility.LoadSprite("PreparationFusionButtonDisabled"),
-            };
+                out var buttonImage);
             var buttonLabel = PreparationUiBuilderUtility.CreateUiObject("Label", buttonObject.transform);
             PreparationUiBuilderUtility.Stretch(buttonLabel, 25f, 12f, 25f, 12f);
-            PreparationUiBuilderUtility.AddText(buttonLabel, "融合", 30f);
+            var fusionButtonText = PreparationUiBuilderUtility.AddText(buttonLabel, "融合", 30f);
+            fusionButtonText.color = new Color(0.19f, 0.14f, 0.10f, 1f);
             var attemptListener = buttonObject.AddComponent<UiEventListener>();
 
             var recommendationObject = PreparationUiBuilderUtility.CreateUiObject(
@@ -334,25 +423,18 @@ namespace Hearthstone
                 new Vector2(0.5f, 0.5f),
                 new Vector2(216f, 68f),
                 new Vector2(-150f, -82f));
-            var recommendationImage = PreparationUiBuilderUtility.AddImage(
+            var recommendationButton = PreparationUiBuilderUtility.AddMedievalParchmentButton(
                 recommendationObject,
-                PreparationUiBuilderUtility.LoadSprite("PreparationFusionButtonEnabled"),
-                true);
-            var recommendationButton = recommendationObject.AddComponent<Button>();
-            recommendationButton.targetGraphic = recommendationImage;
-            recommendationButton.transition = Selectable.Transition.SpriteSwap;
-            recommendationButton.spriteState = new SpriteState
-            {
-                highlightedSprite = PreparationUiBuilderUtility.LoadSprite("PreparationFusionButtonEnabled"),
-                pressedSprite = PreparationUiBuilderUtility.LoadSprite("PreparationFusionButtonPressed"),
-                selectedSprite = PreparationUiBuilderUtility.LoadSprite("PreparationFusionButtonEnabled"),
-                disabledSprite = PreparationUiBuilderUtility.LoadSprite("PreparationFusionButtonDisabled"),
-            };
+                out _);
             var recommendationLabel = PreparationUiBuilderUtility.CreateUiObject(
                 "Label",
                 recommendationObject.transform);
             PreparationUiBuilderUtility.Stretch(recommendationLabel, 16f, 10f, 16f, 10f);
-            PreparationUiBuilderUtility.AddText(recommendationLabel, "智能推荐", 27f);
+            var recommendationButtonText = PreparationUiBuilderUtility.AddText(
+                recommendationLabel,
+                "智能推荐",
+                27f);
+            recommendationButtonText.color = new Color(0.19f, 0.14f, 0.10f, 1f);
             var recommendationHoverListener = recommendationObject.AddComponent<UiEventListener>();
 
             var recommendationTooltip = PreparationUiBuilderUtility.CreateUiObject(

@@ -8,7 +8,7 @@
 
 ### 1.2 Csv和ScriptableObject配置项
 
-当前无。界面静态结构来自 `Assets/Resources/Ui/MainMenuView.prefab`，背景来自 `Assets/Resources/Art/MainMenu/UI/MainMenuCover.png`。
+当前无。界面静态结构来自 `Assets/Resources/Ui/MainMenuView.prefab`；背景、标题与悬停纹理分别来自 `MainMenuCover.png`、`MainMenuTitle.png` 和 `MainMenuStartHoverWetParchment.png`。
 
 ## 2. UI界面
 
@@ -16,17 +16,20 @@
 
 | Controller | View / Prefab | 职责 |
 | --- | --- | --- |
-| `MainMenuController` | `MainMenuView` / `Assets/Resources/Ui/MainMenuView.prefab` | 初始化“开始游戏”按钮，页面打开时恢复可交互状态，首次点击后禁用按钮并请求 GameEngine 开始新一局 |
+| `MainMenuController` | `MainMenuView` / `Assets/Resources/Ui/MainMenuView.prefab` | 处理开始新一局、打开图鉴和清除图鉴数据 |
+| `CardCollectionController` | `CardCollectionView` / `Assets/Resources/Ui/CardCollectionView.prefab` | 默认隐藏；由图鉴按钮显示，并负责返回主菜单 |
 
-`MainMenuView` 只持有游戏标题、开始按钮和按钮文字的组件引用。背景、“99升变”标题、“开始游戏”按钮及四态 Sprite 全部固化在 Prefab；`Cover` 拉伸到 `1920 × 1080` 参考画布且不接收射线，按钮关闭 Navigation。
+`MainMenuView` 持有标题 Image、“开始游戏”“图鉴”与“清除数据”按钮引用，以及右下角版本 TMP 引用。`Cover` 拉伸到 `1920 × 1080` 参考画布且不接收射线；标题使用 `820 × 300` 的保持比例 Image，中心位于 `(0, 285)`。“开始游戏”和“图鉴”关闭 Navigation 并以透明常态、低饱和湿润羊皮纸悬停底纹显示；右上角“清除数据”使用透明点击区和红色 TMP 文字。页面打开时版本文字从 `Application.version` 刷新，以黑色右对齐小字显示，当前为 `v0.1.0`。
+
+`UiViewBase` 首次初始化时会遍历当前 View 直属层级内包括 inactive 对象在内的全部 `Button`，为每个按钮注册一次 `click_001`、音量 `0.7` 的统一点击音；嵌套子 View 的按钮由其自身初始化，避免重复注册。按钮音直接挂在 `Button.onClick`，因此只随有效点击触发，禁用按钮不会播放。
 
 ### 2.2 每个Controller监听的Component变量
 
-`MainMenuController` 当前不监听 Component 变量。
+`MainMenuController` 和 `CardCollectionController` 当前都不监听 Component 变量。
 
 ### 2.3 不同Controller之间的跳转关系
 
-`MainMenuStage` 加载 `Ui/MainMenu` 导出资产后默认打开 `MainMenuController`。开始按钮调用 `HearthstoneGameEngine.StartNewRun()`；引擎新建本局持久状态并请求第 1 轮 `PreparationStage`。StageGroup 切换后主菜单 View/Controller 随 `MainMenuStage` 一起卸载，备战界面由 `PreparationUiScene` 创建。
+`MainMenuStage` 加载 `Ui/MainMenu` 导出资产后默认显示 `MainMenuController`，同一 UiScene 内的 `CardCollectionController` 已打开但默认隐藏。“图鉴”通过 `UiApi` 显示收藏页并隐藏主菜单；“返回”执行反向切换。“开始游戏”调用 `HearthstoneGameEngine.StartNewRun()`；StageGroup 切换后两页随 `MainMenuStage` 一起卸载。
 
 ## 3. 所属GameStage
 

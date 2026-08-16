@@ -26,6 +26,8 @@ namespace Hearthstone
             "Assets/Resources/Art/BattleCards/UI/AttackBadgeFrame.png";
         private const string HealthBadgePath =
             "Assets/Resources/Art/BattleCards/UI/HealthDropBadge.png";
+        private const string PreparationDeployedStatePath =
+            "Assets/Resources/Art/Preparation/UI/PreparationDeployedText.png";
         private const string ChineseFontAssetPath =
             "Assets/Resources/Fonts/NotoSansSC-SemiBold Dynamic SDF.asset";
         private const float FrameBottomInset = 24f;
@@ -477,14 +479,12 @@ namespace Hearthstone
                 root.transform,
                 "PreparationBattleSlotEmptyState",
                 "Assets/Resources/Art/Preparation/UI/PreparationPoolEmptySlot.png",
-                "Preparation pool empty slot",
-                0f);
+                "Preparation pool empty slot");
             var fusionSlotEmpty = ConfigurePreparationEmptyState(
                 root.transform,
                 "PreparationFusionSlotEmptyState",
                 "Assets/Resources/Art/Preparation/UI/PreparationPoolEmptySlot.png",
-                "Preparation pool empty slot",
-                0f);
+                "Preparation pool empty slot");
 
             var dropHighlight = FindOrCreate(root.transform, "PreparationDropHighlight");
             Stretch((RectTransform)dropHighlight.transform, 0f);
@@ -528,17 +528,17 @@ namespace Hearthstone
             SetRect(
                 (RectTransform)deployedState.transform,
                 new Vector2(1f, 1f),
-                new Vector2(92f, 30f),
-                new Vector2(-52f, -18f));
-            var deployedText = GetOrAdd<TextMeshProUGUI>(deployedState);
-            deployedText.font = view.SkillDescriptionText.font;
-            deployedText.fontSharedMaterial = view.SkillDescriptionText.fontSharedMaterial;
-            deployedText.text = "已出战";
-            deployedText.fontSize = 18f;
-            deployedText.fontStyle = FontStyles.Bold;
-            deployedText.alignment = TextAlignmentOptions.TopRight;
-            deployedText.color = new Color32(139, 82, 38, 255);
-            deployedText.raycastTarget = false;
+                new Vector2(120f, 44f),
+                new Vector2(-67f, -26f));
+            var obsoleteDeployedText = deployedState.GetComponent<TextMeshProUGUI>();
+            if (obsoleteDeployedText != null)
+                UnityEngine.Object.DestroyImmediate(obsoleteDeployedText);
+            var deployedImage = GetOrAdd<Image>(deployedState);
+            deployedImage.sprite = LoadSprite(PreparationDeployedStatePath, "Preparation deployed state");
+            deployedImage.type = Image.Type.Simple;
+            deployedImage.preserveAspect = true;
+            deployedImage.color = Color.white;
+            deployedImage.raycastTarget = false;
 
             var dragable = GetOrAdd<UiDragable>(root);
             dragable.TurnBackWhenDragEnd = true;
@@ -570,15 +570,14 @@ namespace Hearthstone
             Transform parent,
             string objectName,
             string spritePath,
-            string label,
-            float inset)
+            string label)
         {
             var emptyState = FindOrCreate(parent, objectName);
-            Stretch((RectTransform)emptyState.transform, inset);
+            Stretch((RectTransform)emptyState.transform, 0f);
             var image = GetOrAdd<Image>(emptyState);
             image.sprite = LoadSprite(spritePath, label);
             image.type = Image.Type.Simple;
-            image.preserveAspect = true;
+            image.preserveAspect = false;
             image.raycastTarget = false;
             return emptyState;
         }

@@ -25,6 +25,7 @@ namespace Hearthstone
             stage.AddLoadItem<InitializeBattleRuntime>();
             stage.AddUpdateSystem<BattleSystem>();
             stage.AddStageListener<BattleResultPreparationStageListener>();
+            stage.AddStageListener<BattleBgmStageListener>();
             TryAddBattleUi(engine, stage);
             return stage;
         }
@@ -64,23 +65,43 @@ namespace Hearthstone
                     throw new InvalidOperationException("Unable to create BattleSessionSingletonRawComponent.");
 
                 var scenario = startupData.Scenario;
-                var randomSeed = scenario?.RandomSeed ?? CreateRandomSeed();
+                var enemyPreview = startupData.EnemyPreview;
+                var randomSeed = scenario?.RandomSeed ?? enemyPreview?.RandomSeed ?? CreateRandomSeed();
+                var lineupRandom = new Unity.Mathematics.Random(BattleRules.NormalizeSeed(randomSeed));
+                var enemyLineup = scenario == null && enemyPreview == null
+                    ? EnemyLineupCsvData.GetRandomRequired(startupData.BattleNumber, ref lineupRandom)
+                    : null;
                 var playerSlotCount = scenario?.SlotCount ??
                     startupData.ContinuePlayerLineup?.SlotCount ??
                     (runState.UnlockedBattleSlotCount == 0
                         ? RunCardRules.InitialBattleSlotCount
                         : runState.UnlockedBattleSlotCount);
+                var enemySlotCount = scenario?.SlotCount ??
+                    enemyPreview?.CardCount ??
+                    enemyLineup.CardNumbers.Length;
                 session.Initialize(
                     randomSeed,
                     startupData.PreparationRewardBatch,
                     startupData.BattleNumber,
                     BattleProgressionCsvData.HasBattle(startupData.BattleNumber + 1) == false,
-                    playerSlotCount);
+                    playerSlotCount,
+                    enemySlotCount);
+                if (scenario == null)
+                {
+                    session.TargetRandom = enemyPreview == null
+                        ? lineupRandom
+                        : new Unity.Mathematics.Random(enemyPreview.TargetRandomState);
+                }
                 try
                 {
                     EnsureInitialPlayerLineup(runState, ref session.TargetRandom);
                     CreatePlayerCards(runState, session.PlayerCards, scenario, startupData.ContinuePlayerLineup);
-                    CreateEnemyCards(session.EnemyCards, ref session.TargetRandom, scenario);
+                    CreateEnemyCards(
+                        session.EnemyCards,
+                        ref session.TargetRandom,
+                        scenario,
+                        enemyLineup,
+                        enemyPreview);
                     DebugApi.Log(
                         $"[PreparationContinue] BattleRuntimePrepared BattleNumber={startupData.BattleNumber} " +
                         $"Scenario={(scenario == null ? "Default" : "Explicit")} " +
@@ -115,8 +136,8 @@ namespace Hearthstone
                     return;
 
                 runState.SetUnlockedBattleSlotCount(RunCardRules.InitialBattleSlotCount);
-                var cards = new RunCardInstanceData[BattleRules.CardsPerSide];
-                for (var slot = 0; slot < BattleRules.CardsPerSide; slot++)
+                var cards = new RunCardInstanceData[RunCardRules.InitialBattleSlotCount];
+                for (var slot = 0; slot < cards.Length; slot++)
                 {
                     var cardNumber = BattleRules.GetCardNumber(EBattleSide.Player, slot);
                     var cardConfig = DataApi.GetData<BattleCardCsvData>(cardNumber);
@@ -198,9 +219,13 @@ namespace Hearthstone
             private static void CreateEnemyCards(
                 Entity[] destination,
                 ref Unity.Mathematics.Random random,
-                BattleScenarioStartupData scenario)
+                BattleScenarioStartupData scenario,
+                EnemyLineupCsvData lineup,
+                EnemyBattlePreviewStartupData preview)
             {
-                for (var slot = 0; slot < BattleRules.CardsPerSide; slot++)
+                if (scenario == null && lineup == null && preview == null)
+                    throw new ArgumentException("A default battle requires an enemy lineup or preview snapshot.");
+                for (var slot = 0; slot < destination.Length; slot++)
                 {
                     var slotData = scenario?.GetEnemySlot(slot) ?? default;
                     if (scenario != null && slotData.IsOccupied == false)
@@ -210,24 +235,32 @@ namespace Hearthstone
                         continue;
                     }
 
+                    var previewCard = preview?.GetCard(slot) ?? default;
                     var cardNumber = scenario == null
-                        ? BattleRules.GetCardNumber(EBattleSide.Enemy, slot)
+                        ? preview == null
+                            ? lineup.CardNumbers[slot]
+                            : previewCard.CardNumber
                         : slotData.CardNumber;
                     var cardConfig = DataApi.GetData<BattleCardCsvData>(cardNumber);
                     if (cardConfig == null)
                         throw new InvalidOperationException($"Enemy card configuration {cardNumber} is missing.");
-                    var typeConfig = DataApi.GetData<BattleCardTypeCsvData>(cardConfig.CardTypeId);
-                    if (typeConfig == null)
-                        throw new InvalidOperationException($"Enemy card type {cardConfig.CardTypeId} is missing.");
 
                     var entity = EcsApi.CreateEntity(BattleRules.CardEntityGroup);
                     var card = entity.AddRawComponent<BattleCardRawComponent>();
                     if (scenario == null)
                     {
-                        card.Initialize(EBattleSide.Enemy, slot, cardConfig, typeConfig, ref random);
+                        card.InitializeFromInstance(
+                            EBattleSide.Enemy,
+                            slot,
+                            preview == null
+                                ? EnemyCardFactory.Create(cardNumber, ref random)
+                                : previewCard);
                     }
                     else
                     {
+                        var typeConfig = DataApi.GetData<BattleCardTypeCsvData>(cardConfig.CardTypeId);
+                        if (typeConfig == null)
+                            throw new InvalidOperationException($"Enemy card type {cardConfig.CardTypeId} is missing.");
                         card.InitializeExplicit(
                             EBattleSide.Enemy,
                             slot,

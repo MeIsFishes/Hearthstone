@@ -538,6 +538,7 @@ namespace Hearthstone.Tests
         public void TryPlaceCard_ReplacesAndMovesWithoutDuplicates()
         {
             var runState = new RunStateSingletonRawComponent();
+            runState.SetUnlockedBattleSlotCount(3);
             RunCardRules.ApplyRewardBatch(runState, CreateBatch("batch-a", 2, 3, 5, 6, 7));
 
             Assert.IsTrue(RunCardRules.TryPlaceCard(runState, 2, 0));
@@ -547,6 +548,25 @@ namespace Hearthstone.Tests
             CollectionAssert.AreEqual(new[] { 0, 0, 3, 0, 0, 0 }, runState.BattleSlotCardNumbers);
             Assert.IsFalse(RunCardRules.TryPlaceCard(runState, 4, 1));
             CollectionAssert.AreEqual(new[] { 0, 0, 3, 0, 0, 0 }, runState.BattleSlotCardNumbers);
+        }
+
+        [Test]
+        public void TryRemoveCardFromBattleSlot_ReturnsOnlyTheExpectedCardToPool()
+        {
+            var runState = new RunStateSingletonRawComponent();
+            RunCardRules.ApplyRewardBatch(runState, CreateBatch("remove-battle-card", 2, 3, 5));
+            Assert.IsTrue(RunCardRules.TryPlaceCard(runState, 2, 0));
+            var revision = runState.Revision.Value;
+
+            Assert.IsFalse(RunCardRules.TryRemoveCardFromBattleSlot(runState, 0, 3));
+            Assert.AreEqual(revision, runState.Revision.Value);
+            Assert.AreEqual(2, runState.BattleSlotCardNumbers[0]);
+
+            Assert.IsTrue(RunCardRules.TryRemoveCardFromBattleSlot(runState, 0, 2));
+            Assert.AreEqual(revision + 1, runState.Revision.Value);
+            Assert.AreEqual(0, runState.BattleSlotCardNumbers[0]);
+            Assert.IsTrue(runState.HasCard(2));
+            Assert.IsFalse(RunCardRules.TryRemoveCardFromBattleSlot(runState, 0, 2));
         }
 
         [Test]
@@ -573,12 +593,12 @@ namespace Hearthstone.Tests
                 CsvApi.ReadFromString<BattleProgressionCsvData>(
                     nameof(BattleProgressionCsvData),
                     "BattleNumber,UnlockSlotCount,DrawCardCount\n" +
-                    "1,3,3");
+                    "1,2,3");
                 var progression = DataApi.GetData<BattleProgressionCsvData>(1);
                 Assert.NotNull(progression);
-                Assert.AreEqual(3, progression.UnlockSlotCount);
+                Assert.AreEqual(2, progression.UnlockSlotCount);
                 Assert.AreEqual(3, progression.DrawCardCount);
-                Assert.AreEqual(3, BattleProgressionCsvData.GetUnlockedSlotTotal(1));
+                Assert.AreEqual(2, BattleProgressionCsvData.GetUnlockedSlotTotal(1));
             }
             finally
             {
@@ -882,10 +902,20 @@ namespace Hearthstone.Tests
             var remainingValueBounds = RectTransformUtility.CalculateRelativeRectTransformBounds(
                 remainingPointPanel,
                 page.FusionRemainingPointValue.rectTransform);
-            Assert.LessOrEqual(currentPointPanel.rect.xMin, currentLabelBounds.min.x);
-            Assert.GreaterOrEqual(currentPointPanel.rect.xMax, currentValueBounds.max.x);
-            Assert.LessOrEqual(remainingPointPanel.rect.xMin, remainingLabelBounds.min.x);
-            Assert.GreaterOrEqual(remainingPointPanel.rect.xMax, remainingValueBounds.max.x);
+            Assert.AreEqual(-90f, currentLabelBounds.min.x, 0.001f);
+            Assert.AreEqual(10f, currentLabelBounds.max.x, 0.001f);
+            Assert.AreEqual(10f, currentValueBounds.min.x, 0.001f);
+            Assert.AreEqual(80f, currentValueBounds.max.x, 0.001f);
+            Assert.AreEqual(currentLabelBounds, remainingLabelBounds);
+            Assert.AreEqual(currentValueBounds, remainingValueBounds);
+            Assert.Greater(currentLabelBounds.min.x - currentPointPanel.rect.xMin, 40f);
+            Assert.Greater(currentPointPanel.rect.xMax - currentValueBounds.max.x, 40f);
+            var labelPreferredWidth = page.FusionCurrentPointLabel.GetPreferredValues("当前点数").x;
+            var widestValuePreferredWidth = page.FusionCurrentPointValue.GetPreferredValues("-293").x;
+            var renderedLabelRight = currentLabelBounds.min.x + labelPreferredWidth;
+            var renderedValueLeft = currentValueBounds.max.x - widestValuePreferredWidth;
+            Assert.Greater(renderedValueLeft - renderedLabelRight, 10f);
+            Assert.Less(renderedValueLeft - renderedLabelRight, 20f);
             Assert.NotNull(page.RewardRevealOverlay);
             Assert.NotNull(page.RewardRevealCanvasGroup);
             Assert.NotNull(page.RewardRevealConfirmButton);
@@ -972,16 +1002,18 @@ namespace Hearthstone.Tests
             Assert.IsNull(pagePrefab.transform.Find("ContinueButton/AuxiliaryLabel"));
             Assert.AreEqual("继续", page.ContinueMainText.text);
             Assert.AreEqual(Navigation.Mode.None, page.ContinueButton.navigation.mode);
-            Assert.AreSame(page.ContinueButtonImage.sprite, page.ContinueButton.spriteState.pressedSprite);
-            Assert.AreSame(page.ContinueButtonImage.sprite, page.ContinueButton.spriteState.selectedSprite);
+            Assert.AreEqual(Selectable.Transition.ColorTint, page.ContinueButton.transition);
+            Assert.AreEqual("MedievalParchmentControl", page.ContinueButtonImage.sprite.name);
+            Assert.AreEqual("MedievalParchmentControl", page.BattleTabImage.sprite.name);
+            Assert.AreEqual("MedievalParchmentControl", page.FusionTabImage.sprite.name);
+            Assert.AreEqual(Selectable.Transition.ColorTint, page.FusionButton.transition);
             Assert.AreEqual(
-                "PreparationContinueButtonHighlighted",
-                page.ContinueButton.spriteState.highlightedSprite.name);
+                "MedievalParchmentControl",
+                ((Image)page.FusionButton.targetGraphic).sprite.name);
+            Assert.AreEqual(Selectable.Transition.ColorTint, page.FusionRecommendationButton.transition);
             Assert.AreEqual(
-                "PreparationContinueButtonWaiting",
-                page.ContinueButton.spriteState.disabledSprite.name);
-            Assert.AreEqual("PreparationTabSelectedV2", page.BattleTabImage.sprite.name);
-            Assert.AreEqual("PreparationTabIdleV2", page.FusionTabImage.sprite.name);
+                "MedievalParchmentControl",
+                ((Image)page.FusionRecommendationButton.targetGraphic).sprite.name);
 
             var titleFrame = pagePrefab.transform.Find("TitleFrame");
             var titleText = titleFrame.Find("Title").GetComponent<TextMeshProUGUI>();
@@ -1058,12 +1090,11 @@ namespace Hearthstone.Tests
 
             var spriteKeys = new[]
             {
-                "PreparationTabIdle", "PreparationTabIdleV2", "PreparationTabSelectedV2",
-                "PreparationTabSelected",
+                "PreparationTabIdle", "PreparationTabSelected",
                 "PreparationFusionSlotFrame",
-                "PreparationFusionSumPanel", "PreparationFusionButtonDisabled",
-                "PreparationFusionButtonEnabled", "PreparationFusionButtonPressed",
+                "PreparationFusionSumPanel",
                 "PreparationMaterialSelected", "PreparationRewardTitle", "FusionCard_099",
+                "MedievalParchmentControl",
             };
             foreach (var key in spriteKeys)
                 Assert.NotNull(ResourceApi.LoadSprite(key), key);
@@ -1167,6 +1198,44 @@ namespace Hearthstone.Tests
                 StringComparison.Ordinal);
             Assert.That(fusionSlotGuard, Is.GreaterThan(battleSlotCase));
             Assert.That(battleSlotDrop, Is.GreaterThan(fusionSlotGuard));
+        }
+
+        [Test]
+        public void BattleSlotDragReturnRemovesTheCardOnlyWhenReleasedOutsideItsSourceSlot()
+        {
+            var itemControllerScript = AssetDatabase.LoadAssetAtPath<MonoScript>(
+                "Assets/Scripts/Hearthstone/Ui/Controller/BattleCardItemController.cs");
+            var pageControllerScript = AssetDatabase.LoadAssetAtPath<MonoScript>(
+                "Assets/Scripts/Hearthstone/Ui/Controller/PreparationController.cs");
+            Assert.NotNull(itemControllerScript);
+            Assert.NotNull(pageControllerScript);
+
+            StringAssert.Contains(
+                "m_PreparationPage.IsPointerInsideBattleSlot(eventData, m_PreparationSlot) == false",
+                itemControllerScript.text);
+            StringAssert.Contains(
+                "m_PreparationPage.RemoveBattleCard(m_PreparationSlot, m_PreparationCardNumber)",
+                itemControllerScript.text);
+            StringAssert.Contains(
+                "RunCardRules.TryRemoveCardFromBattleSlot(m_RunState, sourceSlot, cardNumber)",
+                pageControllerScript.text);
+        }
+
+        [Test]
+        public void SuccessfulBattleSlotDropUsesTheDedicatedPlacementAudio()
+        {
+            var pageControllerScript = AssetDatabase.LoadAssetAtPath<MonoScript>(
+                "Assets/Scripts/Hearthstone/Ui/Controller/PreparationController.cs");
+            Assert.NotNull(pageControllerScript);
+
+            StringAssert.Contains(
+                "if (RunCardRules.TryPlaceCard(m_RunState, cardNumber, targetSlot))",
+                pageControllerScript.text);
+            StringAssert.Contains(
+                "AudioApi.Play(BattleSlotDropAudioKey, 0.78f)",
+                pageControllerScript.text);
+            Assert.NotNull(AssetDatabase.LoadAssetAtPath<AudioClip>(
+                "Assets/Resources/BbxCommon/Audio/Library/Interface Sounds/drop_001.ogg"));
         }
 
         [Test]

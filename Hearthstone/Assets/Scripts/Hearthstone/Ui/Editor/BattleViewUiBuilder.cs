@@ -10,11 +10,16 @@ namespace Hearthstone
     public static class BattleViewUiBuilder
     {
         private const string PrefabPath = "Assets/Resources/Ui/BattleView.prefab";
-        private const string BackgroundPath = "Assets/Resources/Art/BattleCards/UI/BattleBoardBackground.png";
+        private const string BackgroundPath = "Assets/Resources/Art/BattleCards/UI/BattleBoardBackgroundAged.png";
+        private const string CornerDaggerPath = "Assets/Resources/Art/BattleCards/UI/BattleCornerDagger.png";
+        private const string CornerQuillStampPath =
+            "Assets/Resources/Art/BattleCards/UI/BattleCornerQuillStamp.png";
         private const string DividerPath = "Assets/Resources/Art/BattleCards/UI/BattleCenterDividerCarving.png";
-        private const string BannerPath = "Assets/Resources/Art/BattleCards/Result/BattleVictoryBanner.png";
-        private const string DefeatPanelPath = "Assets/Resources/Art/BattleCards/Result/BattleDefeatPanel.png";
-        private const string RunVictoryPanelPath = "Assets/Resources/Art/BattleCards/Result/RunVictoryPanel.png";
+        private const string BannerPath = "Assets/Resources/Art/BattleCards/Result/BattleVictoryBannerAged.png";
+        private const string DefeatPanelPath = "Assets/Resources/Art/BattleCards/Result/BattleDefeatPanelAged.png";
+        private const string RunVictoryPanelPath = "Assets/Resources/Art/BattleCards/Result/RunVictoryPanelAged.png";
+        private const string ReturnToMainMenuButtonPath =
+            "Assets/Resources/Art/BattleCards/Result/ReturnToMainMenuButtonAged.png";
 
         public static void Build()
         {
@@ -43,8 +48,10 @@ namespace Hearthstone
                     parchmentAging,
                     PreparationUiBuilderUtility.LoadSprite("ParchmentAgingOverlay"));
                 parchmentImage.preserveAspect = false;
-                parchmentImage.color = new Color(1f, 0.89f, 0.67f, 0.24f);
+                parchmentImage.color = new Color(1f, 0.89f, 0.67f, 0.42f);
                 parchmentImage.raycastTarget = false;
+
+                CreateCornerDecorations(root.transform);
 
                 var divider = PreparationUiBuilderUtility.CreateUiObject("BattleCenterDivider", root.transform);
                 PreparationUiBuilderUtility.SetRect(
@@ -73,6 +80,34 @@ namespace Hearthstone
             }
         }
 
+        private static void CreateCornerDecorations(Transform parent)
+        {
+            var dagger = PreparationUiBuilderUtility.CreateUiObject("UpperLeftDagger", parent);
+            var daggerRect = (RectTransform)dagger.transform;
+            daggerRect.anchorMin = new Vector2(0f, 1f);
+            daggerRect.anchorMax = new Vector2(0f, 1f);
+            daggerRect.pivot = new Vector2(0.5f, 0.5f);
+            daggerRect.sizeDelta = new Vector2(420f, 630f);
+            daggerRect.anchoredPosition = new Vector2(220f, -280f);
+            daggerRect.localScale = new Vector3(-1f, 1f, 1f);
+            var daggerImage = PreparationUiBuilderUtility.AddImage(dagger, LoadSprite(CornerDaggerPath));
+            daggerImage.preserveAspect = true;
+            daggerImage.raycastTarget = false;
+
+            var quillStamp = PreparationUiBuilderUtility.CreateUiObject("LowerRightQuillStamp", parent);
+            var quillStampRect = (RectTransform)quillStamp.transform;
+            quillStampRect.anchorMin = new Vector2(1f, 0f);
+            quillStampRect.anchorMax = new Vector2(1f, 0f);
+            quillStampRect.pivot = new Vector2(0.5f, 0.5f);
+            quillStampRect.sizeDelta = new Vector2(320f, 213f);
+            quillStampRect.anchoredPosition = new Vector2(-100f, 110f);
+            var quillStampImage = PreparationUiBuilderUtility.AddImage(
+                quillStamp,
+                LoadSprite(CornerQuillStampPath));
+            quillStampImage.preserveAspect = true;
+            quillStampImage.raycastTarget = false;
+        }
+
         private static UiList CreateCardList(Transform parent, string name, Vector2 position)
         {
             var listObject = PreparationUiBuilderUtility.CreateUiObject(name, parent);
@@ -94,21 +129,15 @@ namespace Hearthstone
             var rect = PreparationUiBuilderUtility.SetRect(
                 banner,
                 new Vector2(0.5f, 0.5f),
-                new Vector2(1040f, 360f),
+                new Vector2(1200f, 400f),
                 new Vector2(-1450f, 0f));
             var image = PreparationUiBuilderUtility.AddImage(banner, LoadSprite(BannerPath));
             image.preserveAspect = true;
             image.raycastTarget = false;
             var canvasGroup = banner.AddComponent<CanvasGroup>();
 
-            var label = PreparationUiBuilderUtility.CreateUiObject("Label", banner.transform);
-            PreparationUiBuilderUtility.SetRect(label, new Vector2(0.5f, 0.5f), new Vector2(620f, 110f), new Vector2(0f, -5f));
-            var text = PreparationUiBuilderUtility.AddText(label, "战斗胜利", 68f);
-            text.color = new Color(0.28f, 0.12f, 0.03f, 1f);
-
             view.VictoryBannerRoot = rect;
             view.VictoryBannerCanvasGroup = canvasGroup;
-            view.VictoryBannerText = text;
             banner.SetActive(false);
         }
 
@@ -122,42 +151,29 @@ namespace Hearthstone
             var canvasGroup = blocker.AddComponent<CanvasGroup>();
 
             var panel = PreparationUiBuilderUtility.CreateUiObject("Panel", blocker.transform);
-            PreparationUiBuilderUtility.SetRect(panel, new Vector2(0.5f, 0.5f), new Vector2(900f, 650f), Vector2.zero);
+            PreparationUiBuilderUtility.SetRect(panel, new Vector2(0.5f, 0.5f), new Vector2(740f, 900f), Vector2.zero);
             var panelImage = PreparationUiBuilderUtility.AddImage(panel, LoadSprite(DefeatPanelPath), true);
             panelImage.preserveAspect = true;
 
-            var title = PreparationUiBuilderUtility.CreateUiObject("Title", panel.transform);
-            PreparationUiBuilderUtility.SetRect(title, new Vector2(0.5f, 0.5f), new Vector2(560f, 90f), new Vector2(0f, 115f));
-            var titleText = PreparationUiBuilderUtility.AddText(title, "战斗失败", 58f);
-            titleText.color = new Color(0.25f, 0.08f, 0.03f, 1f);
-
-            var body = PreparationUiBuilderUtility.CreateUiObject("Body", panel.transform);
-            PreparationUiBuilderUtility.SetRect(body, new Vector2(0.5f, 0.5f), new Vector2(600f, 70f), new Vector2(0f, 25f));
-            var bodyText = PreparationUiBuilderUtility.AddText(body, "本局冒险已经结束", 32f);
-            bodyText.color = new Color(0.24f, 0.13f, 0.07f, 1f);
-
-            var restart = PreparationUiBuilderUtility.CreateUiObject("RestartButton", panel.transform);
-            PreparationUiBuilderUtility.SetRect(restart, new Vector2(0.5f, 0.5f), new Vector2(330f, 92f), new Vector2(0f, -175f));
-            var restartImage = PreparationUiBuilderUtility.AddImage(restart, null, true);
-            restartImage.color = new Color(0.62f, 0.12f, 0.08f, 0.96f);
-            var outline = restart.AddComponent<Outline>();
-            outline.effectColor = new Color(0.95f, 0.72f, 0.25f, 1f);
-            outline.effectDistance = new Vector2(3f, -3f);
-            var button = restart.AddComponent<Button>();
-            button.targetGraphic = restartImage;
+            var returnButton = PreparationUiBuilderUtility.CreateUiObject("ReturnToMainMenuButton", panel.transform);
+            PreparationUiBuilderUtility.SetRect(
+                returnButton,
+                new Vector2(0.5f, 0.5f),
+                new Vector2(510f, 170f),
+                new Vector2(0f, -280f));
+            var buttonImage = PreparationUiBuilderUtility.AddImage(
+                returnButton,
+                LoadSprite(ReturnToMainMenuButtonPath),
+                true);
+            buttonImage.preserveAspect = true;
+            var button = returnButton.AddComponent<Button>();
+            button.targetGraphic = buttonImage;
             button.navigation = new Navigation { mode = Navigation.Mode.None };
-
-            var restartLabel = PreparationUiBuilderUtility.CreateUiObject("Label", restart.transform);
-            PreparationUiBuilderUtility.Stretch(restartLabel);
-            var restartText = PreparationUiBuilderUtility.AddText(restartLabel, "重新开始", 38f);
 
             view.ResultPopupRoot = blocker;
             view.ResultPopupCanvasGroup = canvasGroup;
             view.ResultPopupImage = panelImage;
-            view.ResultPopupTitle = titleText;
-            view.ResultPopupBody = bodyText;
-            view.RestartButton = button;
-            view.RestartButtonText = restartText;
+            view.ReturnToMainMenuButton = button;
             blocker.SetActive(false);
         }
 

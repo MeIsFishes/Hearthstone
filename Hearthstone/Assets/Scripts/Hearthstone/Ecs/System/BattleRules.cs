@@ -21,7 +21,7 @@ namespace Hearthstone
     /// </summary>
     public static class BattleRules
     {
-        public const int CardsPerSide = RunCardRules.BattleSlotCount;
+        public const int CardsPerSide = RunCardRules.MaximumBattleSlotCount;
         public const int DefaultCardNumber = 1;
         public const float ActionInterval = 0.75f;
         public const float ResultSettlementDelay = 0.5f;
@@ -41,8 +41,8 @@ namespace Hearthstone
         public const float HitFlashDuration = 0.16f;
         public const string CardEntityGroup = "BattleCard";
 
-        private static readonly int[] PlayerCardNumbers = { 4, 1, 40 };
-        private static readonly int[] EnemyCardNumbers = { 5, 2, 9 };
+        private static readonly int[] PlayerCardNumbers = { 4, 1, 40, 5, 2, 9 };
+        private static readonly int[] EnemyCardNumbers = { 5, 2, 9, 8, 12, 14 };
 
         public static uint InitialAliveMask => (1u << CardsPerSide) - 1u;
 

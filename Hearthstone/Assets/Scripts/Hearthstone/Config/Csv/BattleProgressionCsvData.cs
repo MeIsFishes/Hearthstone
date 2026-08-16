@@ -1,5 +1,6 @@
 using System;
 using BbxCommon;
+using Random = Unity.Mathematics.Random;
 
 namespace Hearthstone
 {
@@ -71,6 +72,73 @@ namespace Hearthstone
                 throw new InvalidOperationException(
                     $"Battle progression 1 must unlock {RunCardRules.InitialBattleSlotCount} slots and draw " +
                     $"{RunCardRules.InitialDrawCardCount} cards.");
+            }
+        }
+    }
+
+    /// <summary>
+    /// One selectable enemy lineup for a battle. Multiple rows may share the same battle number.
+    /// </summary>
+    public sealed class EnemyLineupCsvData : CsvDataBase<EnemyLineupCsvData>
+    {
+        public int BattleNumber { get; private set; }
+        public int[] CardNumbers { get; private set; } = Array.Empty<int>();
+
+        public override EDataLoad GetDataLoadType() => EDataLoad.Override;
+
+        public override string[] GetTableNames() => new[] { nameof(EnemyLineupCsvData) };
+
+        protected override void ReadLine()
+        {
+            BattleNumber = ParseIntFromKey(nameof(BattleNumber));
+            CardNumbers = ParseIntArrayFromKey(nameof(CardNumbers));
+            ValidateValues();
+            DataApi.SetAnonymousData(this);
+        }
+
+        public static EnemyLineupCsvData GetRandomRequired(int battleNumber, ref Random random)
+        {
+            if (battleNumber <= 0)
+                throw new ArgumentOutOfRangeException(nameof(battleNumber));
+            if (random.state == 0)
+                throw new ArgumentException("Enemy-lineup random state cannot be zero.", nameof(random));
+
+            EnemyLineupCsvData selected = null;
+            var matchingCount = 0;
+            foreach (var lineup in DataApi.GetEnumerator<EnemyLineupCsvData>())
+            {
+                if (lineup == null || lineup.BattleNumber != battleNumber)
+                    continue;
+                matchingCount++;
+                if (random.NextInt(matchingCount) == 0)
+                    selected = lineup;
+            }
+
+            return selected ?? throw new InvalidOperationException(
+                $"Enemy lineup configuration for battle {battleNumber} is missing.");
+        }
+
+        private void ValidateValues()
+        {
+            if (BattleNumber <= 0)
+                throw new InvalidOperationException("Enemy lineup battle number must be positive.");
+            if (CardNumbers.Length == 0 || CardNumbers.Length > RunCardRules.MaximumBattleSlotCount)
+            {
+                throw new InvalidOperationException(
+                    $"Enemy lineup {BattleNumber} must contain between 1 and " +
+                    $"{RunCardRules.MaximumBattleSlotCount} cards.");
+            }
+
+            for (var index = 0; index < CardNumbers.Length; index++)
+            {
+                var cardNumber = CardNumbers[index];
+                if (cardNumber < RunCardRules.FirstCardNumber ||
+                    cardNumber > RunCardRules.LastCardNumber ||
+                    cardNumber == RunCardRules.LockedCardNumber)
+                {
+                    throw new InvalidOperationException(
+                        $"Enemy lineup {BattleNumber} references invalid card {cardNumber}.");
+                }
             }
         }
     }

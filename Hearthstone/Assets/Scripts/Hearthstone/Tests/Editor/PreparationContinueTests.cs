@@ -10,14 +10,14 @@ namespace Hearthstone.Tests
         [TestCase(3)]
         public void ContinueLineup_DefensivelyCapturesSparseSlots(int occupiedCount)
         {
-            var source = new RunCardInstanceData[RunCardRules.BattleSlotCount];
+            var source = new RunCardInstanceData[RunCardRules.MaximumBattleSlotCount];
             for (var slot = 0; slot < occupiedCount; slot++)
                 source[slot] = new RunCardInstanceData(slot + 1, slot + 2, slot + 4);
 
             var lineup = new BattlePlayerLineupStartupData(source);
             source[0] = default;
 
-            for (var slot = 0; slot < RunCardRules.BattleSlotCount; slot++)
+            for (var slot = 0; slot < RunCardRules.MaximumBattleSlotCount; slot++)
             {
                 Assert.AreEqual(slot < occupiedCount, lineup.GetSlot(slot).IsValid);
                 if (slot < occupiedCount)

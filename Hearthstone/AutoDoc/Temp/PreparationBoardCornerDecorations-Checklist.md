@@ -1,0 +1,31 @@
+# 备战底板角落装饰检查清单
+
+- [x] 通过：备战区羊皮纸底板右下角增加卷边，左下角增加水渍。
+  - 证据：`PreparationPageBackground.png` 当前成图左下包含杯底状水渍，右下包含向左上翻起的卷边。
+- [x] 通过：装饰与现有陈旧羊皮纸、木质金边风格一致，保持低干扰，不遮挡交互。
+  - 证据：最终资产检查确认水渍使用低对比褐色；卷边仅占右下角并与金属边框连续。装饰烘入原背景，没有新增 Graphic 或 Raycast 节点。
+- [x] 通过：使用 `imagegen` skill 的内置生成/编辑流程，并检查输出质量。
+  - 证据：先生成水渍与带遮挡折面的卷边素材，再以 `PreparationPageBackground.png` 为编辑目标完成不透明背景合成；透明图尝试因棋盘格被烘入 RGB 而被拒绝，未进入项目最终产物。
+- [x] 通过：最终项目资产保存到工作区且没有新增 Unity 资源。
+  - 证据：最终文件为既有 `Assets/Resources/Art/Preparation/UI/PreparationPageBackground.png`；沿用原 `.meta`。两个合成用临时项目副本已删除，Codex 生成目录中的原始输出仍可恢复。
+- [x] 通过：检查工作区已有改动，只修改本任务直接相关资源和文档，没有覆盖用户其他修改，也没有修改 `.meta`。
+  - 证据：目标背景开始时未处于修改状态；最终 `git status` 只显示背景 PNG 与三篇直接相关文档。本任务曾误写的 `ParchmentAgingOverlay.png` 已从 HEAD 精确恢复，当前无差异。
+- [x] 不适用：新增函数和字段审计。
+  - 证据：本任务没有修改代码、View、Builder 或 Prefab。
+- [x] 通过：资源与接入验证。
+  - 证据：最终背景为 `1672 × 941`、`Format24bppRgb`；原导入配置仍为 Single Sprite、Mipmaps 关闭、Clamp，`.meta` 未变化。Prefab 继续按原 GUID 引用同一背景，无需重新导出；`git diff --check` 通过。按项目默认未进入游戏验证。
+- [x] 通过：卷边防穿帮。
+  - 证据：卷边以完整不透明正面、深色背面和接触阴影直接替换原背景像素，折角内部没有透明孔洞，金属边框保持连续。
+- [x] 通过：框架边界审计。
+  - 证据：使用既有 Resources 资产和既有 Prefab 引用，没有运行时拼装静态 UI、没有绕过 `ResourceApi`/Builder、没有修改资源索引或 BbxCommon 公开契约。
+- [x] 通过：玩家视角设计文档。
+  - 已读取：`.codex/private-skills/design-doc-format/SKILL.md`；现有文档为 `AutoDoc/Design/Specific/preparation-card-pool/preparation-card-pool.md`。
+  - 处理：已补充左下水渍、右下卷边及不遮挡内容的玩家可见现状。
+- [x] 通过：美术文档。
+  - 已读取：`.codex/private-skills/art-doc-writer/SKILL.md` 与 `references/art-module-format.md`；现有文档为 `AutoDoc/Art/Modules/preparation-card-pool/preparation-card-pool.md`。
+  - 处理：已补充装饰位置、卷边防穿帮约束和背景资产列表说明；该文档同时记录图鉴复用同一背景。
+- [x] 通过：程序文档。
+  - 已读取：`.codex/private-skills/program-doc-format/SKILL.md` 与 `ui-screen-doc-format.md`；现有文档为 `AutoDoc/Program/UI/preparation/preparation.md`。
+  - 处理：已记录装饰直接烘入不透明背景、无需额外遮罩/材质/运行时节点的实现现状。
+- [x] 通过：仅运行一次 `AutoDoc/CleanupTempDocs.bat`，之后创建对应报告。
+  - 证据：清理脚本退出码为 `0`；清理前后均为 `261` 个 Markdown 文件，没有文件达到清理阈值而被删除。

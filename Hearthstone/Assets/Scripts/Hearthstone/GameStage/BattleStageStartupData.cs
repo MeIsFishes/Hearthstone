@@ -195,16 +195,96 @@ namespace Hearthstone
         }
     }
 
+    public static class EnemyCardFactory
+    {
+        public static RunCardInstanceData Create(int cardNumber, ref Random random)
+        {
+            return BattleCardSimulationFactory.Create(cardNumber, ref random);
+        }
+    }
+
+    public sealed class EnemyBattlePreviewStartupData
+    {
+        private readonly RunCardInstanceData[] m_Cards;
+
+        public int BattleNumber { get; }
+        public uint RandomSeed { get; }
+        public uint TargetRandomState { get; }
+        public int CardCount => m_Cards.Length;
+
+        public EnemyBattlePreviewStartupData(
+            int battleNumber,
+            uint randomSeed,
+            uint targetRandomState,
+            IReadOnlyList<RunCardInstanceData> cards)
+        {
+            if (battleNumber <= 0)
+                throw new ArgumentOutOfRangeException(nameof(battleNumber));
+            if (randomSeed == 0)
+                throw new ArgumentOutOfRangeException(nameof(randomSeed));
+            if (targetRandomState == 0)
+                throw new ArgumentOutOfRangeException(nameof(targetRandomState));
+            if (cards == null || cards.Count <= 0 ||
+                cards.Count > RunCardRules.MaximumBattleSlotCount)
+                throw new ArgumentException("Enemy preview card count is invalid.", nameof(cards));
+
+            BattleNumber = battleNumber;
+            RandomSeed = randomSeed;
+            TargetRandomState = targetRandomState;
+            m_Cards = new RunCardInstanceData[cards.Count];
+            for (var index = 0; index < m_Cards.Length; index++)
+            {
+                var card = cards[index];
+                if (card.IsValid == false)
+                    throw new ArgumentException("Enemy preview contains an invalid card instance.", nameof(cards));
+                m_Cards[index] = card;
+            }
+        }
+
+        public RunCardInstanceData GetCard(int slot)
+        {
+            if (slot < 0 || slot >= m_Cards.Length)
+                throw new ArgumentOutOfRangeException(nameof(slot));
+            return m_Cards[slot];
+        }
+
+        public EnemyBattlePreviewStartupData CreateSnapshot()
+        {
+            return new EnemyBattlePreviewStartupData(
+                BattleNumber,
+                RandomSeed,
+                TargetRandomState,
+                m_Cards);
+        }
+
+        public static EnemyBattlePreviewStartupData CreateRandom(int battleNumber, uint randomSeed)
+        {
+            var normalizedSeed = BattleRules.NormalizeSeed(randomSeed);
+            var random = new Random(normalizedSeed);
+            var lineup = EnemyLineupCsvData.GetRandomRequired(battleNumber, ref random);
+            var cards = new RunCardInstanceData[lineup.CardNumbers.Length];
+            for (var slot = 0; slot < cards.Length; slot++)
+                cards[slot] = EnemyCardFactory.Create(lineup.CardNumbers[slot], ref random);
+            return new EnemyBattlePreviewStartupData(
+                battleNumber,
+                normalizedSeed,
+                random.state,
+                cards);
+        }
+    }
+
     public sealed class PreparationRoundStartupData
     {
         public int BattleNumber { get; }
         public int UnlockedBattleSlotCount { get; }
         public PreparationRewardBatchStartupData RewardBatch { get; }
+        public EnemyBattlePreviewStartupData EnemyPreview { get; }
 
         public PreparationRoundStartupData(
             int battleNumber,
             int unlockedBattleSlotCount,
-            PreparationRewardBatchStartupData rewardBatch)
+            PreparationRewardBatchStartupData rewardBatch,
+            EnemyBattlePreviewStartupData enemyPreview = null)
         {
             if (battleNumber <= 0)
                 throw new ArgumentOutOfRangeException(nameof(battleNumber));
@@ -214,11 +294,18 @@ namespace Hearthstone
             BattleNumber = battleNumber;
             UnlockedBattleSlotCount = unlockedBattleSlotCount;
             RewardBatch = rewardBatch?.CreateSnapshot() ?? throw new ArgumentNullException(nameof(rewardBatch));
+            if (enemyPreview != null && enemyPreview.BattleNumber != battleNumber)
+                throw new ArgumentException("Enemy preview battle number does not match the round.", nameof(enemyPreview));
+            EnemyPreview = enemyPreview?.CreateSnapshot();
         }
 
         public PreparationRoundStartupData CreateSnapshot()
         {
-            return new PreparationRoundStartupData(BattleNumber, UnlockedBattleSlotCount, RewardBatch);
+            return new PreparationRoundStartupData(
+                BattleNumber,
+                UnlockedBattleSlotCount,
+                RewardBatch,
+                EnemyPreview);
         }
     }
 
@@ -228,6 +315,7 @@ namespace Hearthstone
         public PreparationRewardBatchStartupData PreparationRewardBatch { get; }
         public BattleScenarioStartupData Scenario { get; }
         public BattlePlayerLineupStartupData ContinuePlayerLineup { get; }
+        public EnemyBattlePreviewStartupData EnemyPreview { get; }
 
         public BattleStageStartupData(PreparationRewardBatchStartupData preparationRewardBatch)
             : this(1, preparationRewardBatch, null)
@@ -245,7 +333,8 @@ namespace Hearthstone
             int battleNumber,
             PreparationRewardBatchStartupData preparationRewardBatch,
             BattleScenarioStartupData scenario = null,
-            BattlePlayerLineupStartupData continuePlayerLineup = null)
+            BattlePlayerLineupStartupData continuePlayerLineup = null,
+            EnemyBattlePreviewStartupData enemyPreview = null)
         {
             if (battleNumber <= 0)
                 throw new ArgumentOutOfRangeException(nameof(battleNumber));
@@ -254,13 +343,23 @@ namespace Hearthstone
                 ?? throw new ArgumentNullException(nameof(preparationRewardBatch));
             if (scenario != null && continuePlayerLineup != null)
                 throw new ArgumentException("A battle cannot use both an explicit scenario and a Continue lineup snapshot.");
+            if (scenario != null && enemyPreview != null)
+                throw new ArgumentException("An explicit battle scenario cannot use an enemy preview snapshot.");
+            if (enemyPreview != null && enemyPreview.BattleNumber != battleNumber)
+                throw new ArgumentException("Enemy preview battle number does not match the battle.", nameof(enemyPreview));
             Scenario = scenario?.CreateSnapshot();
             ContinuePlayerLineup = continuePlayerLineup?.CreateSnapshot();
+            EnemyPreview = enemyPreview?.CreateSnapshot();
         }
 
         public BattleStageStartupData CreateSnapshot()
         {
-            return new BattleStageStartupData(BattleNumber, PreparationRewardBatch, Scenario, ContinuePlayerLineup);
+            return new BattleStageStartupData(
+                BattleNumber,
+                PreparationRewardBatch,
+                Scenario,
+                ContinuePlayerLineup,
+                EnemyPreview);
         }
 
         public static BattleStageStartupData CreateDefault()

@@ -1,0 +1,24 @@
+# 图鉴融合模拟与打开动画检查清单
+
+- [x] 通过：定位现有融合攻防、词条和等阶计算的权威流程，避免图鉴重复实现规则。
+  - 证据：`RunCardRules.TryCreateFusionResultInstance()` 继续作为属性求和、词条合并、等阶与表现来源结算的唯一权威入口。
+- [x] 通过：抽取可复用的融合预览/模拟入口，并保持实际融合结果不变。
+  - 证据：新增 `BattleCardSimulationFactory`；`EnemyCardFactory.Create()` 已委托公共入口，公共入口最终调用既有 `RunCardRules` 融合函数。
+- [x] 通过：图鉴融合卡通过模拟配方素材生成攻防数值与词条。
+  - 证据：`BattleCardItemController.ShowCollectionCard()` 对融合卡调用 `CreateDeterministic()`；工厂按配方类型抽取互不重复的普通卡、滚动素材攻防后执行真实融合结算。
+- [x] 通过：普通卡图鉴显示逻辑保持不变，四卡融合结果仍不进入图鉴。
+  - 证据：普通卡仍显示类型配置的最低攻防和初始词条；`CardCollectionCatalog` 的既有四卡过滤未改动。
+- [x] 通过：点击已解锁卡后，预览卡从被点击卡位的位置移动并放大到屏幕中央。
+  - 证据：卡项回传自身 `RectTransform`；预览以该世界坐标和 `0.8` 缩放开始，在 `0.28s` 三次缓出至 `anchoredPosition = Vector2.zero`、缩放 `2.0`。
+- [x] 通过：打开动画完成前禁止空白处收纳；完成后沿用现有向下缩至 `0.3` 的收纳动效。
+  - 证据：`m_Opening` 阶段禁用 `PreviewDismissButton`，完成后恢复；`OnPreviewDismissed()` 继续播放 `0.36s` 底部收纳与皮革音效。
+- [x] 通过：更新测试，覆盖融合模拟复用、图鉴绑定和打开动画状态。
+  - 证据：新增 `FusionCollectionPreviewUsesSharedDeterministicSimulation` 与 `PreviewOpensFromClickedCardAndFinishesAtScreenCenter`；`CardCollectionTests` 8/8、敌方融合公共流程针对性测试 1/1 通过。
+- [x] 通过：通过 Builder/现有 Prefab 边界完成实现，不运行时搭建静态整页 UI。
+  - 证据：仅修改现有 Controller/卡项绑定与玩法工厂，继续通过 `UiList` 池化创建卡项；静态页面层级、View 和 Prefab 未因本需求改动。
+- [x] 通过：完成相关与完整 EditMode 回归、最终 Console 检查，不进入 Play Mode。
+  - 证据：完整 EditMode 为 104/108；仅保留任务前已存在的 4 个无关失败（战斗游标、稀疏阵容、防御性场景槽位与卡牌换位）。最终刷新编译成功，Unity Console 错误数为 0；未进入 Play Mode。
+- [x] 通过：同步设计、程序与美术当前状态文档。
+  - 证据：已更新 `AutoDoc/Design/Specific/meta-progression/meta-progression.md`、`AutoDoc/Program/UI/card-collection/card-collection.md` 与 `AutoDoc/Program/Specific/combat-system/combat-system.md`；已读取并遵循设计、程序、美术文档规范。本次没有修改图片资产、视觉规格或静态 UI，美术文档不适用。
+- [x] 通过：运行一次清理脚本并生成报告。
+  - 证据：`AutoDoc/CleanupTempDocs.bat` 本任务仅执行一次，退出码为 0；同名任务报告已创建。

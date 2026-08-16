@@ -59,8 +59,16 @@ namespace Hearthstone
 
         public void InitializePlayer(int slotIndex, RunCardInstanceData instance)
         {
+            InitializeFromInstance(EBattleSide.Player, slotIndex, instance);
+        }
+
+        public void InitializeFromInstance(
+            EBattleSide side,
+            int slotIndex,
+            RunCardInstanceData instance)
+        {
             if (instance.IsValid == false)
-                throw new ArgumentException("Player card instance is invalid.", nameof(instance));
+                throw new ArgumentException("Battle card instance is invalid.", nameof(instance));
 
             CardNumber = instance.CardNumber;
             var cardConfig = DataApi.GetData<BattleCardCsvData>(CardNumber);
@@ -75,7 +83,7 @@ namespace Hearthstone
             CardTypeId = cardConfig.CardTypeId;
             PresentationCardNumber = presentationCardConfig.CardNumber;
             PresentationCardTypeId = presentationCardConfig.CardTypeId;
-            Side = EBattleSide.Player;
+            Side = side;
             SlotIndex = slotIndex;
             Tier = instance.Tier;
             InitializeValues(instance.Attack, instance.MaxHealth, instance.MaxHealth, instance.Keywords);

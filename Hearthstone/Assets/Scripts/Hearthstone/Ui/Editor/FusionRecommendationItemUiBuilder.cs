@@ -44,24 +44,9 @@ namespace Hearthstone
                     new Vector2(1f, 0.5f),
                     new Vector2(156f, 78f),
                     new Vector2(-92f, 0f));
-                var selectImage = PreparationUiBuilderUtility.AddImage(
+                var selectButton = PreparationUiBuilderUtility.AddMedievalParchmentButton(
                     selectObject,
-                    PreparationUiBuilderUtility.LoadSprite("PreparationFusionButtonEnabled"),
-                    true);
-                var selectButton = selectObject.AddComponent<Button>();
-                selectButton.targetGraphic = selectImage;
-                selectButton.transition = Selectable.Transition.SpriteSwap;
-                selectButton.spriteState = new SpriteState
-                {
-                    highlightedSprite = PreparationUiBuilderUtility.LoadSprite(
-                        "PreparationFusionButtonEnabled"),
-                    pressedSprite = PreparationUiBuilderUtility.LoadSprite(
-                        "PreparationFusionButtonPressed"),
-                    selectedSprite = PreparationUiBuilderUtility.LoadSprite(
-                        "PreparationFusionButtonEnabled"),
-                    disabledSprite = PreparationUiBuilderUtility.LoadSprite(
-                        "PreparationFusionButtonDisabled"),
-                };
+                    out _);
                 var labelObject = PreparationUiBuilderUtility.CreateUiObject(
                     "Label",
                     selectObject.transform);

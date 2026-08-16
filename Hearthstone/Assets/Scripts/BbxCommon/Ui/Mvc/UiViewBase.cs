@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
+using UnityEngine.UI;
 using Sirenix.OdinInspector;
 using System.Reflection;
 
@@ -9,6 +10,9 @@ namespace BbxCommon.Ui
 {
     public abstract class UiViewBase : MonoBehaviour
     {
+        private const string ButtonClickAudioKey = "click_001";
+        private const float ButtonClickAudioVolume = 0.7f;
+
         #region Common
         public bool DefaultShow = true;
 
@@ -24,6 +28,7 @@ namespace BbxCommon.Ui
         internal List<Component> UiHides = new();
         internal List<Component> UiCloses = new();
         internal List<Component> UiDestroys = new();
+        private bool m_ButtonClickAudioInitialized;
 
 #if UNITY_EDITOR
         [Button("Pre-UiInit")]
@@ -127,6 +132,7 @@ namespace BbxCommon.Ui
         /// </summary>
         internal void InitBbxUiItem()
         {
+            InitButtonClickAudio();
             foreach (var item in BbxUiItems)
             {
                 if (item is IUiInit)
@@ -144,6 +150,25 @@ namespace BbxCommon.Ui
                 if (item is IUiDestroy)
                     UiDestroys.Add(item);
             }
+        }
+
+        private void InitButtonClickAudio()
+        {
+            if (m_ButtonClickAudioInitialized)
+                return;
+
+            var buttons = GetComponentsInChildren<Button>(true);
+            foreach (var button in buttons)
+            {
+                if (button.GetComponentInParent<UiViewBase>(true) == this)
+                    button.onClick.AddListener(PlayButtonClickAudio);
+            }
+            m_ButtonClickAudioInitialized = true;
+        }
+
+        private static void PlayButtonClickAudio()
+        {
+            AudioApi.Play(ButtonClickAudioKey, ButtonClickAudioVolume);
         }
 
         public abstract Type GetControllerType();

@@ -1,6 +1,6 @@
 CardNumber,CardTypeId,ArtworkKey,FusionRecipeTypeIds
 // Unique internal card number from 1 through 213,Card type identifier from BattleCardTypeCsvData,Artwork resource key,Sorted base card type identifiers forming this fusion result separated by semicolons
-// Associated: BattleCardTypeCsvData,BattleProgressionCsvData
+// Associated: BattleCardTypeCsvData,EnemyLineupCsvData
 1,4,Boar_001,
 2,3,GoblinBomber_002,
 3,3,GoblinBomber_003,

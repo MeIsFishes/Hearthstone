@@ -15,6 +15,11 @@ namespace Hearthstone.Tests
     {
         private const string ViewPrefabPath = "Assets/Resources/Ui/MainMenuView.prefab";
         private const string CoverPath = "Assets/Resources/Art/MainMenu/UI/MainMenuCover.png";
+        private const string TitlePath = "Assets/Resources/Art/MainMenu/UI/MainMenuTitle.png";
+        private const string StartHoverPath =
+            "Assets/Resources/Art/MainMenu/UI/MainMenuStartHoverWetParchment.png";
+        private const string SharedControlPath =
+            "Assets/Resources/Art/Common/UI/MedievalParchmentControl.png";
         private const string UiSceneAssetPath = "Assets/Resources/Ui/MainMenu.asset";
         private const string UiScenePath = "Assets/Scenes/Ui/MainMenu.unity";
 
@@ -66,15 +71,34 @@ namespace Hearthstone.Tests
             Assert.NotNull(view);
             Assert.IsTrue(view.DefaultShow);
             Assert.NotNull(view.GameTitle);
-            Assert.AreEqual("99升变", view.GameTitle.text);
+            Assert.NotNull(view.GameTitle.sprite);
+            Assert.AreEqual("MainMenuTitle", view.GameTitle.sprite.name);
+            Assert.IsFalse(view.GameTitle.raycastTarget);
+            Assert.IsTrue(view.GameTitle.preserveAspect);
+            Assert.AreEqual(
+                new Vector2(0f, 285f),
+                ((RectTransform)view.GameTitle.transform).anchoredPosition);
             Assert.NotNull(view.StartGameButton);
+            Assert.NotNull(view.StartGameHoverBackground);
             Assert.NotNull(view.StartGameLabel);
             Assert.AreEqual("开始游戏", view.StartGameLabel.text);
             Assert.AreEqual(Navigation.Mode.None, view.StartGameButton.navigation.mode);
-            Assert.AreEqual(Selectable.Transition.SpriteSwap, view.StartGameButton.transition);
-            Assert.NotNull(view.StartGameButton.spriteState.highlightedSprite);
-            Assert.NotNull(view.StartGameButton.spriteState.pressedSprite);
-            Assert.NotNull(view.StartGameButton.spriteState.disabledSprite);
+            Assert.AreEqual(Selectable.Transition.ColorTint, view.StartGameButton.transition);
+            Assert.AreSame(view.StartGameHoverBackground, view.StartGameButton.targetGraphic);
+            Assert.AreEqual(
+                "MainMenuStartHoverWetParchment",
+                view.StartGameHoverBackground.sprite.name);
+            Assert.AreEqual(0f, view.StartGameButton.colors.normalColor.a, 0.001f);
+            Assert.AreEqual(0.42f, view.StartGameButton.colors.highlightedColor.a, 0.001f);
+            Assert.AreEqual(0.58f, view.StartGameButton.colors.pressedColor.a, 0.001f);
+            Assert.AreEqual(0f, view.StartGameButton.colors.disabledColor.a, 0.001f);
+            Assert.AreEqual(new Color(0.22f, 0.17f, 0.12f, 1f), view.StartGameLabel.color);
+            Assert.NotNull(view.VersionLabel);
+            Assert.AreEqual("v0.1.0", view.VersionLabel.text);
+            Assert.AreEqual(TextAlignmentOptions.MidlineRight, view.VersionLabel.alignment);
+            Assert.AreEqual(new Vector2(1f, 0f), view.VersionLabel.rectTransform.anchorMin);
+            Assert.AreEqual(Color.black, view.VersionLabel.color);
+            Assert.IsFalse(view.VersionLabel.raycastTarget);
 
             var cover = prefab.transform.Find("Cover");
             Assert.NotNull(cover);
@@ -85,6 +109,17 @@ namespace Hearthstone.Tests
             Assert.AreEqual("MainMenuCover", coverImage.sprite.name);
             Assert.IsFalse(coverImage.raycastTarget);
             Assert.IsFalse(coverImage.preserveAspect);
+        }
+
+        [Test]
+        public void ProjectBundleVersionMatchesMainMenuVersionLabel()
+        {
+            Assert.AreEqual("0.1.0", PlayerSettings.bundleVersion);
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(ViewPrefabPath);
+            Assert.NotNull(prefab);
+            Assert.AreEqual(
+                $"v{PlayerSettings.bundleVersion}",
+                prefab.GetComponent<MainMenuView>().VersionLabel.text);
         }
 
         [Test]
@@ -105,12 +140,59 @@ namespace Hearthstone.Tests
         }
 
         [Test]
+        public void MainMenuTitleAndHoverArtUseTransparentSpriteImportSettings()
+        {
+            AssertTransparentSprite(TitlePath, "MainMenuTitle");
+            AssertTransparentSprite(StartHoverPath, "MainMenuStartHoverWetParchment");
+            AssertTransparentSprite(SharedControlPath, "MedievalParchmentControl");
+        }
+
+        [Test]
+        public void GeneratedUiPrefabsDoNotReferenceLegacyGlossyRedControls()
+        {
+            var legacySprites = new[]
+            {
+                "PreparationContinueButtonIdle",
+                "PreparationContinueButtonHighlighted",
+                "PreparationContinueButtonPressed",
+                "PreparationContinueButtonWaiting",
+                "PreparationFusionButtonEnabled",
+                "PreparationFusionButtonPressed",
+                "PreparationFusionButtonDisabled",
+                "PreparationTabIdleV2",
+                "PreparationTabSelectedV2",
+                "PreparationStageTitleFrame",
+            };
+            var prefabPaths = new[]
+            {
+                ViewPrefabPath,
+                "Assets/Resources/Ui/PreparationView.prefab",
+                "Assets/Resources/Ui/FusionRecommendationItem.prefab",
+            };
+
+            foreach (var prefabPath in prefabPaths)
+            {
+                var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
+                Assert.NotNull(prefab, prefabPath);
+                foreach (var image in prefab.GetComponentsInChildren<Image>(true))
+                {
+                    if (image.sprite == null)
+                        continue;
+                    CollectionAssert.DoesNotContain(
+                        legacySprites,
+                        image.sprite.name,
+                        $"{prefabPath}/{image.transform.name}");
+                }
+            }
+        }
+
+        [Test]
         public void MainMenuUiSceneAssetContainsConnectedDefaultView()
         {
             var asset = AssetDatabase.LoadAssetAtPath<UiSceneAsset>(UiSceneAssetPath);
             Assert.NotNull(asset);
-            Assert.AreEqual(1, asset.UiObjectDatas.Count);
-            var data = asset.UiObjectDatas[0];
+            Assert.AreEqual(2, asset.UiObjectDatas.Count);
+            var data = asset.UiObjectDatas.Single(item => item.PrefabPath == "Ui/MainMenuView");
             Assert.AreEqual("Ui/MainMenuView", data.PrefabPath);
             Assert.AreEqual((int)EMainMenuUiGroup.Main, data.UiGroup);
             Assert.IsTrue(data.DefaultShow);
@@ -135,6 +217,12 @@ namespace Hearthstone.Tests
                 Assert.AreEqual(
                     PrefabInstanceStatus.Connected,
                     PrefabUtility.GetPrefabInstanceStatus(view.gameObject));
+                var collectionView = scene.GetRootGameObjects()
+                    .SelectMany(root => root.GetComponentsInChildren<CardCollectionView>(true))
+                    .Single();
+                Assert.AreEqual(
+                    PrefabInstanceStatus.Connected,
+                    PrefabUtility.GetPrefabInstanceStatus(collectionView.gameObject));
             }
             finally
             {
@@ -151,6 +239,22 @@ namespace Hearthstone.Tests
             StringAssert.Contains("if (m_StartRequested)", script.text);
             StringAssert.Contains("m_View.StartGameButton.interactable = false", script.text);
             StringAssert.Contains("HearthstoneGameEngine.Instance.StartNewRun()", script.text);
+        }
+
+        private static void AssertTransparentSprite(string path, string expectedName)
+        {
+            var texture = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+            var sprite = AssetDatabase.LoadAssetAtPath<Sprite>(path);
+            var importer = AssetImporter.GetAtPath(path) as TextureImporter;
+            Assert.NotNull(texture, path);
+            Assert.NotNull(sprite, path);
+            Assert.AreEqual(expectedName, sprite.name);
+            Assert.NotNull(importer, path);
+            Assert.AreEqual(TextureImporterType.Sprite, importer.textureType);
+            Assert.AreEqual(SpriteImportMode.Single, importer.spriteImportMode);
+            Assert.IsTrue(importer.alphaIsTransparency);
+            Assert.IsFalse(importer.mipmapEnabled);
+            Assert.AreEqual(TextureWrapMode.Clamp, importer.wrapMode);
         }
     }
 }

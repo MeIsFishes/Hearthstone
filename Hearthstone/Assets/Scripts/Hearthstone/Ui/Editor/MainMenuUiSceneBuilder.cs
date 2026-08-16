@@ -21,6 +21,9 @@ namespace Hearthstone
             var viewPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(MainMenuViewUiBuilder.PrefabPath)
                 ?? throw new InvalidOperationException(
                     $"Main menu View Prefab is missing at '{MainMenuViewUiBuilder.PrefabPath}'.");
+            var collectionPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(CardCollectionViewUiBuilder.PrefabPath)
+                ?? throw new InvalidOperationException(
+                    $"Card collection View Prefab is missing at '{CardCollectionViewUiBuilder.PrefabPath}'.");
             Scene scene = default;
             try
             {
@@ -55,6 +58,13 @@ namespace Hearthstone
                 instanceRect.localPosition = Vector3.zero;
                 instanceRect.localScale = Vector3.one;
                 instanceRect.pivot = new Vector2(0.5f, 0.5f);
+
+                var collectionInstance = (GameObject)PrefabUtility.InstantiatePrefab(collectionPrefab, scene);
+                collectionInstance.transform.SetParent(group, false);
+                var collectionRect = (RectTransform)collectionInstance.transform;
+                collectionRect.localPosition = Vector3.zero;
+                collectionRect.localScale = Vector3.one;
+                collectionRect.pivot = new Vector2(0.5f, 0.5f);
 
                 EditorSceneManager.SaveScene(scene, ScenePath);
                 exporter.ExportUiScene();

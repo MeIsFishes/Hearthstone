@@ -19,6 +19,24 @@ namespace BbxCommon
             return Internal.AudioManager.Play(key, options);
         }
 
+        public static AudioHandle SetBgm(
+            string key,
+            float transitionDurationSeconds = 0f,
+            bool loop = true)
+        {
+            var options = AudioPlayOptions.Default;
+            options.Loop = loop;
+            return Internal.AudioManager.SetBgm(
+                key,
+                options,
+                transitionDurationSeconds);
+        }
+
+        public static void StopBgm(float fadeOutDurationSeconds = 0f)
+        {
+            Internal.AudioManager.StopBgm(fadeOutDurationSeconds);
+        }
+
         public static void Stop(AudioHandle handle)
         {
             Internal.AudioManager.Stop(handle);

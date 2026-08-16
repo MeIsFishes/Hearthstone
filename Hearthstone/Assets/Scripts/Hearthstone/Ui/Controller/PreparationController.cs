@@ -39,7 +39,10 @@ namespace Hearthstone
         private const float RewardRevealCardSpacing = 280f;
         private const float RewardRevealDisplayScale = 0.82f;
         private const float CardPocketFinalScale = 0.3f;
-        private const float PreparationSlotVisualFillRatio = 0.82f;
+        private const float BattleSlotVisualFillRatio = 150f / 185f;
+        private const float FusionSlotVisualFillRatio = 150f / 190f;
+        private const float EnemyPreviewDrawerDuration = 0.34f;
+        private const float EnemyPreviewCardVisualFillRatio = 150f / 185f;
         private const float FusionTargetGlowSpeed = 4.5f;
         private const float FusionTargetGlowScale = 0.05f;
         private const float FusionRecommendationRowStride = 236f;
@@ -48,6 +51,8 @@ namespace Hearthstone
         private const string FusionRevealAudioGroup = "UiFusionReveal";
         private const string RewardRevealDealAudioKey = "card-place-1";
         private const string CardPocketAudioKey = "handleSmallLeather";
+        private const string BattleSlotDropAudioKey = "drop_001";
+        private const string EnemyPreviewDrawerAudioKey = "handleSmallLeather";
         private const string PreparationCardAnimationAudioGroup = "UiPreparationCardAnimation";
 
         private enum EOperationTab
@@ -94,6 +99,10 @@ namespace Hearthstone
         private readonly List<FusionRecommendationData> m_FusionRecommendations =
             new List<FusionRecommendationData>();
         private int m_FirstVisibleFusionRecommendation = -1;
+        private float m_EnemyPreviewDrawerProgress;
+        private bool m_EnemyPreviewDrawerTargetOpen;
+        private bool m_EnemyPreviewArrowPointsLeft;
+        private bool m_EnemyPreviewAvailable;
 
         protected override void InitListeners()
         {
@@ -127,11 +136,13 @@ namespace Hearthstone
                 OnFusionRecommendationScrollChanged);
             m_View.ContinueButton.onClick.AddListener(OnContinueClicked);
             m_View.OwnedOnlyToggle.onValueChanged.AddListener(OnOwnedOnlyChanged);
+            m_View.EnemyPreviewToggleButton.onClick.AddListener(OnEnemyPreviewToggleClicked);
             m_View.CardPoolScrollRect.scrollSensitivity *= 1.5f;
             ResetFusionReveal();
             ResetRewardReveal();
             CloseFusionRecommendationPopup();
             HideFusionRecommendationTooltip();
+            ResetEnemyPreviewDrawer();
         }
 
         protected override void OnUiUpdate(float deltaTime)
@@ -146,6 +157,7 @@ namespace Hearthstone
                 UpdateRewardRevealDeal(deltaTime);
             else if (m_RewardRevealPhase == ERewardRevealPhase.Pocketing)
                 UpdateRewardRevealPocket(deltaTime);
+            UpdateEnemyPreviewDrawer(deltaTime);
         }
 
         protected override void OnUiOpen()
@@ -163,14 +175,17 @@ namespace Hearthstone
             m_FusionRevisionListener.RebindTarget(m_Session.FusionRevision);
             m_ContinueStateListener.RebindTarget(m_ContinueState.State);
             m_ShowOwnedOnly = true;
+            CardCollectionSave.RegisterOwnedCards(m_RunState);
             m_View.OwnedOnlyToggle.SetIsOnWithoutNotify(true);
             PopulateItems();
+            ResetEnemyPreviewDrawer();
             SelectTab(EOperationTab.Battle);
             ApplyContinueState(m_ContinueState.State.Value);
             ResetFusionReveal();
             ResetRewardReveal();
             CloseFusionRecommendationPopup();
             HideFusionRecommendationTooltip();
+            ResetEnemyPreviewDrawer();
             RefreshAll();
             TryStartRewardReveal();
         }
@@ -190,6 +205,7 @@ namespace Hearthstone
             ResetRewardReveal();
             CloseFusionRecommendationPopup();
             HideFusionRecommendationTooltip();
+            ResetEnemyPreviewDrawer();
         }
 
         protected override void OnUiShow()
@@ -212,7 +228,9 @@ namespace Hearthstone
 
         internal void DropCardOnSlot(int cardNumber, int targetSlot)
         {
-            if (RunCardRules.TryPlaceCard(m_RunState, cardNumber, targetSlot) == false)
+            if (RunCardRules.TryPlaceCard(m_RunState, cardNumber, targetSlot))
+                AudioApi.Play(BattleSlotDropAudioKey, 0.78f);
+            else
                 RefreshAll();
         }
 
@@ -235,6 +253,12 @@ namespace Hearthstone
                 RefreshAll();
         }
 
+        internal void RemoveBattleCard(int sourceSlot, int cardNumber)
+        {
+            if (RunCardRules.TryRemoveCardFromBattleSlot(m_RunState, sourceSlot, cardNumber) == false)
+                RefreshAll();
+        }
+
         internal void OnDragReturned()
         {
             if (m_View.CardPoolList != null)
@@ -253,6 +277,19 @@ namespace Hearthstone
 
             return RectTransformUtility.RectangleContainsScreenPoint(
                 (RectTransform)m_View.FusionSlotList.transform,
+                eventData.position,
+                eventData.pressEventCamera);
+        }
+
+        internal bool IsPointerInsideBattleSlot(PointerEventData eventData, int slot)
+        {
+            if (eventData == null || m_View.BattleSlotList == null ||
+                slot < 0 || slot >= m_View.BattleSlotList.ItemWrapper.Count)
+                return false;
+
+            var item = m_View.BattleSlotList.ItemWrapper.GetItem<BattleCardItemController>(slot);
+            return item != null && RectTransformUtility.RectangleContainsScreenPoint(
+                (RectTransform)item.transform,
                 eventData.position,
                 eventData.pressEventCamera);
         }
@@ -294,7 +331,7 @@ namespace Hearthstone
                 item.BindPreparationBattleSlot(
                     this,
                     slot,
-                    m_View.BattleSlotList.ConstantSlotSize * PreparationSlotVisualFillRatio);
+                    m_View.BattleSlotList.ConstantSlotSize * BattleSlotVisualFillRatio);
             }
             m_View.FusionSlotList.ItemWrapper.ClearItems();
             for (var slot = 0; slot < RunCardRules.FusionSlotCount; slot++)
@@ -305,7 +342,7 @@ namespace Hearthstone
                 item.BindPreparationFusionSlot(
                     this,
                     slot,
-                    m_View.FusionSlotList.ConstantSlotSize * PreparationSlotVisualFillRatio);
+                    m_View.FusionSlotList.ConstantSlotSize * FusionSlotVisualFillRatio);
             }
 
             m_View.FusionRevealCardList.ItemWrapper.ClearItems();
@@ -314,6 +351,28 @@ namespace Hearthstone
                 throw new InvalidOperationException("BattleCardItemController preload mapping is missing for fusion reveal.");
             m_View.FusionRevealMaterialCardList.ItemWrapper.ClearItems();
             m_View.RewardRevealCardList.ItemWrapper.ClearItems();
+            PopulateEnemyPreviewItems();
+        }
+
+        private void PopulateEnemyPreviewItems()
+        {
+            m_View.EnemyPreviewCardList.ItemWrapper.ClearItems();
+            var preview = m_Session?.EnemyPreview;
+            m_EnemyPreviewAvailable = preview != null && preview.CardCount > 0;
+            m_View.EnemyPreviewToggleButton.interactable = m_EnemyPreviewAvailable;
+            if (!m_EnemyPreviewAvailable)
+                return;
+
+            for (var slot = 0; slot < preview.CardCount; slot++)
+            {
+                var item = m_View.EnemyPreviewCardList.ItemWrapper.AddItem<BattleCardItemController>();
+                if (item == null)
+                    throw new InvalidOperationException(
+                        "BattleCardItemController preload mapping is missing for enemy preview.");
+                item.BindEnemyPreview(
+                    preview.GetCard(slot),
+                    m_View.EnemyPreviewCardList.ConstantSlotSize * EnemyPreviewCardVisualFillRatio);
+            }
         }
 
         private void PopulateCardPoolItems()
@@ -446,10 +505,17 @@ namespace Hearthstone
             var battle = tab == EOperationTab.Battle;
             m_View.BattleOperationRoot.SetActive(battle);
             m_View.FusionOperationRoot.SetActive(!battle);
-            m_View.BattleTabImage.sprite = ResourceApi.LoadSprite(
-                battle ? "PreparationTabSelectedV2" : "PreparationTabIdleV2");
-            m_View.FusionTabImage.sprite = ResourceApi.LoadSprite(
-                battle ? "PreparationTabIdleV2" : "PreparationTabSelectedV2");
+            m_View.EnemyPreviewDrawerRoot.gameObject.SetActive(battle);
+            if (!battle)
+                ResetEnemyPreviewDrawer();
+            m_View.BattleTabImage.sprite = ResourceApi.LoadSprite("MedievalParchmentControl");
+            m_View.FusionTabImage.sprite = ResourceApi.LoadSprite("MedievalParchmentControl");
+            m_View.BattleTabImage.color = battle
+                ? new Color(0.96f, 0.92f, 0.82f, 1f)
+                : new Color(0.62f, 0.58f, 0.51f, 1f);
+            m_View.FusionTabImage.color = battle
+                ? new Color(0.62f, 0.58f, 0.51f, 1f)
+                : new Color(0.96f, 0.92f, 0.82f, 1f);
             if (battle)
             {
                 SetFusionTargetGlow(false);
@@ -457,6 +523,70 @@ namespace Hearthstone
                 HideFusionRecommendationTooltip();
             }
             RefreshAll();
+        }
+
+        private void OnEnemyPreviewToggleClicked()
+        {
+            if (!m_EnemyPreviewAvailable || m_Tab != EOperationTab.Battle)
+                return;
+
+            m_EnemyPreviewDrawerTargetOpen = !m_EnemyPreviewDrawerTargetOpen;
+            AudioApi.Play(EnemyPreviewDrawerAudioKey, 0.72f);
+        }
+
+        private void UpdateEnemyPreviewDrawer(float deltaTime)
+        {
+            if (m_View.EnemyPreviewDrawerRoot == null)
+                return;
+
+            var target = m_EnemyPreviewDrawerTargetOpen ? 1f : 0f;
+            if (Mathf.Approximately(m_EnemyPreviewDrawerProgress, target))
+                return;
+
+            m_EnemyPreviewDrawerProgress = Mathf.MoveTowards(
+                m_EnemyPreviewDrawerProgress,
+                target,
+                deltaTime / EnemyPreviewDrawerDuration);
+            if (m_EnemyPreviewDrawerTargetOpen && m_EnemyPreviewDrawerProgress >= 1f)
+                m_EnemyPreviewArrowPointsLeft = true;
+            else if (!m_EnemyPreviewDrawerTargetOpen && m_EnemyPreviewDrawerProgress <= 0f)
+                m_EnemyPreviewArrowPointsLeft = false;
+            ApplyEnemyPreviewDrawerState();
+        }
+
+        private void ResetEnemyPreviewDrawer()
+        {
+            m_EnemyPreviewDrawerTargetOpen = false;
+            m_EnemyPreviewDrawerProgress = 0f;
+            m_EnemyPreviewArrowPointsLeft = false;
+            ApplyEnemyPreviewDrawerState();
+        }
+
+        private void ApplyEnemyPreviewDrawerState()
+        {
+            if (m_View.EnemyPreviewDrawerRoot == null ||
+                m_View.EnemyPreviewPanelCanvasGroup == null ||
+                m_View.EnemyPreviewToggleArrow == null)
+                return;
+
+            var easedProgress = Mathf.SmoothStep(0f, 1f, m_EnemyPreviewDrawerProgress);
+            m_View.EnemyPreviewDrawerRoot.anchoredPosition = Vector2.LerpUnclamped(
+                m_View.EnemyPreviewClosedPosition,
+                m_View.EnemyPreviewOpenPosition,
+                easedProgress);
+            m_View.EnemyPreviewToggleArrow.localRotation = Quaternion.Euler(
+                0f,
+                0f,
+                m_EnemyPreviewArrowPointsLeft ? 180f : 0f);
+
+            var panelProgress = Mathf.SmoothStep(
+                0f,
+                1f,
+                Mathf.InverseLerp(0.06f, 0.42f, m_EnemyPreviewDrawerProgress));
+            m_View.EnemyPreviewPanelCanvasGroup.alpha = panelProgress;
+            var open = m_EnemyPreviewDrawerProgress >= 0.98f;
+            m_View.EnemyPreviewPanelCanvasGroup.interactable = open;
+            m_View.EnemyPreviewPanelCanvasGroup.blocksRaycasts = open;
         }
 
         private void OnFusionRecommendationClicked()
@@ -603,6 +733,8 @@ namespace Hearthstone
                 RefreshAll();
                 return;
             }
+
+            CardCollectionSave.Repository.Register(resultCard.CardNumber);
 
             StartFusionReveal(resultCard.CardNumber, transaction);
         }

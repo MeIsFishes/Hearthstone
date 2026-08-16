@@ -145,7 +145,7 @@ namespace Hearthstone
 
     public static class RunCardRules
     {
-        public const int InitialBattleSlotCount = 3;
+        public const int InitialBattleSlotCount = 2;
         public const int InitialDrawCardCount = 3;
         public const int MaximumBattleSlotCount = 6;
         public const int BattleSlotCount = InitialBattleSlotCount;
@@ -613,37 +613,27 @@ namespace Hearthstone
                 return evaluation.BlockingResult;
 
             var materialNumbers = new int[FusionSlotCount];
+            var materialInstances = new RunCardInstanceData[evaluation.MaterialCount];
             var materialSnapshots = new FusionMaterialSnapshot[evaluation.MaterialCount];
             var battleSlotsBefore = (int[])runState.BattleSlotCardNumbers.Clone();
             var materialCount = 0;
-            long attack = 0;
-            long maxHealth = 0;
-            var keywords = EBattleKeyword.None;
             for (var slot = 0; slot < FusionSlotCount; slot++)
             {
                 var cardNumber = session.FusionSlotCardNumbers[slot];
                 if (cardNumber == 0)
                     continue;
                 var instance = runState.GetCardInstance(cardNumber);
-                materialNumbers[materialCount++] = cardNumber;
-                materialSnapshots[materialCount - 1] = new FusionMaterialSnapshot(
+                materialNumbers[materialCount] = cardNumber;
+                materialInstances[materialCount] = instance;
+                materialSnapshots[materialCount] = new FusionMaterialSnapshot(
                     slot,
                     instance,
                     FindBattleSlot(runState, cardNumber));
-                attack += instance.Attack;
-                maxHealth += instance.MaxHealth;
-                keywords = BattleKeywordRules.UnionKeywords(keywords, instance.Keywords);
+                materialCount++;
             }
-            if (attack > int.MaxValue || maxHealth > int.MaxValue)
+            var resultConfig = BbxCommon.DataApi.GetData<BattleCardCsvData>(evaluation.ResultCardNumber);
+            if (TryCreateFusionResultInstance(resultConfig, materialInstances, out resultCard) == false)
                 return EFusionOperationResult.StatOverflow;
-
-            resultCard = new RunCardInstanceData(
-                evaluation.ResultCardNumber,
-                (int)attack,
-                (int)maxHealth,
-                keywords,
-                GetTierForFusionMaterialCount(evaluation.MaterialCount),
-                evaluation.PresentationCardNumber);
             transaction = new FusionTransactionSnapshot(
                 materialSnapshots,
                 battleSlotsBefore,
@@ -679,6 +669,115 @@ namespace Hearthstone
                 $"ResultCard={resultCard.CardNumber} ResultKeywords={resultCard.Keywords} " +
                 $"ResultAttack={resultCard.Attack} ResultMaxHealth={resultCard.MaxHealth}");
             return EFusionOperationResult.Applied;
+        }
+
+        public static bool TryCreateFusionResultInstance(
+            BattleCardCsvData resultConfig,
+            IReadOnlyList<RunCardInstanceData> materials,
+            out RunCardInstanceData resultCard)
+        {
+            resultCard = default;
+            if (resultConfig == null || resultConfig.IsFusionResult == false)
+                throw new ArgumentException("Fusion result configuration is missing or invalid.", nameof(resultConfig));
+            if (materials == null || materials.Count != resultConfig.FusionRecipeTypeIds.Count)
+                throw new ArgumentException("Fusion materials do not match the result recipe length.", nameof(materials));
+
+            long attack = 0;
+            long maxHealth = 0;
+            var keywords = EBattleKeyword.None;
+            var firstCardNumber = 0;
+            var secondCardNumber = 0;
+            var thirdCardNumber = 0;
+            var fourthCardNumber = 0;
+            var firstTypeId = 0;
+            var secondTypeId = 0;
+            var thirdTypeId = 0;
+            var fourthTypeId = 0;
+            for (var index = 0; index < materials.Count; index++)
+            {
+                var material = materials[index];
+                if (material.IsValid == false || material.CardNumber > LastOrdinaryCardNumber)
+                    throw new ArgumentException("Fusion materials must be valid ordinary cards.", nameof(materials));
+                for (var previous = 0; previous < index; previous++)
+                {
+                    if (materials[previous].CardNumber == material.CardNumber)
+                        throw new ArgumentException("Fusion materials cannot repeat a card number.", nameof(materials));
+                }
+
+                var cardConfig = BbxCommon.DataApi.GetData<BattleCardCsvData>(material.CardNumber);
+                if (cardConfig == null || cardConfig.IsFusionResult)
+                    throw new ArgumentException($"Fusion material card {material.CardNumber} is not configured as an ordinary card.", nameof(materials));
+                switch (index)
+                {
+                    case 0:
+                        firstCardNumber = material.CardNumber;
+                        firstTypeId = cardConfig.CardTypeId;
+                        break;
+                    case 1:
+                        secondCardNumber = material.CardNumber;
+                        secondTypeId = cardConfig.CardTypeId;
+                        break;
+                    case 2:
+                        thirdCardNumber = material.CardNumber;
+                        thirdTypeId = cardConfig.CardTypeId;
+                        break;
+                    case 3:
+                        fourthCardNumber = material.CardNumber;
+                        fourthTypeId = cardConfig.CardTypeId;
+                        break;
+                }
+                attack += material.Attack;
+                maxHealth += material.MaxHealth;
+                keywords = BattleKeywordRules.UnionKeywords(keywords, material.Keywords);
+            }
+
+            var sortedFirstTypeId = firstTypeId;
+            var sortedSecondTypeId = secondTypeId;
+            var sortedThirdTypeId = thirdTypeId;
+            var sortedFourthTypeId = fourthTypeId;
+            SortFusionTypeIds(
+                ref sortedFirstTypeId,
+                ref sortedSecondTypeId,
+                ref sortedThirdTypeId,
+                ref sortedFourthTypeId,
+                materials.Count);
+            var sortedTypes = new[]
+            {
+                sortedFirstTypeId,
+                sortedSecondTypeId,
+                sortedThirdTypeId,
+                sortedFourthTypeId,
+            };
+            for (var index = 0; index < resultConfig.FusionRecipeTypeIds.Count; index++)
+            {
+                if (resultConfig.FusionRecipeTypeIds[index] != sortedTypes[index])
+                    throw new ArgumentException("Fusion material types do not match the result recipe.", nameof(materials));
+            }
+
+            if (attack > int.MaxValue || maxHealth > int.MaxValue)
+                return false;
+            var presentationCardNumber = ResolveFusionPresentationCardNumber(
+                firstCardNumber,
+                firstTypeId,
+                secondCardNumber,
+                secondTypeId,
+                thirdCardNumber,
+                thirdTypeId,
+                fourthCardNumber,
+                fourthTypeId,
+                materials.Count,
+                resultConfig.CardNumber);
+            if (presentationCardNumber == 0)
+                throw new InvalidOperationException($"Fusion result {resultConfig.CardNumber} has no presentation card.");
+
+            resultCard = new RunCardInstanceData(
+                resultConfig.CardNumber,
+                (int)attack,
+                (int)maxHealth,
+                keywords,
+                GetTierForFusionMaterialCount(materials.Count),
+                presentationCardNumber);
+            return true;
         }
 
         public static void InitializeFirstBattleLineup(
@@ -751,6 +850,21 @@ namespace Hearthstone
             if (sourceSlot >= 0)
                 runState.BattleSlotCardNumbers[sourceSlot] = 0;
             runState.BattleSlotCardNumbers[targetSlot] = cardNumber;
+            runState.Revision.SetValue(runState.Revision.Value + 1);
+            return true;
+        }
+
+        public static bool TryRemoveCardFromBattleSlot(
+            RunStateSingletonRawComponent runState,
+            int sourceSlot,
+            int expectedCardNumber)
+        {
+            if (runState == null || expectedCardNumber <= 0 ||
+                sourceSlot < 0 || sourceSlot >= runState.BattleSlotCardNumbers.Length ||
+                runState.BattleSlotCardNumbers[sourceSlot] != expectedCardNumber)
+                return false;
+
+            runState.BattleSlotCardNumbers[sourceSlot] = 0;
             runState.Revision.SetValue(runState.Revision.Value + 1);
             return true;
         }

@@ -15,8 +15,8 @@ namespace Hearthstone
 
         protected override void OnUiInit()
         {
-            if (m_View.RestartButton != null)
-                m_View.RestartButton.onClick.AddListener(OnRestartClicked);
+            if (m_View.ReturnToMainMenuButton != null)
+                m_View.ReturnToMainMenuButton.onClick.AddListener(OnReturnToMainMenuClicked);
         }
 
         protected override void InitListeners()
@@ -100,8 +100,6 @@ namespace Hearthstone
             m_View.VictoryBannerRoot.anchoredPosition = new Vector2(-1450f, 0f);
             if (m_View.VictoryBannerCanvasGroup != null)
                 m_View.VictoryBannerCanvasGroup.alpha = 1f;
-            if (m_View.VictoryBannerText != null)
-                m_View.VictoryBannerText.text = "战斗胜利";
         }
 
         private void UpdateVictoryBanner(float deltaTime)
@@ -150,20 +148,10 @@ namespace Hearthstone
             if (m_View.ResultPopupRoot == null)
                 return;
             var resourcePath = wholeRunVictory
-                ? "Art/BattleCards/Result/RunVictoryPanel"
-                : "Art/BattleCards/Result/BattleDefeatPanel";
+                ? "RunVictoryPanelAged"
+                : "BattleDefeatPanelAged";
             if (m_View.ResultPopupImage != null)
-                m_View.ResultPopupImage.sprite = Resources.Load<Sprite>(resourcePath);
-            if (m_View.ResultPopupTitle != null)
-                m_View.ResultPopupTitle.text = wholeRunVictory ? "整局胜利" : "战斗失败";
-            if (m_View.ResultPopupBody != null)
-            {
-                m_View.ResultPopupBody.text = wholeRunVictory
-                    ? "恭喜完成全部轮次"
-                    : "本局冒险已经结束";
-            }
-            if (m_View.RestartButtonText != null)
-                m_View.RestartButtonText.text = "重新开始";
+                m_View.ResultPopupImage.sprite = ResourceApi.LoadSprite(resourcePath);
             m_View.ResultPopupRoot.SetActive(true);
             m_PopupElapsed = 0f;
             m_PopupAnimating = true;
@@ -185,11 +173,11 @@ namespace Hearthstone
                 m_PopupAnimating = false;
         }
 
-        private void OnRestartClicked()
+        private void OnReturnToMainMenuClicked()
         {
-            if (m_View.RestartButton != null)
-                m_View.RestartButton.interactable = false;
-            HearthstoneGameEngine.Instance?.RestartRun();
+            if (m_View.ReturnToMainMenuButton != null)
+                m_View.ReturnToMainMenuButton.interactable = false;
+            HearthstoneGameEngine.Instance?.EnterMainMenuStageGroup();
         }
 
         private void ResetResultPresentation()
@@ -202,8 +190,8 @@ namespace Hearthstone
                 m_View.VictoryBannerRoot.gameObject.SetActive(false);
             if (m_View.ResultPopupRoot != null)
                 m_View.ResultPopupRoot.SetActive(false);
-            if (m_View.RestartButton != null)
-                m_View.RestartButton.interactable = true;
+            if (m_View.ReturnToMainMenuButton != null)
+                m_View.ReturnToMainMenuButton.interactable = true;
         }
     }
 }

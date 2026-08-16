@@ -1,0 +1,18 @@
+BattleNumber,CardNumbers
+// Battle round number,Semicolon-separated enemy battle card identifiers in slot order
+// Associated: BattleCardCsvData
+1,4;5
+1,2;8
+1,9;14
+2,4;5;2
+2,8;14;12
+2,9;18;3
+3,4;100;101;5
+3,8;105;106;12
+3,9;109;110;14
+4,4;115;100;101;102
+4,8;120;105;106;107
+4,12;124;109;110;111
+5,4;115;116;117;100;5
+5,8;120;121;124;105;12
+5,14;125;130;134;110;9

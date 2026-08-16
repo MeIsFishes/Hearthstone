@@ -66,6 +66,8 @@ namespace Hearthstone
 
                 runState.SetUnlockedBattleSlotCount(round.UnlockedBattleSlotCount);
                 var result = RunCardRules.ApplyRewardBatch(runState, batch);
+                if (result == ERewardBatchApplyResult.Applied)
+                    CardCollectionSave.RegisterRewardBatch(batch);
                 var session = EcsApi.AddSingletonRawComponent<PreparationSessionSingletonRawComponent>();
                 if (session == null)
                     throw new InvalidOperationException("Unable to create PreparationSessionSingletonRawComponent.");

@@ -1,6 +1,8 @@
 using System;
+using System.Reflection;
 using System.Text.RegularExpressions;
 using BbxCommon;
+using BbxCommon.Ui;
 using NUnit.Framework;
 using TMPro;
 using Unity.Mathematics;
@@ -20,6 +22,7 @@ namespace Hearthstone.Tests
         {
             DataApi.ReleaseAllData<BattleCardCsvData>(false);
             DataApi.ReleaseAllData<BattleCardTypeCsvData>(false);
+            DataApi.ReleaseAllData<EnemyLineupCsvData>(false);
         }
 
         [Test]
@@ -158,8 +161,10 @@ namespace Hearthstone.Tests
             ResourceApi.Initialize();
             var typeCsvAsset = ResourceApi.LoadTextAsset(nameof(BattleCardTypeCsvData));
             var cardCsvAsset = ResourceApi.LoadTextAsset(nameof(BattleCardCsvData));
+            var enemyLineupCsvAsset = ResourceApi.LoadTextAsset(nameof(EnemyLineupCsvData));
             Assert.NotNull(typeCsvAsset);
             Assert.NotNull(cardCsvAsset);
+            Assert.NotNull(enemyLineupCsvAsset);
 
             CsvApi.ReadFromString<BattleCardTypeCsvData>(nameof(BattleCardTypeCsvData), typeCsvAsset.text);
             CsvApi.ReadFromString<BattleCardCsvData>(nameof(BattleCardCsvData), cardCsvAsset.text);
@@ -196,6 +201,124 @@ namespace Hearthstone.Tests
         }
 
         [Test]
+        public void EnemyLineupCsvKeepsMultipleRowsPerBattleAndSelectsOneWholeLineup()
+        {
+            const string csv =
+                "BattleNumber,CardNumbers\n" +
+                "// Battle round number,Semicolon-separated enemy card identifiers\n" +
+                "// Associated: BattleCardCsvData\n" +
+                "2,4;100;5\n" +
+                "2,8;101;12\n" +
+                "3,9;109;110;14\n";
+            CsvApi.ReadFromString<EnemyLineupCsvData>(nameof(EnemyLineupCsvData), csv);
+
+            var random = new Random(12345u);
+            for (var attempt = 0; attempt < 20; attempt++)
+            {
+                var selected = EnemyLineupCsvData.GetRandomRequired(2, ref random);
+                Assert.AreEqual(2, selected.BattleNumber);
+                Assert.That(
+                    selected.CardNumbers,
+                    Is.EqualTo(new[] { 4, 100, 5 }).Or.EqualTo(new[] { 8, 101, 12 }));
+            }
+            Assert.Throws<InvalidOperationException>(() =>
+            {
+                var missingRandom = new Random(7u);
+                EnemyLineupCsvData.GetRandomRequired(1, ref missingRandom);
+            });
+        }
+
+        [Test]
+        public void EnemyFusionCardRollsBaseMaterialsThenUsesSharedFusionComposition()
+        {
+            LoadRuntimeCardData();
+            var random = new Random(54321u);
+
+            var result = EnemyCardFactory.Create(101, ref random);
+
+            Assert.AreEqual(101, result.CardNumber);
+            Assert.That(result.Attack, Is.InRange(5, 9));
+            Assert.That(result.MaxHealth, Is.InRange(8, 12));
+            Assert.AreEqual(EBattleKeyword.Taunt | EBattleKeyword.LongShot, result.Keywords);
+            Assert.AreEqual(EBattleCardTier.Silver, result.Tier);
+        }
+
+        [Test]
+        public void EnemyPreviewSnapshotIsTheExactLineupConsumedByTheNextBattle()
+        {
+            LoadRuntimeCardData();
+            const string csv =
+                "BattleNumber,CardNumbers\n" +
+                "// Battle round number,Semicolon-separated enemy card identifiers\n" +
+                "// Associated: BattleCardCsvData\n" +
+                "4,1;101;2\n";
+            CsvApi.ReadFromString<EnemyLineupCsvData>(nameof(EnemyLineupCsvData), csv);
+            var preview = EnemyBattlePreviewStartupData.CreateRandom(4, 24680u);
+            var rewardBatch = new PreparationRewardBatchStartupData(
+                "enemy-preview-test",
+                new[] { new RewardCardGrantStartupData(1, 1, 1) });
+            var round = new PreparationRoundStartupData(4, 5, rewardBatch, preview);
+            var session = new PreparationSessionSingletonRawComponent();
+
+            session.Initialize(round, true);
+            var battle = new BattleStageStartupData(
+                4,
+                rewardBatch,
+                enemyPreview: session.EnemyPreview);
+
+            Assert.AreEqual(3, preview.CardCount);
+            Assert.AreEqual(preview.RandomSeed, battle.EnemyPreview.RandomSeed);
+            Assert.AreEqual(preview.TargetRandomState, battle.EnemyPreview.TargetRandomState);
+            for (var slot = 0; slot < preview.CardCount; slot++)
+            {
+                var expected = preview.GetCard(slot);
+                var actual = battle.EnemyPreview.GetCard(slot);
+                Assert.AreEqual(expected.CardNumber, actual.CardNumber);
+                Assert.AreEqual(expected.Attack, actual.Attack);
+                Assert.AreEqual(expected.MaxHealth, actual.MaxHealth);
+                Assert.AreEqual(expected.Keywords, actual.Keywords);
+                Assert.AreEqual(expected.Tier, actual.Tier);
+            }
+        }
+
+        [Test]
+        public void RuntimeEnemyLineupsContainThreeRequestedCompositionsForEachBattle()
+        {
+            LoadRuntimeCardData();
+            ResourceApi.Initialize();
+            var csvAsset = ResourceApi.LoadTextAsset(nameof(EnemyLineupCsvData));
+            Assert.NotNull(csvAsset);
+            CsvApi.ReadFromString<EnemyLineupCsvData>(nameof(EnemyLineupCsvData), csvAsset.text);
+            var expectedCompositions = new[]
+            {
+                new[] { 1, 1 },
+                new[] { 1, 1, 1 },
+                new[] { 1, 2, 2, 1 },
+                new[] { 1, 3, 2, 2, 2 },
+                new[] { 1, 3, 3, 3, 2, 1 },
+            };
+            var rowCounts = new int[expectedCompositions.Length];
+            var totalRows = 0;
+            foreach (var lineup in DataApi.GetEnumerator<EnemyLineupCsvData>())
+            {
+                totalRows++;
+                Assert.That(lineup.BattleNumber, Is.InRange(1, expectedCompositions.Length));
+                rowCounts[lineup.BattleNumber - 1]++;
+                var expected = expectedCompositions[lineup.BattleNumber - 1];
+                Assert.AreEqual(expected.Length, lineup.CardNumbers.Length);
+                for (var slot = 0; slot < expected.Length; slot++)
+                {
+                    var card = DataApi.GetData<BattleCardCsvData>(lineup.CardNumbers[slot]);
+                    Assert.NotNull(card);
+                    var materialCount = card.IsFusionResult ? card.FusionRecipeTypeIds.Count : 1;
+                    Assert.AreEqual(expected[slot], materialCount);
+                }
+            }
+            Assert.AreEqual(15, totalRows);
+            CollectionAssert.AreEqual(new[] { 3, 3, 3, 3, 3 }, rowCounts);
+        }
+
+        [Test]
         public void PreparationAndBattleShareParchmentAgingOverlayWithStrongerBattleWeathering()
         {
             ResourceApi.Initialize();
@@ -215,13 +338,16 @@ namespace Hearthstone.Tests
                 .Find("ParchmentAgingOverlay")?.GetComponent<Image>();
             Assert.NotNull(preparationOverlay);
             Assert.NotNull(battleOverlay);
+            var battleBackground = battlePrefab.transform.Find("BoardBackground")?.GetComponent<Image>();
+            Assert.NotNull(battleBackground);
+            Assert.AreEqual("BattleBoardBackgroundAged", battleBackground.sprite.name);
             Assert.AreSame(sharedOverlay, preparationOverlay.sprite);
             Assert.AreSame(sharedOverlay, battleOverlay.sprite);
             Assert.AreSame(preparationOverlay.sprite, battleOverlay.sprite);
             Assert.IsFalse(preparationOverlay.raycastTarget);
             Assert.IsFalse(battleOverlay.raycastTarget);
             Assert.That(preparationOverlay.color.a, Is.EqualTo(0.18f).Within(0.001f));
-            Assert.That(battleOverlay.color.a, Is.EqualTo(0.24f).Within(0.001f));
+            Assert.That(battleOverlay.color.a, Is.EqualTo(0.42f).Within(0.001f));
             Assert.Greater(battleOverlay.color.a, preparationOverlay.color.a);
 
             var preparationRect = (RectTransform)preparationOverlay.transform;
@@ -229,6 +355,120 @@ namespace Hearthstone.Tests
             Assert.AreEqual(new Vector2(1700f, 380f), preparationRect.sizeDelta);
             Assert.AreEqual(new Vector2(0.055f, 0.07f), battleRect.anchorMin);
             Assert.AreEqual(new Vector2(0.945f, 0.93f), battleRect.anchorMax);
+        }
+
+        [Test]
+        public void PreparationEnemyPreviewUsesNarrowRectangleTabAndArrowHeadOnly()
+        {
+            ResourceApi.Initialize();
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(
+                "Assets/Resources/Ui/PreparationView.prefab");
+            Assert.NotNull(prefab);
+            var view = prefab.GetComponent<PreparationView>();
+            Assert.NotNull(view);
+            Assert.NotNull(view.EnemyPreviewDrawerRoot);
+            Assert.NotNull(view.EnemyPreviewPanelCanvasGroup);
+            Assert.NotNull(view.EnemyPreviewToggleButton);
+            Assert.NotNull(view.EnemyPreviewToggleArrow);
+            Assert.NotNull(view.EnemyPreviewCardList);
+
+            var toggleImage = view.EnemyPreviewToggleButton.targetGraphic as Image;
+            var arrowImage = view.EnemyPreviewToggleArrow.GetComponent<Image>();
+            var panelImage = view.EnemyPreviewPanelCanvasGroup.GetComponent<Image>();
+            Assert.NotNull(toggleImage);
+            Assert.NotNull(arrowImage);
+            Assert.NotNull(panelImage);
+            Assert.AreEqual("PreparationEnemyPreviewToggle", toggleImage.sprite.name);
+            Assert.AreEqual("PreparationEnemyPreviewArrow", arrowImage.sprite.name);
+            Assert.AreEqual("PreparationEnemyPreviewPanel", panelImage.sprite.name);
+            Assert.NotNull(ResourceApi.LoadSprite("PreparationEnemyPreviewToggle"));
+            Assert.NotNull(ResourceApi.LoadSprite("PreparationEnemyPreviewArrow"));
+            Assert.NotNull(ResourceApi.LoadSprite("PreparationEnemyPreviewPanel"));
+
+            var toggleRect = (RectTransform)view.EnemyPreviewToggleButton.transform;
+            Assert.AreEqual(new Vector2(86f, 156f), toggleRect.sizeDelta);
+            Assert.Less(toggleRect.sizeDelta.x / toggleRect.sizeDelta.y, 0.6f);
+            Assert.AreEqual(20f, toggleRect.anchoredPosition.y, 0.001f);
+            Assert.AreEqual(new Vector2(66f, 72f), view.EnemyPreviewToggleArrow.sizeDelta);
+            Assert.AreEqual(0, view.EnemyPreviewToggleArrow.childCount);
+            Assert.Greater(
+                view.EnemyPreviewOpenPosition.x - view.EnemyPreviewClosedPosition.x,
+                1000f);
+            var panelRect = (RectTransform)view.EnemyPreviewPanelCanvasGroup.transform;
+            Assert.AreEqual(new Vector2(1500f, 400f), panelRect.sizeDelta);
+            Assert.That(
+                view.EnemyPreviewClosedPosition.x + toggleRect.anchoredPosition.x -
+                toggleRect.sizeDelta.x * 0.5f,
+                Is.EqualTo(0f).Within(0.001f));
+            Assert.That(
+                view.EnemyPreviewOpenPosition.x + panelRect.anchoredPosition.x -
+                panelRect.sizeDelta.x * 0.5f,
+                Is.EqualTo(0f).Within(0.001f));
+            Assert.That(
+                panelRect.anchoredPosition.x + panelRect.sizeDelta.x * 0.5f -
+                (toggleRect.anchoredPosition.x - toggleRect.sizeDelta.x * 0.5f),
+                Is.EqualTo(14f).Within(0.001f));
+            Assert.IsFalse(view.EnemyPreviewPanelCanvasGroup.interactable);
+            Assert.IsFalse(view.EnemyPreviewPanelCanvasGroup.blocksRaycasts);
+            Assert.AreEqual(UiList.EArrangement.ConstantSlot, view.EnemyPreviewCardList.ArragementType);
+            Assert.AreEqual(UiList.EDirection.Horizontal, view.EnemyPreviewCardList.ConstantSlotDirection);
+            Assert.AreEqual(view.BattleSlotList.ConstantSlotSize, view.EnemyPreviewCardList.ConstantSlotSize);
+
+            var previewListRect = (RectTransform)view.EnemyPreviewCardList.transform;
+            Assert.AreEqual(new Vector2(1110f, 266.4f), previewListRect.sizeDelta);
+            Assert.LessOrEqual(
+                Mathf.Abs(previewListRect.anchoredPosition.x) + previewListRect.sizeDelta.x * 0.5f,
+                panelRect.sizeDelta.x * 0.5f);
+            Assert.LessOrEqual(
+                Mathf.Abs(previewListRect.anchoredPosition.y) + previewListRect.sizeDelta.y * 0.5f,
+                panelRect.sizeDelta.y * 0.5f);
+
+            var title = panelRect.Find("Title") as RectTransform;
+            Assert.NotNull(title);
+            Assert.AreEqual("敌方阵容", title.GetComponent<TMP_Text>().text);
+            Assert.Less(
+                title.anchoredPosition.x + title.sizeDelta.x * 0.5f,
+                previewListRect.anchoredPosition.x - previewListRect.sizeDelta.x * 0.5f);
+
+            var previewTargetSize =
+                view.EnemyPreviewCardList.ConstantSlotSize * (150f / 185f);
+            var previewScale = Mathf.Min(
+                previewTargetSize.x / 250f,
+                previewTargetSize.y / 360f);
+            Assert.AreEqual(0.6f, previewScale, 0.001f);
+            var previewFinalSize = new Vector2(250f, 360f) * previewScale;
+            Assert.AreEqual(150f, previewFinalSize.x, 0.001f);
+            Assert.AreEqual(216f, previewFinalSize.y, 0.001f);
+
+            var controllerScript = AssetDatabase.LoadAssetAtPath<MonoScript>(
+                "Assets/Scripts/Hearthstone/Ui/Controller/PreparationController.cs");
+            Assert.NotNull(controllerScript);
+            StringAssert.Contains("Mathf.MoveTowards(", controllerScript.text);
+            StringAssert.Contains(
+                "m_EnemyPreviewDrawerTargetOpen && m_EnemyPreviewDrawerProgress >= 1f",
+                controllerScript.text);
+            StringAssert.Contains(
+                "!m_EnemyPreviewDrawerTargetOpen && m_EnemyPreviewDrawerProgress <= 0f",
+                controllerScript.text);
+            StringAssert.Contains(
+                "m_EnemyPreviewArrowPointsLeft ? 180f : 0f",
+                controllerScript.text);
+            StringAssert.Contains(
+                "m_View.EnemyPreviewDrawerRoot.gameObject.SetActive(battle);",
+                controllerScript.text);
+            StringAssert.Contains(
+                "m_View.EnemyPreviewToggleButton.interactable = m_EnemyPreviewAvailable;",
+                controllerScript.text);
+            StringAssert.Contains(
+                "EnemyPreviewCardVisualFillRatio = 150f / 185f",
+                controllerScript.text);
+
+            var itemControllerScript = AssetDatabase.LoadAssetAtPath<MonoScript>(
+                "Assets/Scripts/Hearthstone/Ui/Controller/BattleCardItemController.cs");
+            Assert.NotNull(itemControllerScript);
+            StringAssert.Contains(
+                "m_View.transform as RectTransform",
+                itemControllerScript.text);
         }
 
         [Test]
@@ -671,22 +911,21 @@ namespace Hearthstone.Tests
             Assert.AreEqual(sharedAspect, poolSlotSize.x / poolSlotSize.y, 0.0001f);
             var battleSlotSize = preparationView.BattleSlotList.ConstantSlotSize;
             Assert.AreEqual(sharedAspect, battleSlotSize.x / battleSlotSize.y, 0.0001f);
-            var expectedBattleSlotScale = Mathf.Min(
-                battleSlotSize.x * 0.82f / sharedSize.x,
-                battleSlotSize.y * 0.82f / sharedSize.y);
-            Assert.AreEqual(0.6724f, expectedBattleSlotScale, 0.0001f);
-            Assert.Less(expectedBattleSlotScale, 1f);
-            var battleSlotGap = battleSlotSize.x - sharedSize.x * expectedBattleSlotScale;
-            Assert.AreEqual(36.9f, battleSlotGap, 0.001f);
+            var expectedBattleSlotScale = Vector2.one * 0.6f;
+            var battleOccupiedSize = Vector2.Scale(sharedSize, expectedBattleSlotScale);
+            Assert.AreEqual(150f, battleOccupiedSize.x, 0.001f);
+            Assert.AreEqual(216f, battleOccupiedSize.y, 0.001f);
+            var battleSlotGap = battleSlotSize.x - battleOccupiedSize.x;
+            Assert.AreEqual(35f, battleSlotGap, 0.001f);
             Assert.Greater(battleSlotGap, 0f);
             var fusionSlotSize = preparationView.FusionSlotList.ConstantSlotSize;
             Assert.AreEqual(sharedAspect, fusionSlotSize.x / fusionSlotSize.y, 0.0001f);
-            var expectedFusionSlotScale = Mathf.Min(
-                fusionSlotSize.x * 0.82f / sharedSize.x,
-                fusionSlotSize.y * 0.82f / sharedSize.y);
-            Assert.AreEqual(0.6232f, expectedFusionSlotScale, 0.0001f);
-            var fusionSlotGap = fusionSlotSize.x - sharedSize.x * expectedFusionSlotScale;
-            Assert.AreEqual(34.2f, fusionSlotGap, 0.001f);
+            var expectedFusionSlotScale = Vector2.one * 0.6f;
+            var fusionOccupiedSize = Vector2.Scale(sharedSize, expectedFusionSlotScale);
+            Assert.AreEqual(150f, fusionOccupiedSize.x, 0.001f);
+            Assert.AreEqual(216f, fusionOccupiedSize.y, 0.001f);
+            var fusionSlotGap = fusionSlotSize.x - fusionOccupiedSize.x;
+            Assert.AreEqual(40f, fusionSlotGap, 0.001f);
             Assert.Greater(fusionSlotGap, 0f);
 
             var controllerScript = AssetDatabase.LoadAssetAtPath<MonoScript>(
@@ -698,13 +937,32 @@ namespace Hearthstone.Tests
             StringAssert.Contains(
                 "m_View.BattleSlotList.ConstantSlotSize",
                 controllerScript.text);
-            StringAssert.Contains("PreparationSlotVisualFillRatio = 0.82f", controllerScript.text);
+            StringAssert.Contains("BattleSlotVisualFillRatio = 150f / 185f", controllerScript.text);
+            StringAssert.Contains("FusionSlotVisualFillRatio = 150f / 190f", controllerScript.text);
             StringAssert.AreEqualIgnoringCase(
                 "PreparationPoolEmptySlot",
                 sharedView.PreparationBattleSlotEmptyState.GetComponent<Image>().sprite.name);
             Assert.AreSame(
                 sharedView.PreparationBattleSlotEmptyState.GetComponent<Image>().sprite,
                 sharedView.PreparationFusionSlotEmptyState.GetComponent<Image>().sprite);
+            var battleEmptyRect = (RectTransform)sharedView.PreparationBattleSlotEmptyState.transform;
+            var fusionEmptyRect = (RectTransform)sharedView.PreparationFusionSlotEmptyState.transform;
+            Assert.AreEqual(Vector2.zero, battleEmptyRect.sizeDelta);
+            Assert.AreEqual(Vector2.zero, fusionEmptyRect.sizeDelta);
+            var emptyImage = sharedView.PreparationBattleSlotEmptyState.GetComponent<Image>();
+            Assert.IsFalse(emptyImage.preserveAspect);
+            Assert.AreEqual(sharedSize, battleEmptyRect.rect.size);
+            Assert.AreEqual(sharedSize, fusionEmptyRect.rect.size);
+            var battleEmptySize = Vector2.Scale(battleEmptyRect.rect.size, expectedBattleSlotScale);
+            Assert.AreEqual(battleEmptySize.x, battleOccupiedSize.x, 0.001f);
+            Assert.AreEqual(battleEmptySize.y, battleOccupiedSize.y, 0.001f);
+            var battleEmptyGap = battleSlotSize.x - battleEmptySize.x;
+            Assert.AreEqual(battleSlotGap, battleEmptyGap, 0.001f);
+            var fusionEmptySize = Vector2.Scale(fusionEmptyRect.rect.size, expectedFusionSlotScale);
+            Assert.AreEqual(fusionEmptySize.x, fusionOccupiedSize.x, 0.001f);
+            Assert.AreEqual(fusionEmptySize.y, fusionOccupiedSize.y, 0.001f);
+            var fusionEmptyGap = fusionSlotSize.x - fusionEmptySize.x;
+            Assert.AreEqual(fusionSlotGap, fusionEmptyGap, 0.001f);
             StringAssert.Contains(
                 "FusionSlotList.ItemWrapper.AddItem<BattleCardItemController>()",
                 controllerScript.text);
@@ -719,11 +977,59 @@ namespace Hearthstone.Tests
             var itemControllerScript = AssetDatabase.LoadAssetAtPath<MonoScript>(
                 "Assets/Scripts/Hearthstone/Ui/Controller/BattleCardItemController.cs");
             Assert.NotNull(itemControllerScript);
-            StringAssert.Contains("ApplyContainedSlotScale(slotSize);", itemControllerScript.text);
+            StringAssert.Contains(
+                "EPreparationBindingMode.BattleSlot && occupied == false",
+                itemControllerScript.text);
+            StringAssert.Contains(
+                "EPreparationBindingMode.FusionSlot && occupied == false",
+                itemControllerScript.text);
+            StringAssert.Contains("ApplyExactSlotScale(slotSize);", itemControllerScript.text);
+            StringAssert.Contains(
+                "var cardRect = m_View == null ? null : m_View.transform as RectTransform;",
+                itemControllerScript.text);
+            StringAssert.Contains("transform.localScale = new Vector3(scaleX, scaleY, 1f);", itemControllerScript.text);
             StringAssert.Contains("slotSize.x / cardRect.rect.width", itemControllerScript.text);
             StringAssert.Contains("slotSize.y / cardRect.rect.height", itemControllerScript.text);
             StringAssert.Contains("Mathf.Min(1f, scale)", itemControllerScript.text);
             StringAssert.Contains("transform.localScale = Vector3.one;", itemControllerScript.text);
+        }
+
+        [Test]
+        public void PreparationSlotScaleUsesRuntimeCardViewInsteadOfControllerWrapper()
+        {
+            var sharedPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(
+                "Assets/Resources/Ui/BattleCardItem.prefab");
+            Assert.NotNull(sharedPrefab);
+
+            var wrapper = new GameObject("BattleCardItemController", typeof(RectTransform));
+            try
+            {
+                var viewObject = UnityEngine.Object.Instantiate(sharedPrefab, wrapper.transform);
+                var view = viewObject.GetComponent<BattleCardItemView>();
+                Assert.NotNull(view);
+                var controller = wrapper.AddComponent<BattleCardItemController>();
+                controller.SetView(view);
+
+                var wrapperRect = (RectTransform)wrapper.transform;
+                var viewRect = (RectTransform)view.transform;
+                Assert.AreNotEqual(viewRect.rect.size, wrapperRect.rect.size);
+                Assert.AreEqual(new Vector2(250f, 360f), viewRect.rect.size);
+
+                var applyScale = typeof(BattleCardItemController).GetMethod(
+                    "ApplyExactSlotScale",
+                    BindingFlags.Instance | BindingFlags.NonPublic);
+                Assert.NotNull(applyScale);
+                applyScale.Invoke(controller, new object[] { new Vector2(150f, 216f) });
+
+                Assert.AreEqual(0.6f, wrapper.transform.localScale.x, 0.00001f);
+                Assert.AreEqual(0.6f, wrapper.transform.localScale.y, 0.00001f);
+                Assert.AreEqual(150f, viewRect.rect.width * wrapper.transform.localScale.x, 0.001f);
+                Assert.AreEqual(216f, viewRect.rect.height * wrapper.transform.localScale.y, 0.001f);
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(wrapper);
+            }
         }
 
         [Test]
@@ -758,6 +1064,76 @@ namespace Hearthstone.Tests
                 "Assets/Resources/Ui/PreparationView.prefab");
             Assert.NotNull(preparationPrefab);
             Assert.IsNull(preparationPrefab.transform.Find("BattleOperation/BattleSlotHeader"));
+        }
+
+        [Test]
+        public void BattleViewUsesCornerDecorationsBehindCards()
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(
+                "Assets/Resources/Ui/BattleView.prefab");
+            Assert.NotNull(prefab);
+            var view = prefab.GetComponent<BattleView>();
+            Assert.NotNull(view);
+
+            var dagger = prefab.transform.Find("UpperLeftDagger")?.GetComponent<Image>();
+            Assert.NotNull(dagger);
+            Assert.AreEqual("BattleCornerDagger", dagger.sprite.name);
+            Assert.IsFalse(dagger.raycastTarget);
+            Assert.AreEqual(new Vector2(0f, 1f), dagger.rectTransform.anchorMin);
+            Assert.AreEqual(new Vector2(0f, 1f), dagger.rectTransform.anchorMax);
+            Assert.AreEqual(new Vector2(220f, -280f), dagger.rectTransform.anchoredPosition);
+            Assert.AreEqual(new Vector2(420f, 630f), dagger.rectTransform.sizeDelta);
+            Assert.AreEqual(new Vector3(-1f, 1f, 1f), dagger.rectTransform.localScale);
+            Assert.Less(dagger.transform.GetSiblingIndex(), view.EnemyCardList.transform.GetSiblingIndex());
+
+            var quillStamp = prefab.transform.Find("LowerRightQuillStamp")?.GetComponent<Image>();
+            Assert.NotNull(quillStamp);
+            Assert.AreEqual("BattleCornerQuillStamp", quillStamp.sprite.name);
+            Assert.IsFalse(quillStamp.raycastTarget);
+            Assert.AreEqual(new Vector2(1f, 0f), quillStamp.rectTransform.anchorMin);
+            Assert.AreEqual(new Vector2(1f, 0f), quillStamp.rectTransform.anchorMax);
+            Assert.AreEqual(new Vector2(-100f, 110f), quillStamp.rectTransform.anchoredPosition);
+            Assert.AreEqual(new Vector2(320f, 213f), quillStamp.rectTransform.sizeDelta);
+            Assert.Less(quillStamp.transform.GetSiblingIndex(), view.PlayerCardList.transform.GetSiblingIndex());
+        }
+
+        [Test]
+        public void GeneratedResultPanelsAndPreparationDeployedStateReplaceRuntimeText()
+        {
+            var battlePrefab = AssetDatabase.LoadAssetAtPath<GameObject>(
+                "Assets/Resources/Ui/BattleView.prefab");
+            var cardPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(
+                "Assets/Resources/Ui/BattleCardItem.prefab");
+            Assert.NotNull(battlePrefab);
+            Assert.NotNull(cardPrefab);
+
+            var battleView = battlePrefab.GetComponent<BattleView>();
+            Assert.NotNull(battleView);
+            Assert.AreEqual(
+                "BattleVictoryBannerAged",
+                battleView.VictoryBannerRoot.GetComponent<Image>().sprite.name);
+            Assert.IsNull(battleView.VictoryBannerRoot.Find("Label"));
+            Assert.AreEqual("BattleDefeatPanelAged", battleView.ResultPopupImage.sprite.name);
+            Assert.IsNull(battleView.ResultPopupImage.transform.Find("Title"));
+            Assert.IsNull(battleView.ResultPopupImage.transform.Find("Body"));
+            Assert.NotNull(battleView.ReturnToMainMenuButton);
+            Assert.AreEqual(
+                "ReturnToMainMenuButtonAged",
+                battleView.ReturnToMainMenuButton.targetGraphic.GetComponent<Image>().sprite.name);
+            Assert.IsNull(battleView.ReturnToMainMenuButton.transform.Find("Label"));
+
+            var cardView = cardPrefab.GetComponent<BattleCardItemView>();
+            var deployedImage = cardView.PreparationDeployedState.GetComponent<Image>();
+            Assert.NotNull(deployedImage);
+            Assert.AreEqual("PreparationDeployedText", deployedImage.sprite.name);
+            Assert.IsNull(cardView.PreparationDeployedState.GetComponent<TMP_Text>());
+
+            var battleControllerScript = AssetDatabase.LoadAssetAtPath<MonoScript>(
+                "Assets/Scripts/Hearthstone/Ui/Controller/BattleController.cs");
+            StringAssert.Contains("ResourceApi.LoadSprite(resourcePath)", battleControllerScript.text);
+            StringAssert.Contains("EnterMainMenuStageGroup()", battleControllerScript.text);
+            StringAssert.DoesNotContain("RestartRun()", battleControllerScript.text);
+            StringAssert.DoesNotContain("Resources.Load<Sprite>", battleControllerScript.text);
         }
 
         [Test]
@@ -1029,7 +1405,7 @@ namespace Hearthstone.Tests
         public void LivingAttackerSequenceWrapsFromLeftToRight()
         {
             var cursor = 0;
-            var expectedSlots = new[] { 0, 1, 2, 0 };
+            var expectedSlots = new[] { 0, 1, 2, 3, 4, 5, 0 };
 
             foreach (var expectedSlot in expectedSlots)
             {

@@ -1,3 +1,4 @@
+using System;
 using BbxCommon;
 using BbxCommon.Ui;
 using TMPro;
@@ -32,6 +33,7 @@ namespace Hearthstone
             BattleSlot,
             FusionSlot,
             FusionRecommendation,
+            Collection,
         }
 
         private const string UnifiedCardFrameArtworkKey = "CardFrame-v3";
@@ -76,6 +78,8 @@ namespace Hearthstone
         private int m_PreparationSlot = -1;
         private bool m_PreparationCardOwned;
         private bool m_PreparationCardLocked;
+        private Action<int, RectTransform> m_CollectionClick;
+        private Action<PointerEventData> m_CollectionScroll;
         private EBattleKeyword m_DisplayKeywords;
         private Color m_DefaultFrameColor = BronzeFrameColor;
         private bool m_IsHovered;
@@ -145,6 +149,7 @@ namespace Hearthstone
             {
                 m_View.CardHoverListener.AddCallback(EUiEvent.PointerEnter, OnCardPointerEnter);
                 m_View.CardHoverListener.AddCallback(EUiEvent.PointerExit, OnCardPointerExit);
+                m_View.CardHoverListener.AddCallback(EUiEvent.PointerClick, OnCardPointerClicked);
             }
             InitializePreparationEmptySlotInteraction();
             CreateAttackEffectOverlay();
@@ -322,9 +327,145 @@ namespace Hearthstone
             SetHoverEnabled(false);
         }
 
+        internal void BindEnemyPreview(RunCardInstanceData instance, Vector2 slotSize)
+        {
+            ResetBinding();
+            if (instance.IsValid == false)
+                return;
+
+            var cardConfig = DataApi.GetData<BattleCardCsvData>(instance.PresentationCardNumber);
+            var typeConfig = cardConfig == null
+                ? null
+                : DataApi.GetData<BattleCardTypeCsvData>(cardConfig.CardTypeId);
+            if (cardConfig == null || typeConfig == null)
+            {
+                DebugApi.LogError(
+                    $"Enemy preview card configuration {instance.PresentationCardNumber} is missing.");
+                return;
+            }
+
+            m_PreparationCardNumber = instance.CardNumber;
+            ApplyContainedSlotScale(slotSize);
+            if (m_View.CardNumberText != null)
+                m_View.CardNumberText.text = instance.CardNumber.ToString("00");
+            if (m_View.CardNumberBadge != null)
+                m_View.CardNumberBadge.gameObject.SetActive(true);
+            ShowCardPresentation(GetTierFrameColor(instance.Tier));
+            ApplyCardContent(
+                cardConfig,
+                typeConfig,
+                instance.Keywords,
+                instance.Attack,
+                instance.MaxHealth);
+            RefreshAlive(true);
+            RefreshHighlights(Entity.Null);
+            SetHoverEnabled(true);
+        }
+
         internal void SetFusionRevealInteraction(bool enabled)
         {
             SetHoverEnabled(enabled);
+        }
+
+        internal void BindCollection(
+            int cardNumber,
+            bool unlocked,
+            Action<int, RectTransform> onClick,
+            Action<PointerEventData> onScroll)
+        {
+            ResetBinding();
+            m_PreparationBindingMode = EPreparationBindingMode.Collection;
+            m_PreparationCardNumber = cardNumber;
+            m_PreparationCardLocked = unlocked == false;
+            m_CollectionClick = onClick;
+            m_CollectionScroll = onScroll;
+            if (unlocked == false)
+            {
+                if (m_View.CardNumberText != null)
+                    m_View.CardNumberText.text = "??";
+                if (m_View.CardNumberBadge != null)
+                    m_View.CardNumberBadge.gameObject.SetActive(true);
+                ShowLockedPreparationCard();
+                HideCollectionLockedText();
+            }
+            else
+            {
+                ShowCollectionCard(cardNumber);
+            }
+
+            if (m_View.PreparationInteractor != null)
+                m_View.PreparationInteractor.enabled = false;
+            if (m_View.PreparationDragable != null)
+            {
+                m_View.PreparationDragable.enabled = false;
+                if (m_View.PreparationDragable.EventListener != null)
+                    m_View.PreparationDragable.EventListener.enabled = false;
+            }
+            SetHoverEnabled(unlocked);
+            if (m_View.CardBackground != null)
+            {
+                m_View.CardBackground.color = Color.clear;
+                m_View.CardBackground.raycastTarget = unlocked;
+            }
+        }
+
+        private void HideCollectionLockedText()
+        {
+            m_DisplayKeywords = EBattleKeyword.None;
+            if (m_View.SkillDescriptionText != null)
+            {
+                m_View.SkillDescriptionText.text = string.Empty;
+                m_View.SkillDescriptionText.gameObject.SetActive(false);
+            }
+            if (m_View.KeywordText != null)
+            {
+                m_View.KeywordText.text = string.Empty;
+                m_View.KeywordText.gameObject.SetActive(false);
+            }
+            if (m_View.KeywordTooltipText != null)
+                m_View.KeywordTooltipText.text = string.Empty;
+            HideKeywordTooltip();
+        }
+
+        private void ShowCollectionCard(int cardNumber)
+        {
+            var cardConfig = DataApi.GetData<BattleCardCsvData>(cardNumber);
+            var typeConfig = cardConfig == null
+                ? null
+                : DataApi.GetData<BattleCardTypeCsvData>(cardConfig.CardTypeId);
+            if (cardConfig == null || typeConfig == null)
+            {
+                DebugApi.LogError($"Collection battle card configuration {cardNumber} is missing.");
+                HideCardPresentation(false);
+                return;
+            }
+
+            if (m_View.CardNumberText != null)
+                m_View.CardNumberText.text = cardNumber.ToString("00");
+            if (m_View.CardNumberBadge != null)
+                m_View.CardNumberBadge.gameObject.SetActive(true);
+            var keywords = typeConfig.InitialKeyword;
+            var attack = typeConfig.MinAttack;
+            var health = typeConfig.MinHealth;
+            var tier = typeConfig.Tier;
+            if (cardConfig.IsFusionResult)
+            {
+                var simulated = BattleCardSimulationFactory.CreateDeterministic(cardNumber);
+                keywords = simulated.Keywords;
+                attack = simulated.Attack;
+                health = simulated.MaxHealth;
+                tier = simulated.Tier;
+            }
+
+            ShowCardPresentation(GetTierFrameColor(tier));
+            ApplyCardContent(
+                cardConfig,
+                typeConfig,
+                keywords,
+                attack,
+                health);
+            RefreshAlive(true);
+            RefreshHighlights(Entity.Null);
         }
 
         internal void BindFusionRecommendation(
@@ -357,6 +498,8 @@ namespace Hearthstone
                 m_PreparationPage?.ForwardCardPoolScroll(eventData);
             else if (m_PreparationBindingMode == EPreparationBindingMode.FusionRecommendation)
                 m_PreparationPage?.ForwardFusionRecommendationScroll(eventData);
+            else if (m_PreparationBindingMode == EPreparationBindingMode.Collection)
+                m_CollectionScroll?.Invoke(eventData);
         }
 
         internal void RefreshPreparation(
@@ -449,13 +592,36 @@ namespace Hearthstone
             m_PreparationPage = page;
             m_PreparationBindingMode = bindingMode;
             m_PreparationSlot = slot;
-            ApplyContainedSlotScale(slotSize);
+            ApplyExactSlotScale(slotSize);
             UpdatePreparationInteractorData(0);
+        }
+
+        private void ApplyExactSlotScale(Vector2 slotSize)
+        {
+            // UiApi creates a zero-sized controller wrapper and parents the prefab view below it.
+            // Read the actual card view dimensions, then scale the wrapper so every visual and
+            // interaction child (empty slot or occupied card) shares the exact same outline.
+            var cardRect = m_View == null ? null : m_View.transform as RectTransform;
+            if (cardRect == null ||
+                cardRect.rect.width <= 0f ||
+                cardRect.rect.height <= 0f ||
+                slotSize.x <= 0f ||
+                slotSize.y <= 0f)
+            {
+                transform.localScale = Vector3.one;
+                return;
+            }
+
+            var scaleX = Mathf.Min(1f, slotSize.x / cardRect.rect.width);
+            var scaleY = Mathf.Min(1f, slotSize.y / cardRect.rect.height);
+            transform.localScale = new Vector3(scaleX, scaleY, 1f);
         }
 
         private void ApplyContainedSlotScale(Vector2 slotSize)
         {
-            var cardRect = transform as RectTransform;
+            // UiList slots size the controller wrapper, but the shared card view remains 250 × 360.
+            // Scale from the card root so preview cards match their requested final visual size.
+            var cardRect = m_View == null ? null : m_View.transform as RectTransform;
             if (cardRect == null ||
                 cardRect.rect.width <= 0f ||
                 cardRect.rect.height <= 0f ||
@@ -593,6 +759,8 @@ namespace Hearthstone
             m_PreparationSlot = -1;
             m_PreparationCardOwned = false;
             m_PreparationCardLocked = false;
+            m_CollectionClick = null;
+            m_CollectionScroll = null;
             m_DisplayKeywords = EBattleKeyword.None;
             m_DefaultFrameColor = BronzeFrameColor;
             m_IsHovered = false;
@@ -782,6 +950,7 @@ namespace Hearthstone
         private void ShowCardPresentation(Color defaultFrameColor)
         {
             HidePreparationEmptyStates();
+            SetCardBaseAreasVisible(true);
             if (m_View.CardBackground != null)
                 m_View.CardBackground.color = Color.clear;
             if (m_View.CardFrame != null)
@@ -805,6 +974,14 @@ namespace Hearthstone
             m_View.transform.localRotation = Quaternion.identity;
         }
 
+        private void SetCardBaseAreasVisible(bool visible)
+        {
+            if (m_View.ArtworkArea != null && m_View.ArtworkArea.transform.parent != null)
+                m_View.ArtworkArea.transform.parent.gameObject.SetActive(visible);
+            if (m_View.SkillDescriptionText != null && m_View.SkillDescriptionText.transform.parent != null)
+                m_View.SkillDescriptionText.transform.parent.gameObject.SetActive(visible);
+        }
+
         private void HidePreparationEmptyStates()
         {
             if (m_View.PreparationEmptyState != null)
@@ -820,6 +997,7 @@ namespace Hearthstone
             ResetFeedbackAnimations(true);
             m_DisplayKeywords = EBattleKeyword.None;
             HideKeywordTooltip();
+            SetCardBaseAreasVisible(false);
             if (m_View.SkillDescriptionText != null)
             {
                 m_View.SkillDescriptionText.text = string.Empty;
@@ -1410,6 +1588,12 @@ namespace Hearthstone
             ApplyFrameColors();
         }
 
+        private void OnCardPointerClicked(PointerEventData ignored)
+        {
+            if (m_PreparationBindingMode == EPreparationBindingMode.Collection && m_PreparationCardLocked == false)
+                m_CollectionClick?.Invoke(m_PreparationCardNumber, (RectTransform)transform);
+        }
+
         private void ShowKeywordTooltip()
         {
             if (m_DisplayKeywords == EBattleKeyword.None ||
@@ -1476,13 +1660,20 @@ namespace Hearthstone
 
         private void OnPreparationDragReturned(PointerEventData eventData)
         {
+            var returnBattleCardToPool =
+                m_PreparationBindingMode == EPreparationBindingMode.BattleSlot &&
+                m_PreparationCardNumber != 0 &&
+                m_PreparationPage != null &&
+                m_PreparationPage.IsPointerInsideBattleSlot(eventData, m_PreparationSlot) == false;
             var returnFusionMaterialToPool =
                 m_PreparationBindingMode == EPreparationBindingMode.FusionSlot &&
                 m_PreparationCardNumber != 0 &&
                 m_PreparationPage != null &&
                 m_PreparationPage.IsPointerInsideFusionArea(eventData) == false;
             m_View.transform.localRotation = Quaternion.identity;
-            if (returnFusionMaterialToPool)
+            if (returnBattleCardToPool)
+                m_PreparationPage.RemoveBattleCard(m_PreparationSlot, m_PreparationCardNumber);
+            else if (returnFusionMaterialToPool)
                 m_PreparationPage.RemoveFusionMaterial(m_PreparationSlot);
             m_PreparationPage?.OnDragReturned();
         }

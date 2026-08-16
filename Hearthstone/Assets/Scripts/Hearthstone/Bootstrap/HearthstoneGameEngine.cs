@@ -108,6 +108,10 @@ namespace Hearthstone
     /// </summary>
     public sealed class HearthstoneGameEngine : GameEngineBase<HearthstoneGameEngine>
     {
+        private const string LobbyBgmKey = "Lobby";
+        // Resources/BGM/Battle.mp3 is the first battle track (Battle1).
+        private const string Battle1BgmKey = "Battle";
+
         private GameStage m_RunStateStage;
         private GameStage m_MainMenuStage;
         private GameStage m_BattleStage;
@@ -216,7 +220,8 @@ namespace Hearthstone
                 targetBattleNumber,
                 rewardBatch,
                 scenario: null,
-                continuePlayerLineup: m_ContinueSnapshot.PlayerLineup));
+                continuePlayerLineup: m_ContinueSnapshot.PlayerLineup,
+                enemyPreview: session.EnemyPreview));
             return EPreparationContinueResult.Accepted;
         }
 
@@ -251,10 +256,15 @@ namespace Hearthstone
                 runState == null ? null : new Predicate<int>(runState.HasCard),
                 config.DrawCardCount,
                 ref random);
+            var enemyPreviewSeed = BattleRules.NormalizeSeed(random.NextUInt());
+            var enemyPreview = EnemyBattlePreviewStartupData.CreateRandom(
+                battleNumber,
+                enemyPreviewSeed);
             EnterPreparationStageGroup(new PreparationRoundStartupData(
                 battleNumber,
                 BattleProgressionCsvData.GetUnlockedSlotTotal(battleNumber),
-                batch));
+                batch,
+                enemyPreview));
         }
 
         public void RestartRun()
@@ -285,6 +295,7 @@ namespace Hearthstone
                 throw new InvalidOperationException("The requested Hearthstone stage group did not become active.");
 
             m_StageGroupCoordinator.CompleteTransition(m_LoadingGroup, m_LoadingRequestKey);
+            SwitchStageGroupBgm(m_LoadingGroup);
             if (m_LoadingGroup != EHearthstoneStageGroup.MainMenu)
                 CommitProgressionAfterStageLoad();
             m_LoadingStage = null;
@@ -293,6 +304,20 @@ namespace Hearthstone
             m_LoadingGroup = EHearthstoneStageGroup.None;
             m_LoadingRequestKey = null;
             TrySubmitRequestedStageGroup();
+        }
+
+        private static void SwitchStageGroupBgm(EHearthstoneStageGroup group)
+        {
+            switch (group)
+            {
+                case EHearthstoneStageGroup.MainMenu:
+                case EHearthstoneStageGroup.Preparation:
+                    AudioApi.SetBgm(LobbyBgmKey);
+                    break;
+                case EHearthstoneStageGroup.Battle:
+                    AudioApi.SetBgm(Battle1BgmKey);
+                    break;
+            }
         }
 
         private void TrySubmitRequestedStageGroup()
@@ -349,8 +374,18 @@ namespace Hearthstone
         private static string CreateBatchRequestKey(PreparationRoundStartupData round)
         {
             var batch = round.RewardBatch;
-            return $"Battle={round.BattleNumber}|Slots={round.UnlockedBattleSlotCount}|" +
-                   CreateBatchRequestKey(batch);
+            var key = $"Battle={round.BattleNumber}|Slots={round.UnlockedBattleSlotCount}|" +
+                      CreateBatchRequestKey(batch);
+            var preview = round.EnemyPreview;
+            if (preview == null)
+                return key + "|EnemyPreview=None";
+            key += $"|EnemySeed={preview.RandomSeed}|EnemyTargetState={preview.TargetRandomState}";
+            for (var slot = 0; slot < preview.CardCount; slot++)
+            {
+                var card = preview.GetCard(slot);
+                key += $"|E{slot}={card.CardNumber}:{card.Attack}:{card.MaxHealth}:{(int)card.Keywords}";
+            }
+            return key;
         }
 
         private static string CreateBatchRequestKey(PreparationRewardBatchStartupData batch)
@@ -371,6 +406,16 @@ namespace Hearthstone
             if (scenario == null)
             {
                 key += "|Scenario=Default";
+                var enemyPreview = startupData.EnemyPreview;
+                if (enemyPreview != null)
+                {
+                    key += $"|EnemySeed={enemyPreview.RandomSeed}|EnemyTargetState={enemyPreview.TargetRandomState}";
+                    for (var slot = 0; slot < enemyPreview.CardCount; slot++)
+                    {
+                        var enemy = enemyPreview.GetCard(slot);
+                        key += $"|E{slot}={enemy.CardNumber}:{enemy.Attack}:{enemy.MaxHealth}:{(int)enemy.Keywords}";
+                    }
+                }
                 var lineup = startupData.ContinuePlayerLineup;
                 if (lineup == null)
                     return key + "|Lineup=RunState";

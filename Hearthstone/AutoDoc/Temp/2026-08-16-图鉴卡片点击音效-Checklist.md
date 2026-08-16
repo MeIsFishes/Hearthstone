@@ -1,0 +1,26 @@
+# 图鉴卡片点击音效修复检查清单
+
+- [x] **通过**——用户要求：图鉴中点击可打开的卡片时播放点击音。
+  - 证据：`CardCollectionController.OpenPreview()` 在正式进入打开状态后调用 `AudioApi.Play("click_001", 0.7f)`。
+- [x] **通过**——行为边界：只在已解锁卡片成功触发预览打开时播放；锁定卡、无效点击、预览已在过渡或不可操作时不误播。
+  - 证据：音效调用位于 `m_Opening`、`m_Pocketing`、空来源与永久解锁校验的早退之后，也位于预览条目成功创建之后；锁定条目自身关闭射线。
+- [x] **通过**——现状核验：定位图鉴卡片自定义点击输入、预览打开入口以及现有统一按钮音与音频 API。
+  - 证据：核验 `BattleCardItemController.OnCardPointerClicked()`、`BindCollection()`、`CardCollectionController.OpenPreview()`、`UiViewBase` 统一 Button 音和 `AudioApi`。
+- [x] **通过**——框架边界审计：沿用图鉴 Controller、共享卡牌 Controller 回调和公开 `AudioApi`，不把非 Button 卡片伪装成 Button，不新增平行输入或音频管理器。
+  - 证据：共享卡牌继续通过现有 `Action<int, RectTransform>` 回调页面 Controller；仅图鉴成功打开入口显式播放，不修改共享卡牌的备战/战斗行为。
+- [x] **通过**——实现审计：最小增量修复，不覆盖当前工作树既有改动，不手工创建、编辑或删除 `.meta`。
+  - 证据：只增量修改图鉴 Controller、既有图鉴测试和两篇现状文档；无 Prefab、场景、资源或 `.meta` 变更。
+- [x] **通过**——代码质量：不为一次点击增加无复用价值的抽象、闭包或重复资源加载。
+  - 证据：复用已有音频 key 和 `AudioApi.Play`，仅增加一条调用；音频仍由 Resource/Audio 框架缓存与池化。
+- [x] **通过（运行态听感未执行）**——验证：新增或更新测试，验证音效绑定到成功打开预览的入口；完成相关编译、静态检查并记录全量测试现状。
+  - 证据：`CardCollectionTests.PreviewOpensFromClickedCardAndFinishesAtScreenCenter` 新增音效存在与调用顺序断言；`Hearthstone.csproj` 和 `Hearthstone.Tests.csproj` 均 0 error 构建成功；目标文件 `git diff --check` 通过。Unity 本轮自动执行的 2 项其他测试均通过，但未运行该图鉴测试；按项目默认未进入游戏。
+- [x] **通过**——玩家视角设计文档：完整读取基础与局外养成格式，核对图鉴当前体验并同步已实现事实。
+  - 证据：完整读取 `design-doc-format` 与 `meta-progression` 专项格式；更新 `AutoDoc/Design/Specific/meta-progression/meta-progression.md` 的图鉴预览反馈。
+- [x] **不适用**——美术文档：完整读取基础格式，核对本次是否改变 2D 图片或视觉资产规格。
+  - 证据：完整读取 `art-doc-writer`；本次只改声音触发代码，不改变任何 2D 图片、UI 视觉或资产规格。
+- [x] **通过**——程序文档：完整读取基础与 UI 界面格式，核对图鉴程序文档并同步实现入口。
+  - 证据：完整读取 `program-doc-format` 与 UI 界面格式；更新 `AutoDoc/Program/UI/card-collection/card-collection.md`，记录保护条件、成功入口和共享卡牌边界。
+- [x] **通过**——收尾审计：重新读取清单，逐项记录通过、未通过或不适用及证据。
+  - 证据：已逐项复核代码顺序、资源存在性、编译、静态检查和文档。
+- [x] **通过**——临时文档清理：收尾时只运行一次 `AutoDoc/CleanupTempDocs.bat`，随后创建同名报告。
+  - 证据：已执行一次，退出码 `0`、无错误输出；随后创建本任务报告，未重复运行。

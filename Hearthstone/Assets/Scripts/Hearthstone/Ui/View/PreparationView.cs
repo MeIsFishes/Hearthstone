@@ -20,6 +20,13 @@ namespace Hearthstone
         public GameObject BattleOperationRoot;
         public GameObject FusionOperationRoot;
         public UiList BattleSlotList;
+        public RectTransform EnemyPreviewDrawerRoot;
+        public CanvasGroup EnemyPreviewPanelCanvasGroup;
+        public Button EnemyPreviewToggleButton;
+        public RectTransform EnemyPreviewToggleArrow;
+        public UiList EnemyPreviewCardList;
+        public Vector2 EnemyPreviewClosedPosition;
+        public Vector2 EnemyPreviewOpenPosition;
         public UiList FusionSlotList;
         public TMP_Text FusionCurrentPointLabel;
         public TMP_Text FusionCurrentPointValue;

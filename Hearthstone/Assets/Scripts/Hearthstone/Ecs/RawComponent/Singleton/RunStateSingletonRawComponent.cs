@@ -207,6 +207,7 @@ namespace Hearthstone
         public int BattleNumber;
         public string BatchId;
         public RunCardInstanceData[] RewardCards = Array.Empty<RunCardInstanceData>();
+        public EnemyBattlePreviewStartupData EnemyPreview;
         public readonly int[] FusionSlotCardNumbers = new int[RunCardRules.FusionSlotCount];
         public readonly ListenableVariable<int> FusionRevision = new ListenableVariable<int>(0);
         public bool WasNewlyApplied;
@@ -217,6 +218,7 @@ namespace Hearthstone
             BattleNumber = round.BattleNumber;
             BatchId = batch.BatchId;
             WasNewlyApplied = wasNewlyApplied;
+            EnemyPreview = round.EnemyPreview?.CreateSnapshot();
             RewardCards = new RunCardInstanceData[batch.Grants.Count];
             for (var index = 0; index < RewardCards.Length; index++)
             {
@@ -243,6 +245,7 @@ namespace Hearthstone
             BattleNumber = 0;
             BatchId = null;
             RewardCards = Array.Empty<RunCardInstanceData>();
+            EnemyPreview = null;
             Array.Clear(FusionSlotCardNumbers, 0, FusionSlotCardNumbers.Length);
             FusionRevision.SetValue(0);
             WasNewlyApplied = false;

@@ -14,9 +14,11 @@ namespace Hearthstone
     internal static class PreparationUiBuilderUtility
     {
         internal const string ArtRoot = "Assets/Resources/Art/Preparation/UI/";
+        internal const string MedievalParchmentControlPath =
+            "Assets/Resources/Art/Common/UI/MedievalParchmentControl.png";
         private const string ChineseFontAssetPath = "Assets/Resources/Fonts/NotoSansSC-SemiBold Dynamic SDF.asset";
         private const string RequiredChineseCharacters =
-            "备战阶段卡槽位池哥布林战士弓手投弹野猪食人魔融合造物出战素材已选合计继续嘲讽远射爆裂冲锋查看拥有智能推荐无可用组合选择智能寻找牌库中可以融合的组合战斗胜利失败整局恭喜完成全部轮次重新开始游戏升变✓";
+            "备战阶段卡槽位池哥布林战士弓手投弹野猪食人魔融合造物出战素材已选合计继续嘲讽远射爆裂冲锋查看拥有智能推荐无可用组合选择智能寻找牌库中可以融合的组合战斗胜利失败整局恭喜完成全部轮次重新开始游戏升变敌方阵容✓";
         internal const float CardPoolViewportWidth = 1540f;
         internal static float CardPoolCellWidth => CardPoolViewportWidth / RunCardRules.CardsPerRow;
         internal static float CardPoolCellHeight =>
@@ -117,10 +119,14 @@ namespace Hearthstone
 
         internal static Sprite LoadSprite(string fileName)
         {
-            var path = ArtRoot + fileName + ".png";
+            return LoadSpriteAtPath(ArtRoot + fileName + ".png");
+        }
+
+        internal static Sprite LoadSpriteAtPath(string path)
+        {
             var importer = AssetImporter.GetAtPath(path) as TextureImporter;
             if (importer == null)
-                throw new InvalidOperationException($"Preparation UI texture is missing at '{path}'.");
+                throw new InvalidOperationException($"UI texture is missing at '{path}'.");
             if (importer.textureType != TextureImporterType.Sprite ||
                 importer.spriteImportMode != SpriteImportMode.Single ||
                 importer.alphaIsTransparency == false ||
@@ -135,7 +141,33 @@ namespace Hearthstone
                 importer.SaveAndReimport();
             }
             return AssetDatabase.LoadAssetAtPath<Sprite>(path)
-                ?? throw new InvalidOperationException($"Preparation UI Sprite is missing at '{path}'.");
+                ?? throw new InvalidOperationException($"UI Sprite is missing at '{path}'.");
+        }
+
+        internal static Sprite LoadMedievalParchmentControlSprite()
+        {
+            return LoadSpriteAtPath(MedievalParchmentControlPath);
+        }
+
+        internal static Button AddMedievalParchmentButton(GameObject gameObject, out Image image)
+        {
+            image = AddImage(gameObject, LoadMedievalParchmentControlSprite(), true);
+            image.preserveAspect = false;
+            var button = gameObject.AddComponent<Button>();
+            button.targetGraphic = image;
+            button.transition = Selectable.Transition.ColorTint;
+            button.navigation = new Navigation { mode = Navigation.Mode.None };
+            button.colors = new ColorBlock
+            {
+                normalColor = Color.white,
+                highlightedColor = new Color(0.92f, 0.88f, 0.78f, 1f),
+                pressedColor = new Color(0.68f, 0.63f, 0.56f, 1f),
+                selectedColor = new Color(0.92f, 0.88f, 0.78f, 1f),
+                disabledColor = new Color(0.55f, 0.53f, 0.49f, 0.58f),
+                colorMultiplier = 1f,
+                fadeDuration = 0.08f,
+            };
+            return button;
         }
 
         internal static Sprite LoadExistingSprite(string path)

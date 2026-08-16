@@ -1,0 +1,27 @@
+# 备战空卡槽底色移除检查清单
+
+- [x] 通过：出战与融合两侧的空卡槽均不显示共享战斗卡牌残留底色。
+  - 证据：`HideCardPresentation()` 统一调用 `SetCardBaseAreasVisible(false)`；出战与融合空槽都经过同一空卡槽刷新流程。
+- [x] 通过：正常卡牌、牌库卡牌、战斗卡牌及其他共享 prefab 使用场景仍能恢复并显示原有底色。
+  - 证据：`ShowCardPresentation()` 在填充卡面前调用 `SetCardBaseAreasVisible(true)`，恢复原画视窗与说明区父背景。
+- [x] 通过：修改限定在现有 `BattleCardItemController` 显示状态流程内，不建立平行 UI 状态或绕过现有 UiList/Controller 框架。
+  - 证据：只扩展既有 `ShowCardPresentation()`/`HideCardPresentation()` 状态入口，列表绑定和空槽状态选择逻辑未改。
+- [x] 通过：检查工作区已有改动，只修改本任务所需范围，不覆盖或回退用户的其他修改。
+  - 证据：开始前检查 `git status` 和目标文件差异；使用窄范围补丁，只新增本任务方法调用并同步两篇直接相关文档。
+- [x] 通过：新增函数和字段确有复用价值，未引入不必要的一次性抽象。
+  - 证据：新增一个无字段的 `SetCardBaseAreasVisible(bool)`，由显示与隐藏两个对称状态入口共同复用。
+- [x] 通过：完成相关静态验证；按项目默认不进入游戏验证。
+  - 证据：`dotnet build Hearthstone.csproj --no-restore -v:minimal` 为 0 错误、8 个既有程序集冲突警告；三项源代码状态检查均为 `True`；`git diff --check` 通过。
+- [x] 通过：框架边界审计。
+  - 证据：修复只使用现有 `BattleCardItemView` 子节点引用和 Controller 显示生命周期，不修改 BbxCommon、不新增运行时拼装或公开契约。
+- [x] 不适用：玩家视角设计文档。
+  - 已读取：`.codex/private-skills/design-doc-format/SKILL.md`；现有文档为 `AutoDoc/Design/Specific/preparation-card-pool/preparation-card-pool.md`。
+  - 结论：本次只修正与现有文档“空槽周围保留清楚留白”的实现偏差，不改变玩家规则、操作、入口或流程，现有描述仍准确，无需更新。
+- [x] 通过：美术文档。
+  - 已读取：`.codex/private-skills/art-doc-writer/SKILL.md` 与 `references/art-module-format.md`；现有文档为 `AutoDoc/Art/Modules/preparation-card-pool/preparation-card-pool.md`。
+  - 处理：已补充空槽不会露出共享卡面深色原画与说明底板的当前视觉事实。
+- [x] 通过：程序文档。
+  - 已读取：`.codex/private-skills/program-doc-format/SKILL.md` 与 `ui-screen-doc-format.md`；现有文档为 `AutoDoc/Program/UI/preparation/preparation.md`。
+  - 处理：已补充空态关闭、真实卡面恢复两个父背景的当前状态行为。
+- [x] 通过：仅运行一次 `AutoDoc/CleanupTempDocs.bat`，之后创建对应报告。
+  - 证据：清理脚本退出码为 `0`；清理前后均为 `254` 个 Markdown 文件，没有文件达到清理阈值而被删除。

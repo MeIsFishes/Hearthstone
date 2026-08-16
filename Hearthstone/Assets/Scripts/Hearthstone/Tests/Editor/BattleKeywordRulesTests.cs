@@ -207,12 +207,18 @@ namespace Hearthstone.Tests
                 BattleCardSlotStartupData.FromRunState(14),
                 BattleCardSlotStartupData.Explicit(20, 7, 80, 33),
                 BattleCardSlotStartupData.Empty,
+                BattleCardSlotStartupData.Empty,
+                BattleCardSlotStartupData.Empty,
+                BattleCardSlotStartupData.Empty,
             };
             var enemies = new[]
             {
                 BattleCardSlotStartupData.Explicit(40, 2, 20, 20),
                 BattleCardSlotStartupData.Empty,
                 BattleCardSlotStartupData.Explicit(44, 2, 20, 0),
+                BattleCardSlotStartupData.Empty,
+                BattleCardSlotStartupData.Empty,
+                BattleCardSlotStartupData.Empty,
             };
             var scenario = new BattleScenarioStartupData(players, enemies, 123u);
             players[0] = BattleCardSlotStartupData.Empty;

@@ -8,16 +8,51 @@ namespace BbxCommon.Internal
     {
         private const int DefaultInitialCapacity = 8;
         private static AudioRuntimeDriver m_Driver;
+        private static AudioHandle m_BgmHandle;
+        private static string m_BgmKey;
 
         internal static AudioHandle Play(string key, AudioPlayOptions options)
         {
             return EnsureDriver(DefaultInitialCapacity).Play(key, options);
         }
 
+        internal static AudioHandle SetBgm(
+            string key,
+            AudioPlayOptions options,
+            float transitionDurationSeconds)
+        {
+            var driver = EnsureDriver(DefaultInitialCapacity);
+            if (driver.IsPlaying(m_BgmHandle) && m_BgmKey == key)
+                return m_BgmHandle;
+
+            var nextHandle = driver.Play(key, options, transitionDurationSeconds);
+            if (!nextHandle.IsValid)
+                return default;
+
+            if (driver.IsPlaying(m_BgmHandle))
+                driver.FadeOut(m_BgmHandle, transitionDurationSeconds);
+            m_BgmHandle = nextHandle;
+            m_BgmKey = key;
+            return nextHandle;
+        }
+
+        internal static void StopBgm(float fadeOutDurationSeconds)
+        {
+            if (m_Driver != null && m_Driver.IsPlaying(m_BgmHandle))
+                m_Driver.FadeOut(m_BgmHandle, fadeOutDurationSeconds);
+            m_BgmHandle = default;
+            m_BgmKey = null;
+        }
+
         internal static void Stop(AudioHandle handle)
         {
             if (m_Driver != null)
                 m_Driver.Stop(handle);
+            if (handle == m_BgmHandle)
+            {
+                m_BgmHandle = default;
+                m_BgmKey = null;
+            }
         }
 
         internal static void StopGroup(string groupKey)
@@ -57,7 +92,11 @@ namespace BbxCommon.Internal
         internal static void NotifyDriverDestroyed(AudioRuntimeDriver driver)
         {
             if (ReferenceEquals(m_Driver, driver))
+            {
                 m_Driver = null;
+                m_BgmHandle = default;
+                m_BgmKey = null;
+            }
         }
 
         private static AudioRuntimeDriver EnsureDriver(int initialCapacity)
@@ -86,9 +125,13 @@ namespace BbxCommon.Internal
             public AudioSource Source;
             public AudioGainFilter GainFilter;
             public float ConcurrencyVolumeMultiplier = 1f;
+            public float EnvelopeVolumeMultiplier = 1f;
+            public float FadeInDuration;
+            public float FadeInElapsed;
+            public bool IsFadingIn;
             public float FadeOutDuration;
             public float FadeOutElapsed;
-            public float FadeOutStartVolume;
+            public float FadeOutStartMultiplier;
             public bool IsFadingOut;
         }
 
@@ -121,10 +164,19 @@ namespace BbxCommon.Internal
 
         internal AudioHandle Play(string key, AudioPlayOptions options)
         {
+            return Play(key, options, 0f);
+        }
+
+        internal AudioHandle Play(
+            string key,
+            AudioPlayOptions options,
+            float fadeInDurationSeconds)
+        {
             if (string.IsNullOrWhiteSpace(key))
                 return default;
 
             options = NormalizeOptions(options);
+            fadeInDurationSeconds = NormalizeDuration(fadeInDurationSeconds);
             if (options.MaxConcurrent > 0 && !string.IsNullOrEmpty(options.ConcurrencyKey) &&
                 CountConcurrentPlaybacks(options.GroupKey, options.ConcurrencyKey) >= options.MaxConcurrent)
                 return default;
@@ -138,6 +190,9 @@ namespace BbxCommon.Internal
                 Key = key,
                 Options = options,
                 Sequence = ++m_NextSequence,
+                EnvelopeVolumeMultiplier = fadeInDurationSeconds > 0f ? 0f : 1f,
+                FadeInDuration = fadeInDurationSeconds,
+                IsFadingIn = fadeInDurationSeconds > 0f,
             };
             m_Playbacks.Add(handle.Id, playback);
             RebalanceConcurrency(options.GroupKey, options.ConcurrencyKey);
@@ -211,7 +266,8 @@ namespace BbxCommon.Internal
 
             playback.FadeOutDuration = durationSeconds;
             playback.FadeOutElapsed = 0f;
-            playback.FadeOutStartVolume = playback.Options.Volume;
+            playback.FadeOutStartMultiplier = playback.EnvelopeVolumeMultiplier;
+            playback.IsFadingIn = false;
             playback.IsFadingOut = true;
         }
 
@@ -263,13 +319,22 @@ namespace BbxCommon.Internal
             var deltaTime = Mathf.Max(0f, Time.unscaledDeltaTime);
             foreach (var playback in m_Playbacks.Values)
             {
+                if (playback.IsFadingIn && playback.Source != null)
+                {
+                    playback.FadeInElapsed += deltaTime;
+                    var progress = Mathf.Clamp01(
+                        playback.FadeInElapsed / playback.FadeInDuration);
+                    playback.EnvelopeVolumeMultiplier = progress;
+                    playback.IsFadingIn = progress < 1f;
+                    ApplyPlaybackVolume(playback);
+                }
                 if (playback.IsFadingOut)
                 {
                     playback.FadeOutElapsed += deltaTime;
                     var progress = Mathf.Clamp01(
                         playback.FadeOutElapsed / playback.FadeOutDuration);
-                    playback.Options.Volume = Mathf.Lerp(
-                        playback.FadeOutStartVolume, 0f, progress);
+                    playback.EnvelopeVolumeMultiplier = Mathf.Lerp(
+                        playback.FadeOutStartMultiplier, 0f, progress);
                     ApplyPlaybackVolume(playback);
                     if (progress >= 1f)
                     {
@@ -385,7 +450,8 @@ namespace BbxCommon.Internal
             playback.Source.volume = 1f;
             if (playback.GainFilter != null)
                 playback.GainFilter.Gain =
-                    playback.Options.Volume * playback.ConcurrencyVolumeMultiplier;
+                    playback.Options.Volume * playback.ConcurrencyVolumeMultiplier *
+                    playback.EnvelopeVolumeMultiplier;
         }
 
         private AudioHandle AllocateHandle()
@@ -437,6 +503,13 @@ namespace BbxCommon.Internal
             return float.IsNaN(volume) || float.IsInfinity(volume)
                 ? 0f
                 : Mathf.Max(0f, volume);
+        }
+
+        private static float NormalizeDuration(float durationSeconds)
+        {
+            return float.IsNaN(durationSeconds) || float.IsInfinity(durationSeconds)
+                ? 0f
+                : Mathf.Max(0f, durationSeconds);
         }
 
         private static void ResetSource(AudioSource source)
