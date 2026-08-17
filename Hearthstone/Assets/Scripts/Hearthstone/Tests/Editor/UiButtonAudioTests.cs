@@ -79,6 +79,62 @@ namespace Hearthstone.Tests
         }
 
         [Test]
+        public void SetBgmUsesSeventyPercentVolume()
+        {
+            var script = AssetDatabase.LoadAssetAtPath<MonoScript>(
+                "Assets/Scripts/BbxCommon/Api/AudioApi.cs");
+
+            Assert.NotNull(script);
+            StringAssert.Contains("private const float DefaultBgmVolume = 0.7f", script.text);
+            StringAssert.Contains("options.Volume = DefaultBgmVolume", script.text);
+        }
+
+        [Test]
+        public void BattleResultPausesUntilAnyScreenClick()
+        {
+            var script = AssetDatabase.LoadAssetAtPath<MonoScript>(
+                "Assets/Scripts/Hearthstone/Ui/Controller/BattleController.cs");
+
+            Assert.NotNull(script);
+            StringAssert.Contains("Time.timeScale = 0f", script.text);
+            StringAssert.Contains("Time.unscaledDeltaTime", script.text);
+            StringAssert.Contains("Input.GetMouseButtonDown(0)", script.text);
+            StringAssert.Contains("Time.timeScale = m_TimeScaleBeforeResult", script.text);
+            StringAssert.Contains("AudioApi.Play(\"click1\", 0.7f)", script.text);
+            StringAssert.Contains("m_Session.OutcomePresentationCompleted.SetValue(true)", script.text);
+            StringAssert.Contains("HearthstoneGameEngine.Instance?.EnterMainMenuStageGroup()", script.text);
+            StringAssert.Contains("ReleaseResultPause();", script.text);
+
+            var consumedIndex = script.text.IndexOf(
+                "m_ResultContinueConsumed = true;",
+                StringComparison.Ordinal);
+            var clickAudioIndex = script.text.IndexOf(
+                "AudioApi.Play(\"click1\", 0.7f);",
+                consumedIndex,
+                StringComparison.Ordinal);
+            var routeIndex = script.text.IndexOf(
+                "var continueToPreparation =",
+                clickAudioIndex,
+                StringComparison.Ordinal);
+            Assert.That(clickAudioIndex, Is.GreaterThan(consumedIndex));
+            Assert.That(routeIndex, Is.GreaterThan(clickAudioIndex));
+        }
+
+        [Test]
+        public void BattleResultClickAudioAssetIsUniqueAndIndexed()
+        {
+            Assert.NotNull(AssetDatabase.LoadAssetAtPath<AudioClip>(
+                "Assets/Resources/BbxCommon/Audio/Library/UI Audio/click1.ogg"));
+
+            var resourceIndex = AssetDatabase.LoadAssetAtPath<TextAsset>(
+                "Assets/Resources/ResourcesDictionary.json");
+            Assert.NotNull(resourceIndex);
+            StringAssert.IsMatch(
+                "\\\"(?:\\d+, )?Key\\\":\\\"click1\\\",\\\"(?:\\d+, )?Value\\\":\\\"BbxCommon/Audio/Library/UI Audio/click1\\\"",
+                resourceIndex.text);
+        }
+
+        [Test]
         public void StageGroupsAndBattleResultsSetExpectedBgm()
         {
             var engineScript = AssetDatabase.LoadAssetAtPath<MonoScript>(

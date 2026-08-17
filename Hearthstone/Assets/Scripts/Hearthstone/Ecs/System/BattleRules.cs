@@ -214,7 +214,9 @@ namespace Hearthstone
             var counterDamage = targetAttack;
             if (isLongShot)
             {
-                var longShot = BattleKeywordRules.GetConfig(EBattleKeyword.LongShot);
+                var longShot = BattleKeywordRules.GetConfig(
+                    EBattleKeyword.LongShot,
+                    BattleKeywordRules.GetLevel(attackerKeywords, EBattleKeyword.LongShot));
                 mainDamage = ScaleDamageFloor(attackerAttack, longShot.DamageNumerator, longShot.DamageDenominator);
                 if (longShot.SuppressCounterDamage)
                     counterDamage = 0;
@@ -222,10 +224,23 @@ namespace Hearthstone
             var blastDamage = 0;
             if (BattleKeywordRules.Has(attackerKeywords, EBattleKeyword.Blast))
             {
-                var blast = BattleKeywordRules.GetConfig(EBattleKeyword.Blast);
+                var blast = BattleKeywordRules.GetConfig(
+                    EBattleKeyword.Blast,
+                    BattleKeywordRules.GetLevel(attackerKeywords, EBattleKeyword.Blast));
                 blastDamage = ScaleDamageFloor(mainDamage, blast.DamageNumerator, blast.DamageDenominator);
             }
             return new BattleAttackDamageData(mainDamage, blastDamage, counterDamage);
+        }
+
+        public static int ResolveIncomingDamage(int damage, EBattleKeyword defenderKeywords)
+        {
+            if (damage < 0)
+                throw new ArgumentOutOfRangeException(nameof(damage));
+            var tauntLevel = BattleKeywordRules.GetLevel(defenderKeywords, EBattleKeyword.Taunt);
+            if (damage == 0 || tauntLevel < 2)
+                return damage;
+            var taunt = BattleKeywordRules.GetConfig(EBattleKeyword.Taunt, tauntLevel);
+            return Math.Max(1, damage - taunt.DamageReduction);
         }
 
         public static void ResolveSimultaneousDamage(

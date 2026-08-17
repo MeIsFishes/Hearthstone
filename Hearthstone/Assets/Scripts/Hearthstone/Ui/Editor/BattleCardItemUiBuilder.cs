@@ -11,7 +11,9 @@ namespace Hearthstone
     {
         private const string PrefabPath = "Assets/Resources/Ui/BattleCardItem.prefab";
         private const string FullCardFramePath =
-            "Assets/Resources/Art/BattleCards/UI/CardFrame-v3.png";
+            "Assets/Resources/Art/BattleCards/UI/CardFrameRoundedSubtleOpenCornersPreview.png";
+        private const string ArtworkRoundedMaskPath =
+            "Assets/Resources/Art/BattleCards/UI/CardArtworkRoundedMask.png";
         private const string TauntShieldOutlinePath =
             "Assets/Resources/Art/BattleCards/UI/TauntShieldOutline.png";
         private const string DamageNumberBurstPath =
@@ -30,16 +32,25 @@ namespace Hearthstone
             "Assets/Resources/Art/Preparation/UI/PreparationDeployedText.png";
         private const string ChineseFontAssetPath =
             "Assets/Resources/Fonts/NotoSansSC-SemiBold Dynamic SDF.asset";
+        private const string CollectionLockedPadlockPath =
+            "Assets/Resources/Art/CardCollection/UI/CardCollectionLockedPadlock.png";
+        private const string NewCollectionNoticePath =
+            "Assets/Resources/Art/BattleCards/UI/NewCollectionNotice.png";
+        private const string DeathBrokenSwordIconPath =
+            "Assets/Resources/Art/BattleCards/UI/DeathBrokenSwordIcon.png";
         private const float FrameBottomInset = 24f;
-        private static readonly Vector2 ArtworkRenderSize = new Vector2(210f, 297f);
+        private const float ArtworkViewportInset = 2f;
+        private const float DeathOverlayAlpha = 0.62f;
+        private static readonly Vector2 DeathBrokenSwordIconSize = new Vector2(156f, 156f);
         private static readonly Vector2 TauntShieldRenderSize = new Vector2(292f, 408f);
         private static readonly Vector2 TauntShieldRenderPosition = new Vector2(0f, -14f);
 
         public static void Build()
         {
-            var fullCardFrame = AssetDatabase.LoadAssetAtPath<Sprite>(FullCardFramePath);
-            if (fullCardFrame == null)
-                throw new InvalidOperationException($"Full-card battle frame is missing at '{FullCardFramePath}'.");
+            var fullCardFrame = LoadPixelAlignedCardSprite(FullCardFramePath, "Full-card battle frame");
+            var artworkRoundedMask = LoadPixelAlignedCardSprite(
+                ArtworkRoundedMaskPath,
+                "Rounded artwork mask");
             var tauntShieldOutline = LoadSprite(TauntShieldOutlinePath, "Taunt shield outline");
             var damageNumberBurst = LoadSprite(DamageNumberBurstPath, "Damage number burst");
             var chargeHornIcon = LoadSprite(ChargeHornIconPath, "Charge horn icon");
@@ -49,6 +60,10 @@ namespace Hearthstone
                 "Keyword tooltip wooden background");
             var attackBadge = LoadSprite(AttackBadgePath, "Attack badge");
             var healthBadge = LoadSprite(HealthBadgePath, "Health badge");
+            var newCollectionNotice = LoadSprite(NewCollectionNoticePath, "New collection notice");
+            var deathBrokenSwordIcon = LoadSprite(
+                DeathBrokenSwordIconPath,
+                "Death broken sword icon");
             var chineseFont = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(ChineseFontAssetPath);
             if (chineseFont == null)
                 throw new InvalidOperationException($"Chinese font is missing at '{ChineseFontAssetPath}'.");
@@ -65,7 +80,8 @@ namespace Hearthstone
                 ConfigureFrame(view.CardFrame, fullCardFrame, "CardFrameOverlay");
                 ConfigureFrame(view.AttackerHighlight, fullCardFrame, "AttackerHighlight");
                 ConfigureFrame(view.TargetHighlight, fullCardFrame, "TargetHighlight");
-                ConfigureArtwork(view.ArtworkArea);
+                ConfigureArtwork(view.ArtworkArea, artworkRoundedMask);
+                ConfigureDeathOverlay(view, deathBrokenSwordIcon);
                 ConfigureKeywordArea(view);
                 ConfigureKeywordTooltip(root, view, keywordTooltipBackground);
                 ConfigureCardBasePattern(view);
@@ -79,6 +95,7 @@ namespace Hearthstone
                     longShotBowIcon);
                 ConfigureHoverInput(root, view);
                 ConfigurePreparationFeatures(root, view);
+                ConfigureNewCollectionNotice(root, view, newCollectionNotice);
                 ConfigureLayerOrder(view);
 
                 UiApi.EditorOperation.PreInitializeView(view);
@@ -244,6 +261,7 @@ namespace Hearthstone
             image.sprite = sprite;
             image.type = Image.Type.Simple;
             image.preserveAspect = false;
+            image.useSpriteMesh = false;
             image.raycastTarget = false;
             image.color = Color.white;
         }
@@ -255,39 +273,131 @@ namespace Hearthstone
                 UnityEngine.Object.DestroyImmediate(obsoleteHoverInput.gameObject);
 
             view.CardHoverInput = view.CardBackground;
-            view.CardHoverListener = GetOrAdd<UiEventListener>(root);
+            if (view.CardHoverListener == null || view.CardHoverListener.gameObject != root)
+                view.CardHoverListener = GetDistinctEventListener(root);
+            if (view.CardClickListener == null ||
+                view.CardClickListener.gameObject != root ||
+                view.CardClickListener == view.CardHoverListener)
+            {
+                view.CardClickListener = GetDistinctEventListener(root, view.CardHoverListener);
+            }
+            if (view.CardDragListener == null ||
+                view.CardDragListener.gameObject != root ||
+                view.CardDragListener == view.CardHoverListener ||
+                view.CardDragListener == view.CardClickListener)
+            {
+                view.CardDragListener = GetDistinctEventListener(
+                    root,
+                    view.CardHoverListener,
+                    view.CardClickListener);
+            }
             view.CardHoverListener.enabled = false;
+            view.CardClickListener.enabled = false;
+            view.CardDragListener.enabled = false;
         }
 
         private static void ConfigurePreparationInteractionDefaults(BattleCardItemView view)
         {
             view.CardBackground.raycastTarget = false;
             view.CardHoverListener.enabled = false;
+            view.CardClickListener.enabled = false;
+            view.CardDragListener.enabled = false;
             view.CardHoverInput.raycastTarget = false;
             view.PreparationDragable.enabled = false;
-            if (view.PreparationDragable.EventListener != null)
-                view.PreparationDragable.EventListener.enabled = false;
             view.PreparationInteractor.enabled = false;
             view.PreparationEmptyAttemptListener.enabled = false;
         }
 
-        private static void ConfigureArtwork(Image artwork)
+        private static void ConfigureArtwork(Image artwork, Sprite maskSprite)
         {
             if (artwork == null)
                 throw new InvalidOperationException("ArtworkArea image reference is missing.");
+            if (maskSprite == null)
+                throw new InvalidOperationException("Rounded artwork mask sprite is missing.");
+
+            var viewport = artwork.transform.parent as RectTransform;
+            if (viewport == null || viewport.name != "ArtworkViewport")
+                throw new InvalidOperationException("ArtworkArea must remain a direct child of ArtworkViewport.");
+
+            viewport.anchorMin = Vector2.zero;
+            viewport.anchorMax = Vector2.one;
+            viewport.offsetMin = new Vector2(
+                ArtworkViewportInset,
+                FrameBottomInset + ArtworkViewportInset);
+            viewport.offsetMax = new Vector2(-ArtworkViewportInset, -ArtworkViewportInset);
+            viewport.localRotation = Quaternion.identity;
+            viewport.localScale = Vector3.one;
+
+            var obsoleteRectMask = viewport.GetComponent<RectMask2D>();
+            if (obsoleteRectMask != null)
+                UnityEngine.Object.DestroyImmediate(obsoleteRectMask);
+
+            var maskImage = GetOrAdd<Image>(viewport.gameObject);
+            maskImage.sprite = maskSprite;
+            maskImage.type = Image.Type.Simple;
+            maskImage.preserveAspect = false;
+            maskImage.useSpriteMesh = false;
+            maskImage.raycastTarget = false;
+            maskImage.color = Color.white;
+
+            var mask = GetOrAdd<Mask>(viewport.gameObject);
+            mask.showMaskGraphic = false;
 
             var rectTransform = artwork.rectTransform;
-            rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
-            rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+            rectTransform.anchorMin = Vector2.zero;
+            rectTransform.anchorMax = Vector2.one;
             rectTransform.pivot = new Vector2(0.5f, 0.5f);
-            rectTransform.anchoredPosition = Vector2.zero;
-            rectTransform.sizeDelta = ArtworkRenderSize;
+            rectTransform.offsetMin = Vector2.zero;
+            rectTransform.offsetMax = Vector2.zero;
             rectTransform.localRotation = Quaternion.identity;
             rectTransform.localScale = Vector3.one;
 
             artwork.type = Image.Type.Simple;
             artwork.preserveAspect = false;
+            artwork.useSpriteMesh = false;
             artwork.raycastTarget = false;
+        }
+
+        private static void ConfigureDeathOverlay(BattleCardItemView view, Sprite brokenSwordSprite)
+        {
+            if (view.DeadOverlay == null)
+                throw new InvalidOperationException("DeadOverlay image reference is missing.");
+            if (view.ArtworkArea == null)
+                throw new InvalidOperationException("ArtworkArea image reference is missing.");
+            if (brokenSwordSprite == null)
+                throw new InvalidOperationException("Death broken sword icon sprite is missing.");
+
+            var artworkViewport = view.ArtworkArea.transform.parent as RectTransform;
+            if (artworkViewport == null || artworkViewport.name != "ArtworkViewport")
+                throw new InvalidOperationException("Death overlay requires the ArtworkViewport mask.");
+
+            var overlayRect = view.DeadOverlay.rectTransform;
+            overlayRect.SetParent(artworkViewport, false);
+            Stretch(overlayRect, 0f);
+            overlayRect.localRotation = Quaternion.identity;
+            view.DeadOverlay.sprite = null;
+            view.DeadOverlay.type = Image.Type.Simple;
+            view.DeadOverlay.preserveAspect = false;
+            view.DeadOverlay.raycastTarget = false;
+            view.DeadOverlay.color = new Color(0f, 0f, 0f, DeathOverlayAlpha);
+
+            var legacyDeadText = overlayRect.Find("DeadText");
+            if (legacyDeadText != null)
+                UnityEngine.Object.DestroyImmediate(legacyDeadText.gameObject);
+
+            var iconObject = FindOrCreate(overlayRect, "BrokenSwordIcon");
+            SetRect(
+                (RectTransform)iconObject.transform,
+                new Vector2(0.5f, 0.5f),
+                DeathBrokenSwordIconSize,
+                Vector2.zero);
+            var icon = GetOrAdd<Image>(iconObject);
+            icon.sprite = brokenSwordSprite;
+            icon.type = Image.Type.Simple;
+            icon.preserveAspect = true;
+            icon.useSpriteMesh = false;
+            icon.raycastTarget = false;
+            icon.color = Color.white;
         }
 
         private static void ConfigureTauntShield(
@@ -339,10 +449,34 @@ namespace Hearthstone
                 view.PreparationMaterialSelectedState.transform.SetAsLastSibling();
             if (view.PreparationDeployedState != null)
                 view.PreparationDeployedState.transform.SetAsLastSibling();
+            if (view.NewCollectionNotice != null)
+                view.NewCollectionNotice.transform.SetAsLastSibling();
             view.DamagePopupBackground.transform.SetAsLastSibling();
             view.ChargeFeedbackIcon.transform.SetAsLastSibling();
             view.LongShotFeedbackIcon.transform.SetAsLastSibling();
             view.KeywordTooltip.transform.SetAsLastSibling();
+        }
+
+        private static void ConfigureNewCollectionNotice(
+            GameObject root,
+            BattleCardItemView view,
+            Sprite sprite)
+        {
+            var noticeObject = FindOrCreate(root.transform, "NewCollectionNotice");
+            SetRect(
+                (RectTransform)noticeObject.transform,
+                new Vector2(0.5f, 0f),
+                new Vector2(180f, 76f),
+                new Vector2(0f, 14f));
+            var image = GetOrAdd<Image>(noticeObject);
+            image.sprite = sprite;
+            image.type = Image.Type.Simple;
+            image.preserveAspect = true;
+            image.useSpriteMesh = false;
+            image.raycastTarget = false;
+            image.color = Color.white;
+            noticeObject.SetActive(false);
+            view.NewCollectionNotice = image;
         }
 
         private static void ConfigureFeedbackLayers(
@@ -460,7 +594,7 @@ namespace Hearthstone
             Stretch((RectTransform)emptyState.transform, 0f);
             var emptyImage = GetOrAdd<Image>(emptyState);
             emptyImage.sprite = LoadSprite(
-                "Assets/Resources/Art/Preparation/UI/PreparationPoolEmptySlot.png",
+                "Assets/Resources/Art/Preparation/UI/PreparationPoolEmptySlotAgedWood01.png",
                 "Preparation pool empty slot");
             emptyImage.type = Image.Type.Simple;
             emptyImage.preserveAspect = true;
@@ -475,15 +609,30 @@ namespace Hearthstone
             emptyAttemptImage.raycastTarget = true;
             var emptyAttemptListener = GetOrAdd<UiEventListener>(emptyAttempt);
 
+            var collectionLockedOverlay = FindOrCreate(emptyState.transform, "CollectionLockedOverlay");
+            var collectionLockedRect = (RectTransform)collectionLockedOverlay.transform;
+            Stretch(collectionLockedRect, 8f);
+            collectionLockedRect.localRotation = Quaternion.identity;
+            collectionLockedRect.localScale = Vector3.one;
+            var collectionLockedImage = GetOrAdd<Image>(collectionLockedOverlay);
+            collectionLockedImage.sprite = LoadSprite(
+                CollectionLockedPadlockPath,
+                "Collection locked padlock");
+            collectionLockedImage.type = Image.Type.Simple;
+            collectionLockedImage.preserveAspect = true;
+            collectionLockedImage.useSpriteMesh = false;
+            collectionLockedImage.raycastTarget = false;
+            collectionLockedImage.color = Color.white;
+
             var battleSlotEmpty = ConfigurePreparationEmptyState(
                 root.transform,
                 "PreparationBattleSlotEmptyState",
-                "Assets/Resources/Art/Preparation/UI/PreparationPoolEmptySlot.png",
+                "Assets/Resources/Art/Preparation/UI/PreparationPoolEmptySlotAgedWood01.png",
                 "Preparation pool empty slot");
             var fusionSlotEmpty = ConfigurePreparationEmptyState(
                 root.transform,
                 "PreparationFusionSlotEmptyState",
-                "Assets/Resources/Art/Preparation/UI/PreparationPoolEmptySlot.png",
+                "Assets/Resources/Art/Preparation/UI/PreparationPoolEmptySlotAgedWood01.png",
                 "Preparation pool empty slot");
 
             var dropHighlight = FindOrCreate(root.transform, "PreparationDropHighlight");
@@ -543,19 +692,21 @@ namespace Hearthstone
             var dragable = GetOrAdd<UiDragable>(root);
             dragable.TurnBackWhenDragEnd = true;
             dragable.AlwaysRelativeOffset = false;
-            dragable.EventListener = view.CardHoverListener;
+            dragable.EventListener = view.CardDragListener;
             var interactor = GetOrAdd<UiInteractor>(root);
             interactor.TransformOverride = root.transform;
             interactor.AutoInitUiDragable = true;
             interactor.UiDragableRef = dragable;
 
             emptyState.SetActive(false);
+            collectionLockedOverlay.SetActive(false);
             battleSlotEmpty.SetActive(false);
             fusionSlotEmpty.SetActive(false);
             dropHighlight.SetActive(false);
             materialSelected.SetActive(false);
             deployedState.SetActive(false);
             view.PreparationEmptyState = emptyState;
+            view.CollectionLockedOverlay = collectionLockedImage;
             view.PreparationBattleSlotEmptyState = battleSlotEmpty;
             view.PreparationFusionSlotEmptyState = fusionSlotEmpty;
             view.PreparationMaterialSelectedState = materialSelected;
@@ -596,6 +747,28 @@ namespace Hearthstone
         {
             var component = gameObject.GetComponent<T>();
             return component == null ? gameObject.AddComponent<T>() : component;
+        }
+
+        private static UiEventListener GetDistinctEventListener(
+            GameObject gameObject,
+            params UiEventListener[] excluded)
+        {
+            var listeners = gameObject.GetComponents<UiEventListener>();
+            for (var listenerIndex = 0; listenerIndex < listeners.Length; listenerIndex++)
+            {
+                var listener = listeners[listenerIndex];
+                var isExcluded = false;
+                for (var excludedIndex = 0; excludedIndex < excluded.Length; excludedIndex++)
+                {
+                    if (listener != excluded[excludedIndex])
+                        continue;
+                    isExcluded = true;
+                    break;
+                }
+                if (isExcluded == false)
+                    return listener;
+            }
+            return gameObject.AddComponent<UiEventListener>();
         }
 
         private static void Stretch(RectTransform rectTransform, float inset)
@@ -682,6 +855,45 @@ namespace Hearthstone
                 importer.mipmapEnabled = false;
                 importer.wrapMode = TextureWrapMode.Clamp;
                 importer.SaveAndReimport();
+            }
+
+            var sprite = AssetDatabase.LoadAssetAtPath<Sprite>(path);
+            if (sprite == null)
+                throw new InvalidOperationException($"{label} is missing at '{path}'.");
+            return sprite;
+        }
+
+        private static Sprite LoadPixelAlignedCardSprite(string path, string label)
+        {
+            var importer = AssetImporter.GetAtPath(path) as TextureImporter;
+            if (importer == null)
+                throw new InvalidOperationException($"{label} texture importer is missing at '{path}'.");
+
+            if (importer.textureType != TextureImporterType.Sprite ||
+                importer.spriteImportMode != SpriteImportMode.Single ||
+                importer.alphaIsTransparency == false ||
+                importer.mipmapEnabled ||
+                importer.wrapMode != TextureWrapMode.Clamp ||
+                importer.npotScale != TextureImporterNPOTScale.None ||
+                importer.maxTextureSize < 2048 ||
+                importer.textureCompression != TextureImporterCompression.Uncompressed)
+            {
+                importer.textureType = TextureImporterType.Sprite;
+                importer.spriteImportMode = SpriteImportMode.Single;
+                importer.alphaIsTransparency = true;
+                importer.mipmapEnabled = false;
+                importer.wrapMode = TextureWrapMode.Clamp;
+                importer.npotScale = TextureImporterNPOTScale.None;
+                importer.maxTextureSize = 2048;
+                importer.textureCompression = TextureImporterCompression.Uncompressed;
+                importer.SaveAndReimport();
+            }
+
+            var texture = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+            if (texture == null || texture.width != 1024 || texture.height != 1536)
+            {
+                throw new InvalidOperationException(
+                    $"{label} must keep its authored 1024 x 1536 pixel canvas at '{path}'.");
             }
 
             var sprite = AssetDatabase.LoadAssetAtPath<Sprite>(path);

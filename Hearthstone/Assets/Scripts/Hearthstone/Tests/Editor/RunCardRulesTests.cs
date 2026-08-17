@@ -551,6 +551,25 @@ namespace Hearthstone.Tests
         }
 
         [Test]
+        public void TryPlaceCard_MovesIntoEmptySlotAndSwapsOccupiedBattleSlots()
+        {
+            var runState = new RunStateSingletonRawComponent();
+            runState.SetUnlockedBattleSlotCount(3);
+            RunCardRules.ApplyRewardBatch(runState, CreateBatch("swap-battle-slots", 2, 3));
+            Assert.IsTrue(RunCardRules.TryPlaceCard(runState, 2, 0));
+            Assert.IsTrue(RunCardRules.TryPlaceCard(runState, 3, 1));
+
+            var revision = runState.Revision.Value;
+            Assert.IsTrue(RunCardRules.TryPlaceCard(runState, 2, 2));
+            CollectionAssert.AreEqual(new[] { 0, 3, 2, 0, 0, 0 }, runState.BattleSlotCardNumbers);
+            Assert.AreEqual(revision + 1, runState.Revision.Value);
+
+            Assert.IsTrue(RunCardRules.TryPlaceCard(runState, 2, 1));
+            CollectionAssert.AreEqual(new[] { 0, 2, 3, 0, 0, 0 }, runState.BattleSlotCardNumbers);
+            Assert.AreEqual(revision + 2, runState.Revision.Value);
+        }
+
+        [Test]
         public void TryRemoveCardFromBattleSlot_ReturnsOnlyTheExpectedCardToPool()
         {
             var runState = new RunStateSingletonRawComponent();
@@ -961,6 +980,8 @@ namespace Hearthstone.Tests
             Assert.NotNull(page.FusionRevealCanvasGroup);
             Assert.NotNull(page.FusionRevealDismissButton);
             Assert.NotNull(page.FusionRevealMaterialCardList);
+            Assert.NotNull(page.FusionRevealGatherFlash);
+            Assert.AreEqual(8, page.FusionRevealGatherFlashFrames.Length);
             Assert.NotNull(page.FusionRevealCardRoot);
             Assert.NotNull(page.FusionRevealCardList);
             Assert.NotNull(page.FusionRevealSealedFace);
@@ -980,10 +1001,17 @@ namespace Hearthstone.Tests
             Assert.AreEqual(UiList.EArrangement.Manual, page.FusionRevealMaterialCardList.ArragementType);
             Assert.AreEqual(UiList.EArrangement.Manual, page.FusionRevealCardList.ArragementType);
             Assert.AreEqual(180f, page.FusionRevealCardBack.transform.localEulerAngles.y, 0.01f);
-            Assert.AreSame(page.FusionRevealOverlay.transform, page.FusionRevealFlash.parent);
-            Assert.AreEqual(Vector2.zero, page.FusionRevealFlash.offsetMin);
-            Assert.AreEqual(Vector2.zero, page.FusionRevealFlash.offsetMax);
+            var flashMask = page.FusionRevealCardRoot.Find("CardFlashMask");
+            Assert.NotNull(flashMask);
+            Assert.AreSame(flashMask, page.FusionRevealFlash.parent);
+            Assert.AreSame(page.FusionRevealCardRoot, flashMask.parent);
+            Assert.IsFalse(flashMask.GetComponent<Mask>().showMaskGraphic);
+            Assert.AreEqual("CardArtworkRoundedMask", flashMask.GetComponent<Image>().sprite.name);
+            Assert.AreEqual(new Vector2(170f, 480f), page.FusionRevealFlash.sizeDelta);
             Assert.IsFalse(page.FusionRevealFlash.GetComponent<Image>().raycastTarget);
+            Assert.AreEqual(
+                "Hearthstone/UI/CardFusionRevealFlash",
+                page.FusionRevealFlash.GetComponent<Image>().material.shader.name);
             foreach (var revealText in page.FusionRevealOverlay.GetComponentsInChildren<TMP_Text>(true))
                 StringAssert.DoesNotContain("按任意键继续", revealText.text);
             Assert.AreEqual(
@@ -1043,13 +1071,40 @@ namespace Hearthstone.Tests
             Assert.That(battleTabRect.anchoredPosition.x, Is.LessThan(fusionTabRect.anchoredPosition.x));
             Assert.AreEqual(-58f, battleTabRect.anchoredPosition.y);
             Assert.AreEqual(-58f, fusionTabRect.anchoredPosition.y);
-            Assert.AreEqual(-130f, ((RectTransform)page.BattleSlotList.transform).anchoredPosition.y);
+            var battleSlotListRect = (RectTransform)page.BattleSlotList.transform;
+            var battleSlotCenterY = battleSlotListRect.anchoredPosition.y +
+                                    battleSlotListRect.rect.height * 0.5f -
+                                    page.BattleSlotList.ConstantSlotSize.y * 0.5f;
 
-            var fusionMaterialTitleRect = page.FusionOperationRoot.transform.Find("Title") as RectTransform;
             var fusionSlotListRect = (RectTransform)page.FusionSlotList.transform;
-            Assert.NotNull(fusionMaterialTitleRect);
-            Assert.AreEqual(new Vector2(425f, -40f), fusionMaterialTitleRect.anchoredPosition);
-            Assert.AreEqual(new Vector2(420f, -150f), fusionSlotListRect.anchoredPosition);
+            Assert.IsNull(page.FusionOperationRoot.transform.Find("Title"));
+            Assert.NotNull(page.FusionHelpButton);
+            var fusionHelpRect = (RectTransform)page.FusionHelpButton.transform;
+            Assert.AreEqual(new Vector2(56f, 56f), fusionHelpRect.sizeDelta);
+            Assert.AreEqual(new Vector2(420f, -275.8f), fusionHelpRect.anchoredPosition);
+            var fusionHelpImage = page.FusionHelpButton.targetGraphic as Image;
+            Assert.NotNull(fusionHelpImage);
+            Assert.AreEqual(
+                AssetDatabase.LoadAssetAtPath<Sprite>(
+                    "Assets/Resources/Art/Common/UI/MedievalParchmentControl.png"),
+                fusionHelpImage.sprite);
+            Assert.AreEqual(Color.white, fusionHelpImage.color);
+            Assert.AreEqual(
+                "?",
+                page.FusionHelpButton.transform.Find("Label").GetComponent<TMP_Text>().text);
+            Assert.AreEqual(
+                new Vector2(0f, -2f),
+                ((RectTransform)page.FusionHelpButton.transform.Find("Label")).anchoredPosition);
+            var fusionSlotCenterY = fusionSlotListRect.anchoredPosition.y +
+                                    fusionSlotListRect.rect.height * 0.5f -
+                                    page.FusionSlotList.ConstantSlotSize.y * 0.5f;
+            Assert.That(fusionSlotListRect.anchoredPosition.x, Is.EqualTo(420f).Within(0.001f));
+            var fusionCardBottom = fusionSlotCenterY - page.FusionSlotList.ConstantSlotSize.y * 0.5f;
+            var helpTop = fusionHelpRect.anchoredPosition.y + fusionHelpRect.sizeDelta.y * 0.5f;
+            Assert.That(fusionCardBottom - helpTop, Is.EqualTo(10f).Within(0.001f));
+            Assert.That(fusionHelpRect.anchoredPosition.x, Is.EqualTo(fusionSlotListRect.anchoredPosition.x));
+            Assert.That(battleSlotCenterY, Is.EqualTo(fusionSlotCenterY).Within(0.001f));
+            Assert.That(battleSlotCenterY, Is.EqualTo(-101f).Within(0.001f));
 
             var poolPanelRect = (RectTransform)page.CardPoolInteractor.transform;
             Assert.AreEqual(new Vector2(1780f, 630f), poolPanelRect.sizeDelta);
@@ -1098,6 +1153,91 @@ namespace Hearthstone.Tests
             };
             foreach (var key in spriteKeys)
                 Assert.NotNull(ResourceApi.LoadSprite(key), key);
+        }
+
+        [Test]
+        public void PreparationBattleAndFusionSlotsShareTheSameCenterY()
+        {
+            var pagePrefab = AssetDatabase.LoadAssetAtPath<GameObject>(
+                "Assets/Resources/Ui/PreparationView.prefab");
+            Assert.NotNull(pagePrefab);
+            var page = pagePrefab.GetComponent<PreparationView>();
+            Assert.NotNull(page);
+
+            var battleRect = (RectTransform)page.BattleSlotList.transform;
+            var fusionRect = (RectTransform)page.FusionSlotList.transform;
+            var battleCenterY = battleRect.anchoredPosition.y +
+                                battleRect.rect.height * 0.5f -
+                                page.BattleSlotList.ConstantSlotSize.y * 0.5f;
+            var fusionCenterY = fusionRect.anchoredPosition.y +
+                                fusionRect.rect.height * 0.5f -
+                                page.FusionSlotList.ConstantSlotSize.y * 0.5f;
+
+            Assert.That(battleCenterY, Is.EqualTo(fusionCenterY).Within(0.001f));
+            Assert.That(battleCenterY, Is.EqualTo(-101f).Within(0.001f));
+        }
+
+        [Test]
+        public void FusionRevealFlashUsesRoundedCardMaskAndShaderMaterial()
+        {
+            var pagePrefab = AssetDatabase.LoadAssetAtPath<GameObject>(
+                "Assets/Resources/Ui/PreparationView.prefab");
+            var flashMaterial = AssetDatabase.LoadAssetAtPath<Material>(
+                "Assets/Resources/Art/BattleCards/UI/CardFusionRevealFlash.mat");
+            Assert.NotNull(pagePrefab);
+            Assert.NotNull(flashMaterial);
+
+            var page = pagePrefab.GetComponent<PreparationView>();
+            Assert.NotNull(page);
+            var flashMask = page.FusionRevealCardRoot.Find("CardFlashMask");
+            Assert.NotNull(flashMask);
+            Assert.AreSame(page.FusionRevealCardRoot, flashMask.parent);
+            Assert.AreEqual(Vector2.zero, ((RectTransform)flashMask).offsetMin);
+            Assert.AreEqual(Vector2.zero, ((RectTransform)flashMask).offsetMax);
+
+            var mask = flashMask.GetComponent<Mask>();
+            var maskImage = flashMask.GetComponent<Image>();
+            Assert.NotNull(mask);
+            Assert.NotNull(maskImage);
+            Assert.IsFalse(mask.showMaskGraphic);
+            Assert.AreEqual("CardArtworkRoundedMask", maskImage.sprite.name);
+
+            var flashImage = page.FusionRevealFlash.GetComponent<Image>();
+            Assert.NotNull(flashImage);
+            Assert.AreSame(flashMask, page.FusionRevealFlash.parent);
+            Assert.AreSame(flashMaterial, flashImage.material);
+            Assert.AreEqual("Hearthstone/UI/CardFusionRevealFlash", flashImage.material.shader.name);
+            Assert.IsTrue(flashImage.material.HasProperty("_Stencil"));
+            Assert.AreEqual(new Vector2(170f, 480f), page.FusionRevealFlash.sizeDelta);
+            Assert.IsFalse(flashImage.raycastTarget);
+        }
+
+        [Test]
+        public void FusionRevealGatherFlashUsesTransparentEightFrameSpriteSheet()
+        {
+            const string sheetPath =
+                "Assets/Resources/Art/Preparation/UI/FusionGatherFlashFrames.png";
+            var pagePrefab = AssetDatabase.LoadAssetAtPath<GameObject>(
+                "Assets/Resources/Ui/PreparationView.prefab");
+            var importer = AssetImporter.GetAtPath(sheetPath) as TextureImporter;
+            Assert.NotNull(pagePrefab);
+            Assert.NotNull(importer);
+
+            var page = pagePrefab.GetComponent<PreparationView>();
+            Assert.NotNull(page);
+            Assert.NotNull(page.FusionRevealGatherFlash);
+            Assert.AreSame(page.FusionRevealOverlay.transform, page.FusionRevealGatherFlash.transform.parent);
+            Assert.IsFalse(page.FusionRevealGatherFlash.raycastTarget);
+            Assert.IsTrue(page.FusionRevealGatherFlash.preserveAspect);
+            Assert.AreEqual(8, page.FusionRevealGatherFlashFrames.Length);
+            for (var index = 0; index < page.FusionRevealGatherFlashFrames.Length; index++)
+                Assert.AreEqual($"FusionGatherFlash_{index:00}", page.FusionRevealGatherFlashFrames[index].name);
+
+            Assert.AreEqual(TextureImporterType.Sprite, importer.textureType);
+            Assert.AreEqual(SpriteImportMode.Multiple, importer.spriteImportMode);
+            Assert.IsTrue(importer.alphaIsTransparency);
+            Assert.IsFalse(importer.mipmapEnabled);
+            Assert.AreEqual(TextureWrapMode.Clamp, importer.wrapMode);
         }
 
         [Test]
@@ -1201,7 +1341,189 @@ namespace Hearthstone.Tests
         }
 
         [Test]
-        public void BattleSlotDragReturnRemovesTheCardOnlyWhenReleasedOutsideItsSourceSlot()
+        public void EmptyPreparationSlotsKeepAnIndependentDropTargetRaycast()
+        {
+            var itemControllerScript = AssetDatabase.LoadAssetAtPath<MonoScript>(
+                "Assets/Scripts/Hearthstone/Ui/Controller/BattleCardItemController.cs");
+            Assert.NotNull(itemControllerScript);
+
+            StringAssert.Contains(
+                "m_PreparationBindingMode == EPreparationBindingMode.BattleSlot ||",
+                itemControllerScript.text);
+            StringAssert.Contains(
+                "m_PreparationBindingMode == EPreparationBindingMode.FusionSlot;",
+                itemControllerScript.text);
+            StringAssert.Contains(
+                "poolMode,\n                dropTargetEnabled);",
+                itemControllerScript.text);
+            StringAssert.Contains(
+                "scrollEnabled || dropTargetEnabled",
+                itemControllerScript.text);
+            StringAssert.Contains(
+                "m_View.CardDragListener.enabled = dragEnabled",
+                itemControllerScript.text);
+        }
+
+        [TestCase("BattleSlot")]
+        [TestCase("FusionSlot")]
+        public void EmptyPreparationSlotBindingEnablesOnlyItsDropSurface(string bindingModeName)
+        {
+            var prefabRoot = PrefabUtility.LoadPrefabContents(
+                "Assets/Resources/Ui/BattleCardItem.prefab");
+            var controllerObject = new GameObject("EmptyPreparationSlotBindingTest");
+            try
+            {
+                var view = prefabRoot.GetComponent<BattleCardItemView>();
+                Assert.NotNull(view);
+                var controller = controllerObject.AddComponent<BattleCardItemController>();
+                controller.SetView(view);
+
+                var bindingModeField = typeof(BattleCardItemController).GetField(
+                    "m_PreparationBindingMode",
+                    BindingFlags.Instance | BindingFlags.NonPublic);
+                var applyState = typeof(BattleCardItemController).GetMethod(
+                    "ApplyPreparationState",
+                    BindingFlags.Instance | BindingFlags.NonPublic);
+                Assert.NotNull(bindingModeField);
+                Assert.NotNull(applyState);
+                bindingModeField.SetValue(
+                    controller,
+                    Enum.Parse(bindingModeField.FieldType, bindingModeName));
+
+                applyState.Invoke(controller, new object[] { false, false });
+
+                Assert.IsTrue(view.CardBackground.raycastTarget);
+                Assert.IsFalse(view.CardHoverListener.enabled);
+                Assert.IsFalse(view.CardClickListener.enabled);
+                Assert.IsFalse(view.CardDragListener.enabled);
+                Assert.IsTrue(view.PreparationInteractor.enabled);
+                Assert.AreEqual(
+                    bindingModeName == "BattleSlot",
+                    view.PreparationBattleSlotEmptyState.activeSelf);
+                Assert.AreEqual(
+                    bindingModeName == "FusionSlot",
+                    view.PreparationFusionSlotEmptyState.activeSelf);
+
+                applyState.Invoke(controller, new object[] { true, false });
+
+                Assert.AreEqual(
+                    bindingModeName == "BattleSlot",
+                    view.PreparationBattleSlotEmptyState.activeSelf,
+                    "An occupied battle slot must keep its backdrop visible.");
+                Assert.AreEqual(
+                    bindingModeName == "FusionSlot",
+                    view.PreparationFusionSlotEmptyState.activeSelf,
+                    "An occupied fusion slot must keep its backdrop visible.");
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(controllerObject);
+                PrefabUtility.UnloadPrefabContents(prefabRoot);
+            }
+        }
+
+        [TestCase("BattleSlot")]
+        [TestCase("FusionSlot")]
+        public void PreparationSlotBackdropStaysInTheListWhileItsCardIsDragged(string bindingModeName)
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(
+                "Assets/Resources/Ui/BattleCardItem.prefab");
+            Assert.NotNull(prefab);
+
+            var slotList = new GameObject("PreparationSlotBackdropTest", typeof(RectTransform));
+            try
+            {
+                var wrapper = new GameObject("BattleCardItemController", typeof(RectTransform));
+                wrapper.transform.SetParent(slotList.transform, false);
+                var instance = UnityEngine.Object.Instantiate(prefab, wrapper.transform, false);
+                var view = instance.GetComponent<BattleCardItemView>();
+                var controller = wrapper.AddComponent<BattleCardItemController>();
+                Assert.NotNull(view);
+                controller.SetView(view);
+
+                var bindingModeField = typeof(BattleCardItemController).GetField(
+                    "m_PreparationBindingMode",
+                    BindingFlags.Instance | BindingFlags.NonPublic);
+                var cardNumberField = typeof(BattleCardItemController).GetField(
+                    "m_PreparationCardNumber",
+                    BindingFlags.Instance | BindingFlags.NonPublic);
+                var detachBackdrop = typeof(BattleCardItemController).GetMethod(
+                    "OnPreparationDragStarted",
+                    BindingFlags.Instance | BindingFlags.NonPublic);
+                var restoreBackdrop = typeof(BattleCardItemController).GetMethod(
+                    "RestorePreparationSlotBackdrop",
+                    BindingFlags.Instance | BindingFlags.NonPublic);
+                Assert.NotNull(bindingModeField);
+                Assert.NotNull(cardNumberField);
+                Assert.NotNull(detachBackdrop);
+                Assert.NotNull(restoreBackdrop);
+
+                bindingModeField.SetValue(
+                    controller,
+                    Enum.Parse(bindingModeField.FieldType, bindingModeName));
+                cardNumberField.SetValue(controller, 1);
+                var backdrop = bindingModeName == "BattleSlot"
+                    ? view.PreparationBattleSlotEmptyState
+                    : view.PreparationFusionSlotEmptyState;
+                backdrop.SetActive(true);
+                backdrop.transform.SetAsFirstSibling();
+
+                detachBackdrop.Invoke(controller, new object[] { null });
+
+                Assert.AreSame(wrapper.transform, backdrop.transform.parent);
+                Assert.AreEqual(0, backdrop.transform.GetSiblingIndex());
+                Assert.AreNotSame(instance.transform, backdrop.transform.parent);
+
+                restoreBackdrop.Invoke(controller, null);
+
+                Assert.AreSame(instance.transform, backdrop.transform.parent);
+                Assert.AreEqual(0, backdrop.transform.GetSiblingIndex());
+                var backdropRect = (RectTransform)backdrop.transform;
+                Assert.AreEqual(Vector2.zero, backdropRect.anchoredPosition);
+                Assert.AreEqual(Vector2.zero, backdropRect.sizeDelta);
+                Assert.AreEqual(Vector3.one, backdropRect.localScale);
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(slotList);
+            }
+        }
+
+        [Test]
+        public void PreparationSlotReplacementClearsTrackedStatsBeforeApplyingTheNewCard()
+        {
+            var itemControllerScript = AssetDatabase.LoadAssetAtPath<MonoScript>(
+                "Assets/Scripts/Hearthstone/Ui/Controller/BattleCardItemController.cs");
+            Assert.NotNull(itemControllerScript);
+
+            var methodStart = itemControllerScript.text.IndexOf(
+                "private void RefreshPreparationSlot",
+                StringComparison.Ordinal);
+            var replacementGuard = itemControllerScript.text.IndexOf(
+                "var cardReplaced = m_PreparationCardNumber != 0 &&",
+                methodStart,
+                StringComparison.Ordinal);
+            var resetFeedback = itemControllerScript.text.IndexOf(
+                "ResetFeedbackAnimations(true);",
+                replacementGuard,
+                StringComparison.Ordinal);
+            var assignCardNumber = itemControllerScript.text.IndexOf(
+                "m_PreparationCardNumber = cardNumber;",
+                replacementGuard,
+                StringComparison.Ordinal);
+
+            Assert.That(methodStart, Is.GreaterThanOrEqualTo(0));
+            Assert.That(replacementGuard, Is.GreaterThan(methodStart));
+            Assert.That(resetFeedback, Is.GreaterThan(replacementGuard));
+            Assert.That(assignCardNumber, Is.GreaterThan(resetFeedback));
+            StringAssert.Contains("cardNumber != 0 &&", itemControllerScript.text);
+            StringAssert.Contains(
+                "m_PreparationCardNumber != cardNumber;",
+                itemControllerScript.text);
+        }
+
+        [Test]
+        public void BattleSlotDragReturnRemovesTheCardOnlyWhenReleasedInsideCardPool()
         {
             var itemControllerScript = AssetDatabase.LoadAssetAtPath<MonoScript>(
                 "Assets/Scripts/Hearthstone/Ui/Controller/BattleCardItemController.cs");
@@ -1211,13 +1533,16 @@ namespace Hearthstone.Tests
             Assert.NotNull(pageControllerScript);
 
             StringAssert.Contains(
-                "m_PreparationPage.IsPointerInsideBattleSlot(eventData, m_PreparationSlot) == false",
+                "m_PreparationPage.IsPointerInsideCardPool(eventData)",
                 itemControllerScript.text);
             StringAssert.Contains(
                 "m_PreparationPage.RemoveBattleCard(m_PreparationSlot, m_PreparationCardNumber)",
                 itemControllerScript.text);
             StringAssert.Contains(
                 "RunCardRules.TryRemoveCardFromBattleSlot(m_RunState, sourceSlot, cardNumber)",
+                pageControllerScript.text);
+            StringAssert.Contains(
+                "m_View.CardPoolScrollRect.viewport",
                 pageControllerScript.text);
         }
 
@@ -1314,6 +1639,13 @@ namespace Hearthstone.Tests
             StringAssert.Contains("FusionRevealMinimumScreenHeightCoverage = 2f / 3f", controllerScript.text);
             StringAssert.Contains("PopulateFusionRevealMaterials(transaction)", controllerScript.text);
             StringAssert.Contains("Vector2.Lerp(startPosition, Vector2.zero, progress)", controllerScript.text);
+            StringAssert.Contains(
+                "itemRect.localScale = Vector3.one * FusionRevealMaterialStartScale",
+                controllerScript.text);
+            StringAssert.DoesNotContain("FusionRevealMaterialEndScale", controllerScript.text);
+            StringAssert.Contains("FusionRevealGatherFlashDuration = 0.64f", controllerScript.text);
+            StringAssert.Contains("UpdateFusionRevealGatherFlash(gatherEnd, gatherFlashEnd)", controllerScript.text);
+            StringAssert.Contains("rotationStart = gatherFlashEnd + FusionRevealRotationDelay", controllerScript.text);
             StringAssert.Contains("EvaluateFusionRevealScale(rotationProgress)", controllerScript.text);
             StringAssert.Contains("CompleteFusionReveal()", controllerScript.text);
             StringAssert.Contains("m_FusionRevealAwaitingDismiss = true", controllerScript.text);
@@ -1328,7 +1660,10 @@ namespace Hearthstone.Tests
             StringAssert.DoesNotContain("FusionRevealHoldDuration", controllerScript.text);
             StringAssert.DoesNotContain("FusionRevealFadeOutDuration", controllerScript.text);
             StringAssert.Contains("FusionRevealMotionAudioKey = \"card-shuffle\"", controllerScript.text);
-            StringAssert.Contains("FusionRevealMomentAudioKey = \"highUp\"", controllerScript.text);
+            StringAssert.Contains("\"FusionRevealMotion\",\n                true)", controllerScript.text);
+            StringAssert.Contains("options.Loop = loop", controllerScript.text);
+            StringAssert.Contains("FusionRevealMomentAudioKey = \"glass_004\"", controllerScript.text);
+            StringAssert.Contains("\"FusionRevealMoment\",\n                    false)", controllerScript.text);
             StringAssert.Contains("m_FusionRevealMomentAudioPlayed == false", controllerScript.text);
             StringAssert.Contains("StopFusionRevealAudio();", controllerScript.text);
 
@@ -1341,13 +1676,13 @@ namespace Hearthstone.Tests
             var motionClip = AssetDatabase.LoadAssetAtPath<AudioClip>(
                 "Assets/Resources/BbxCommon/Audio/Library/Casino Audio/card-shuffle.ogg");
             var revealClip = AssetDatabase.LoadAssetAtPath<AudioClip>(
-                "Assets/Resources/BbxCommon/Audio/Library/Digital Audio/highUp.ogg");
+                "Assets/Resources/BbxCommon/Audio/Library/Interface Sounds/glass_004.ogg");
             Assert.NotNull(motionClip);
             Assert.NotNull(revealClip);
             Assert.NotNull(ResourceApi.GetFile("card-shuffle"));
-            Assert.NotNull(ResourceApi.GetFile("highUp"));
+            Assert.NotNull(ResourceApi.GetFile("glass_004"));
             Assert.That(motionClip.length, Is.GreaterThan(3f));
-            Assert.That(revealClip.length, Is.InRange(0.5f, 0.6f));
+            Assert.That(revealClip.length, Is.GreaterThan(0f));
         }
 
         [Test]
@@ -1405,7 +1740,7 @@ namespace Hearthstone.Tests
                 "Assets/Scripts/Hearthstone/Ui/Controller/BattleCardItemController.cs");
             Assert.NotNull(cardScript);
             StringAssert.Contains("EPreparationBindingMode.FusionRecommendation", cardScript.text);
-            StringAssert.Contains("m_View.PreparationDragable.enabled = false", cardScript.text);
+            StringAssert.Contains("ApplyInteractionPermissions(true, false, false, true)", cardScript.text);
         }
 
         [Test]
@@ -1421,6 +1756,7 @@ namespace Hearthstone.Tests
             Assert.NotNull(panel);
             Assert.NotNull(pattern);
             Assert.NotNull(scrollRect);
+            Assert.IsNull(panel.GetComponent<Image>());
             Assert.That(pattern.GetSiblingIndex(), Is.LessThan(scrollRect.GetSiblingIndex()));
 
             var patternRect = (RectTransform)pattern;

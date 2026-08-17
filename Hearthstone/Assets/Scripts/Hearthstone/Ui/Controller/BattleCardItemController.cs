@@ -36,7 +36,10 @@ namespace Hearthstone
             Collection,
         }
 
-        private const string UnifiedCardFrameArtworkKey = "CardFrame-v3";
+        private const string UnifiedCardFrameArtworkKey =
+            "CardFrameRoundedSubtleOpenCornersPreview";
+        private const string EmptySlotFallbackArtworkKey =
+            "PreparationPoolEmptySlotAgedWood01";
         private const float PreparationPoolScale = 0.8f;
         private const float FusionRecommendationScale = 0.52f;
         private const float StatTransitionDuration = 0.38f;
@@ -66,6 +69,15 @@ namespace Hearthstone
         private static readonly Color AttackerHighlightColor = new Color32(255, 184, 26, 199);
         private static readonly Color TargetHighlightColor = new Color32(255, 41, 20, 209);
         private static readonly Color HitFlashColor = new Color32(255, 52, 36, 255);
+        private static readonly string[] EmptySlotArtworkKeys =
+        {
+            "PreparationPoolEmptySlotAgedWood01",
+            "PreparationPoolEmptySlotAgedWood02",
+            "PreparationPoolEmptySlotAgedWood03",
+            "PreparationPoolEmptySlotAgedWood04",
+            "PreparationPoolEmptySlotAgedWood05",
+        };
+        private static Sprite[] s_EmptySlotSprites;
 
         private Entity m_BoundEntity;
         private BattleCardRawComponent m_Card;
@@ -78,6 +90,8 @@ namespace Hearthstone
         private int m_PreparationSlot = -1;
         private bool m_PreparationCardOwned;
         private bool m_PreparationCardLocked;
+        private RectTransform m_DetachedPreparationSlotBackdrop;
+        private bool m_RestorePreparationSlotBackdropAfterDrag;
         private Action<int, RectTransform> m_CollectionClick;
         private Action<PointerEventData> m_CollectionScroll;
         private EBattleKeyword m_DisplayKeywords;
@@ -138,7 +152,10 @@ namespace Hearthstone
         protected override void OnUiInit()
         {
             if (m_View.PreparationDragable != null)
+            {
+                m_View.PreparationDragable.Wrapper.OnBeginDrag += OnPreparationDragStarted;
                 m_View.PreparationDragable.Wrapper.OnBackFromTop += OnPreparationDragReturned;
+            }
             if (m_View.PreparationInteractor != null)
             {
                 m_View.PreparationInteractor.Wrapper.OnInteractorTouch += OnPreparationInteractorTouch;
@@ -149,8 +166,9 @@ namespace Hearthstone
             {
                 m_View.CardHoverListener.AddCallback(EUiEvent.PointerEnter, OnCardPointerEnter);
                 m_View.CardHoverListener.AddCallback(EUiEvent.PointerExit, OnCardPointerExit);
-                m_View.CardHoverListener.AddCallback(EUiEvent.PointerClick, OnCardPointerClicked);
             }
+            if (m_View.CardClickListener != null)
+                m_View.CardClickListener.AddCallback(EUiEvent.PointerClick, OnCardPointerClicked);
             InitializePreparationEmptySlotInteraction();
             CreateAttackEffectOverlay();
             CacheFeedbackLayout();
@@ -200,6 +218,8 @@ namespace Hearthstone
 
         protected override void OnUiUpdate(float deltaTime)
         {
+            if (m_RestorePreparationSlotBackdropAfterDrag)
+                RestorePreparationSlotBackdrop();
             UpdateFeedbackAnimations(deltaTime * BattleRules.AttackPresentationPlaybackSpeed);
             if (m_Session == null ||
                 m_Session.AttackPresentationActive == false ||
@@ -229,6 +249,9 @@ namespace Hearthstone
             m_PreparationDisplayNumber = displayNumber;
             m_PreparationCopyIndex = copyIndex;
             transform.localScale = Vector3.one * PreparationPoolScale;
+            ApplyEmptySlotVariant(
+                m_View.PreparationEmptyState,
+                ResolveEmptySlotVariantIndex((int)EPreparationBindingMode.CardPool, displayNumber, copyIndex));
             UpdatePreparationInteractorData(cardNumber);
         }
 
@@ -248,7 +271,10 @@ namespace Hearthstone
             BindPreparationSlot(page, slot, EPreparationBindingMode.FusionSlot, slotSize);
         }
 
-        internal void BindFusionReveal(RunStateSingletonRawComponent runState, int cardNumber)
+        internal void BindFusionReveal(
+            RunStateSingletonRawComponent runState,
+            int cardNumber,
+            bool showNewCollectionNotice)
         {
             ResetBinding();
             if (runState == null || runState.HasCard(cardNumber) == false)
@@ -260,7 +286,8 @@ namespace Hearthstone
             if (m_View.CardNumberBadge != null)
                 m_View.CardNumberBadge.gameObject.SetActive(true);
             ShowPreparationCard(runState, cardNumber);
-            SetHoverEnabled(false);
+            SetNewCollectionNoticeVisible(showNewCollectionNotice);
+            ApplyInteractionPermissions(false, false, false, false);
         }
 
         internal void BindFusionMaterialReveal(FusionMaterialSnapshot material)
@@ -290,10 +317,17 @@ namespace Hearthstone
                 material.MaxHealth);
             RefreshAlive(true);
             RefreshHighlights(Entity.Null);
-            SetHoverEnabled(false);
+            ApplyInteractionPermissions(false, false, false, false);
         }
 
         internal void BindPreparationRewardReveal(RunCardInstanceData reward)
+        {
+            BindPreparationRewardReveal(reward, false);
+        }
+
+        internal void BindPreparationRewardReveal(
+            RunCardInstanceData reward,
+            bool showNewCollectionNotice)
         {
             ResetBinding();
             if (reward.IsValid == false)
@@ -324,7 +358,8 @@ namespace Hearthstone
                 reward.MaxHealth);
             RefreshAlive(true);
             RefreshHighlights(Entity.Null);
-            SetHoverEnabled(false);
+            SetNewCollectionNoticeVisible(showNewCollectionNotice);
+            ApplyInteractionPermissions(false, false, false, false);
         }
 
         internal void BindEnemyPreview(RunCardInstanceData instance, Vector2 slotSize)
@@ -359,12 +394,12 @@ namespace Hearthstone
                 instance.MaxHealth);
             RefreshAlive(true);
             RefreshHighlights(Entity.Null);
-            SetHoverEnabled(true);
+            ApplyInteractionPermissions(true, false, false, false);
         }
 
         internal void SetFusionRevealInteraction(bool enabled)
         {
-            SetHoverEnabled(enabled);
+            ApplyInteractionPermissions(enabled, false, false, false);
         }
 
         internal void BindCollection(
@@ -381,12 +416,8 @@ namespace Hearthstone
             m_CollectionScroll = onScroll;
             if (unlocked == false)
             {
-                if (m_View.CardNumberText != null)
-                    m_View.CardNumberText.text = "??";
-                if (m_View.CardNumberBadge != null)
-                    m_View.CardNumberBadge.gameObject.SetActive(true);
-                ShowLockedPreparationCard();
-                HideCollectionLockedText();
+                ShowCollectionEmptySlot(cardNumber);
+                ShowCollectionRecipeTooltip(cardNumber);
             }
             else
             {
@@ -395,21 +426,12 @@ namespace Hearthstone
 
             if (m_View.PreparationInteractor != null)
                 m_View.PreparationInteractor.enabled = false;
-            if (m_View.PreparationDragable != null)
-            {
-                m_View.PreparationDragable.enabled = false;
-                if (m_View.PreparationDragable.EventListener != null)
-                    m_View.PreparationDragable.EventListener.enabled = false;
-            }
-            SetHoverEnabled(unlocked);
+            ApplyInteractionPermissions(true, unlocked, false, true);
             if (m_View.CardBackground != null)
-            {
                 m_View.CardBackground.color = Color.clear;
-                m_View.CardBackground.raycastTarget = unlocked;
-            }
         }
 
-        private void HideCollectionLockedText()
+        private void ShowCollectionRecipeTooltip(int cardNumber)
         {
             m_DisplayKeywords = EBattleKeyword.None;
             if (m_View.SkillDescriptionText != null)
@@ -423,8 +445,28 @@ namespace Hearthstone
                 m_View.KeywordText.gameObject.SetActive(false);
             }
             if (m_View.KeywordTooltipText != null)
-                m_View.KeywordTooltipText.text = string.Empty;
+                m_View.KeywordTooltipText.text = FormatCollectionRecipe(cardNumber);
             HideKeywordTooltip();
+        }
+
+        private static string FormatCollectionRecipe(int cardNumber)
+        {
+            var cardConfig = DataApi.GetData<BattleCardCsvData>(cardNumber);
+            if (cardConfig == null)
+                return string.Empty;
+            if (cardConfig.IsFusionResult == false)
+                return "合成配方：无（基础卡牌）";
+
+            var recipe = "合成配方：";
+            for (var index = 0; index < cardConfig.FusionRecipeTypeIds.Count; index++)
+            {
+                if (index > 0)
+                    recipe += " + ";
+                var typeId = cardConfig.FusionRecipeTypeIds[index];
+                var typeConfig = DataApi.GetData<BattleCardTypeCsvData>(typeId);
+                recipe += typeConfig == null ? $"类型 {typeId}" : typeConfig.DisplayName;
+            }
+            return recipe;
         }
 
         private void ShowCollectionCard(int cardNumber)
@@ -593,7 +635,68 @@ namespace Hearthstone
             m_PreparationBindingMode = bindingMode;
             m_PreparationSlot = slot;
             ApplyExactSlotScale(slotSize);
+            var emptyState = bindingMode == EPreparationBindingMode.BattleSlot
+                ? m_View.PreparationBattleSlotEmptyState
+                : m_View.PreparationFusionSlotEmptyState;
+            ApplyEmptySlotVariant(
+                emptyState,
+                ResolveEmptySlotVariantIndex((int)bindingMode, slot, 0));
             UpdatePreparationInteractorData(0);
+        }
+
+        private void ShowCollectionEmptySlot(int cardNumber)
+        {
+            HideCardPresentation(true);
+            ApplyEmptySlotVariant(
+                m_View.PreparationEmptyState,
+                ResolveEmptySlotVariantIndex((int)EPreparationBindingMode.Collection, cardNumber, 0));
+            if (m_View.PreparationEmptyState != null)
+                m_View.PreparationEmptyState.SetActive(true);
+            if (m_View.CollectionLockedOverlay != null)
+                m_View.CollectionLockedOverlay.gameObject.SetActive(true);
+        }
+
+        private static void ApplyEmptySlotVariant(GameObject emptyState, int variantIndex)
+        {
+            if (emptyState == null)
+                return;
+
+            var image = emptyState.GetComponent<Image>();
+            if (image == null)
+                return;
+
+            EnsureEmptySlotSpritesLoaded();
+            var sprite = s_EmptySlotSprites[variantIndex];
+            if (sprite == null)
+                sprite = ResourceApi.LoadSprite(EmptySlotFallbackArtworkKey);
+            if (sprite != null)
+                image.sprite = sprite;
+            image.color = Color.white;
+        }
+
+        private static void EnsureEmptySlotSpritesLoaded()
+        {
+            if (s_EmptySlotSprites != null)
+                return;
+
+            s_EmptySlotSprites = new Sprite[EmptySlotArtworkKeys.Length];
+            for (var index = 0; index < EmptySlotArtworkKeys.Length; index++)
+                s_EmptySlotSprites[index] = ResourceApi.LoadSprite(EmptySlotArtworkKeys[index]);
+        }
+
+        private static int ResolveEmptySlotVariantIndex(int context, int primary, int secondary)
+        {
+            unchecked
+            {
+                var hash = 2166136261u;
+                hash = (hash ^ (uint)context) * 16777619u;
+                hash = (hash ^ (uint)primary) * 16777619u;
+                hash = (hash ^ (uint)secondary) * 16777619u;
+                hash ^= hash >> 16;
+                hash *= 2246822519u;
+                hash ^= hash >> 13;
+                return (int)(hash % (uint)EmptySlotArtworkKeys.Length);
+            }
         }
 
         private void ApplyExactSlotScale(Vector2 slotSize)
@@ -640,6 +743,11 @@ namespace Hearthstone
 
         private void RefreshPreparationSlot(RunStateSingletonRawComponent runState, int cardNumber)
         {
+            var cardReplaced = m_PreparationCardNumber != 0 &&
+                               cardNumber != 0 &&
+                               m_PreparationCardNumber != cardNumber;
+            if (cardReplaced)
+                ResetFeedbackAnimations(true);
             m_PreparationCardNumber = cardNumber;
             m_PreparationCardOwned = cardNumber != 0 && runState.HasCard(cardNumber);
             UpdatePreparationInteractorData(m_PreparationCardOwned ? cardNumber : 0);
@@ -741,6 +849,7 @@ namespace Hearthstone
 
         private void ResetBinding()
         {
+            RestorePreparationSlotBackdrop();
             m_HealthListener.RebindTarget(null);
             m_AttackListener.RebindTarget(null);
             m_AliveListener.RebindTarget(null);
@@ -771,10 +880,17 @@ namespace Hearthstone
                 m_View.transform.localRotation = Quaternion.identity;
                 HideCardPresentation(true);
                 ApplyPreparationState(false, false);
+                SetNewCollectionNoticeVisible(false);
                 ApplyFrameColors();
                 if (m_View.PreparationInteractor != null)
                     m_View.PreparationInteractor.Wrapper.ExtraInfo = null;
             }
+        }
+
+        private void SetNewCollectionNoticeVisible(bool visible)
+        {
+            if (m_View.NewCollectionNotice != null)
+                m_View.NewCollectionNotice.gameObject.SetActive(visible);
         }
 
         private void RefreshAll()
@@ -984,6 +1100,8 @@ namespace Hearthstone
 
         private void HidePreparationEmptyStates()
         {
+            if (m_View.CollectionLockedOverlay != null)
+                m_View.CollectionLockedOverlay.gameObject.SetActive(false);
             if (m_View.PreparationEmptyState != null)
                 m_View.PreparationEmptyState.SetActive(false);
             if (m_View.PreparationBattleSlotEmptyState != null)
@@ -1008,6 +1126,8 @@ namespace Hearthstone
                 m_View.KeywordText.text = string.Empty;
                 m_View.KeywordText.gameObject.SetActive(false);
             }
+            if (m_View.KeywordTooltipText != null)
+                m_View.KeywordTooltipText.text = string.Empty;
             if (m_View.ArtworkArea != null)
             {
                 m_View.ArtworkArea.sprite = null;
@@ -1052,16 +1172,12 @@ namespace Hearthstone
             HidePreparationEmptyStates();
             if (m_View.PreparationEmptyState != null)
                 m_View.PreparationEmptyState.SetActive(poolEmpty);
-            if (m_View.PreparationBattleSlotEmptyState != null)
-            {
-                m_View.PreparationBattleSlotEmptyState.SetActive(
-                    m_PreparationBindingMode == EPreparationBindingMode.BattleSlot && occupied == false);
-            }
-            if (m_View.PreparationFusionSlotEmptyState != null)
-            {
-                m_View.PreparationFusionSlotEmptyState.SetActive(
-                    m_PreparationBindingMode == EPreparationBindingMode.FusionSlot && occupied == false);
-            }
+            SetPreparationSlotBackdropVisible(
+                m_View.PreparationBattleSlotEmptyState,
+                m_PreparationBindingMode == EPreparationBindingMode.BattleSlot);
+            SetPreparationSlotBackdropVisible(
+                m_View.PreparationFusionSlotEmptyState,
+                m_PreparationBindingMode == EPreparationBindingMode.FusionSlot);
             if (m_View.PreparationMaterialSelectedState != null)
                 m_View.PreparationMaterialSelectedState.SetActive(false);
             if (m_View.PreparationDeployedState != null)
@@ -1070,22 +1186,31 @@ namespace Hearthstone
                 m_View.PreparationDropHighlight.gameObject.SetActive(false);
             if (m_View.PreparationInteractor != null)
                 m_View.PreparationInteractor.enabled = preparationMode && m_PreparationCardLocked == false;
-            if (m_View.PreparationDragable != null)
-            {
-                var dragEnabled = preparationMode && occupied && m_PreparationCardLocked == false;
-                m_View.PreparationDragable.enabled = dragEnabled;
-                if (m_View.PreparationDragable.EventListener != null)
-                    m_View.PreparationDragable.EventListener.enabled = dragEnabled;
-            }
-            SetHoverEnabled(
-                preparationMode
-                    ? occupied || m_PreparationCardLocked
-                    : m_Card != null);
+            var dragEnabled = preparationMode && occupied && m_PreparationCardLocked == false;
+            var hoverEnabled = preparationMode
+                ? occupied || m_PreparationCardLocked
+                : m_Card != null;
+            var dropTargetEnabled =
+                m_PreparationBindingMode == EPreparationBindingMode.BattleSlot ||
+                m_PreparationBindingMode == EPreparationBindingMode.FusionSlot;
+            ApplyInteractionPermissions(
+                hoverEnabled,
+                false,
+                dragEnabled,
+                poolMode,
+                dropTargetEnabled);
             if (m_View.CardBackground != null)
-            {
                 m_View.CardBackground.color = Color.clear;
-                m_View.CardBackground.raycastTarget = preparationMode || m_Card != null;
-            }
+        }
+
+        private void SetPreparationSlotBackdropVisible(GameObject backdrop, bool visible)
+        {
+            if (backdrop == null)
+                return;
+
+            backdrop.SetActive(visible);
+            if (visible && backdrop.transform.parent == m_View.transform)
+                backdrop.transform.SetAsFirstSibling();
         }
 
         private void ApplyFusionRecommendationState(bool selectedAsMaterial)
@@ -1102,29 +1227,32 @@ namespace Hearthstone
                 m_View.PreparationInteractor.enabled = false;
                 m_View.PreparationInteractor.Wrapper.ExtraInfo = null;
             }
-            if (m_View.PreparationDragable != null)
-            {
-                m_View.PreparationDragable.enabled = false;
-                if (m_View.PreparationDragable.EventListener != null)
-                    m_View.PreparationDragable.EventListener.enabled = false;
-            }
-            SetHoverEnabled(true);
+            ApplyInteractionPermissions(true, false, false, true);
             if (m_View.CardBackground != null)
-            {
                 m_View.CardBackground.color = Color.clear;
-                m_View.CardBackground.raycastTarget = true;
-            }
         }
 
-        private void SetHoverEnabled(bool enabled)
+        private void ApplyInteractionPermissions(
+            bool hoverEnabled,
+            bool clickEnabled,
+            bool dragEnabled,
+            bool scrollEnabled,
+            bool dropTargetEnabled = false)
         {
-            if (m_View.CardHoverListener == null)
-                return;
-
-            m_View.CardHoverListener.enabled = enabled;
+            if (m_View.CardHoverListener != null)
+                m_View.CardHoverListener.enabled = hoverEnabled;
+            if (m_View.CardClickListener != null)
+                m_View.CardClickListener.enabled = clickEnabled;
+            if (m_View.CardDragListener != null)
+                m_View.CardDragListener.enabled = dragEnabled;
+            if (m_View.PreparationDragable != null)
+                m_View.PreparationDragable.enabled = true;
             if (m_View.CardHoverInput != null)
-                m_View.CardHoverInput.raycastTarget = enabled;
-            if (enabled || m_IsHovered == false)
+            {
+                m_View.CardHoverInput.raycastTarget =
+                    hoverEnabled || clickEnabled || dragEnabled || scrollEnabled || dropTargetEnabled;
+            }
+            if (hoverEnabled || m_IsHovered == false)
                 return;
 
             m_IsHovered = false;
@@ -1596,8 +1724,7 @@ namespace Hearthstone
 
         private void ShowKeywordTooltip()
         {
-            if (m_DisplayKeywords == EBattleKeyword.None ||
-                m_View.KeywordTooltip == null ||
+            if (m_View.KeywordTooltip == null ||
                 m_View.KeywordTooltipText == null ||
                 string.IsNullOrWhiteSpace(m_View.KeywordTooltipText.text))
             {
@@ -1658,13 +1785,54 @@ namespace Hearthstone
             tooltipRect.anchoredPosition = m_KeywordTooltipHomePosition;
         }
 
+        private void OnPreparationDragStarted(PointerEventData ignored)
+        {
+            if (m_PreparationCardNumber == 0 || m_DetachedPreparationSlotBackdrop != null)
+                return;
+
+            var backdrop = GetPreparationSlotBackdrop();
+            if (backdrop == null || backdrop.parent != m_View.transform)
+                return;
+
+            backdrop.SetParent(transform, true);
+            backdrop.SetAsFirstSibling();
+            m_DetachedPreparationSlotBackdrop = backdrop;
+        }
+
+        private RectTransform GetPreparationSlotBackdrop()
+        {
+            if (m_PreparationBindingMode == EPreparationBindingMode.BattleSlot)
+                return m_View.PreparationBattleSlotEmptyState?.transform as RectTransform;
+            if (m_PreparationBindingMode == EPreparationBindingMode.FusionSlot)
+                return m_View.PreparationFusionSlotEmptyState?.transform as RectTransform;
+            return null;
+        }
+
+        private void RestorePreparationSlotBackdrop()
+        {
+            m_RestorePreparationSlotBackdropAfterDrag = false;
+            if (m_DetachedPreparationSlotBackdrop == null || m_View == null)
+                return;
+
+            m_DetachedPreparationSlotBackdrop.SetParent(m_View.transform, false);
+            m_DetachedPreparationSlotBackdrop.anchorMin = Vector2.zero;
+            m_DetachedPreparationSlotBackdrop.anchorMax = Vector2.one;
+            m_DetachedPreparationSlotBackdrop.pivot = new Vector2(0.5f, 0.5f);
+            m_DetachedPreparationSlotBackdrop.anchoredPosition = Vector2.zero;
+            m_DetachedPreparationSlotBackdrop.sizeDelta = Vector2.zero;
+            m_DetachedPreparationSlotBackdrop.localRotation = Quaternion.identity;
+            m_DetachedPreparationSlotBackdrop.localScale = Vector3.one;
+            m_DetachedPreparationSlotBackdrop.SetAsFirstSibling();
+            m_DetachedPreparationSlotBackdrop = null;
+        }
+
         private void OnPreparationDragReturned(PointerEventData eventData)
         {
             var returnBattleCardToPool =
                 m_PreparationBindingMode == EPreparationBindingMode.BattleSlot &&
                 m_PreparationCardNumber != 0 &&
                 m_PreparationPage != null &&
-                m_PreparationPage.IsPointerInsideBattleSlot(eventData, m_PreparationSlot) == false;
+                m_PreparationPage.IsPointerInsideCardPool(eventData);
             var returnFusionMaterialToPool =
                 m_PreparationBindingMode == EPreparationBindingMode.FusionSlot &&
                 m_PreparationCardNumber != 0 &&
@@ -1676,6 +1844,7 @@ namespace Hearthstone
             else if (returnFusionMaterialToPool)
                 m_PreparationPage.RemoveFusionMaterial(m_PreparationSlot);
             m_PreparationPage?.OnDragReturned();
+            m_RestorePreparationSlotBackdropAfterDrag = m_DetachedPreparationSlotBackdrop != null;
         }
 
         private void OnPreparationInteractorTouch(Interactor requester)

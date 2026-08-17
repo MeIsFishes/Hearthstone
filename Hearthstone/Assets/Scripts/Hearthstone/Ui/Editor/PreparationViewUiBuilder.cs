@@ -1,5 +1,8 @@
+using System;
+using System.Linq;
 using BbxCommon.Ui;
 using TMPro;
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -8,9 +11,26 @@ namespace Hearthstone
     public static class PreparationViewUiBuilder
     {
         private const string PrefabPath = "Assets/Resources/Ui/PreparationView.prefab";
+        private const string FusionRevealFlashMaterialPath =
+            "Assets/Resources/Art/BattleCards/UI/CardFusionRevealFlash.mat";
+        private const string FusionRevealFlashMaskPath =
+            "Assets/Resources/Art/BattleCards/UI/CardArtworkRoundedMask.png";
+        private const string FusionRevealFlashShaderName = "Hearthstone/UI/CardFusionRevealFlash";
+        private const string FusionRevealGatherFlashSheetPath =
+            "Assets/Resources/Art/Preparation/UI/FusionGatherFlashFrames.png";
+        private const int FusionRevealGatherFlashColumns = 4;
+        private const int FusionRevealGatherFlashRows = 2;
+        private const int FusionRevealGatherFlashFrameCount = 8;
         private const float FusionRevealCardWidth = 250f;
         private const float FusionRevealCardHeight = 360f;
+        private const float FusionRevealFlashWidth = 170f;
+        private const float FusionRevealFlashHeight = 480f;
         private const float CardPoolScrollHeight = 510f;
+        private const float BattleSlotListHeight = 320f;
+        private const float FusionSlotListHeight = 276f;
+        private const float BattleSlotWidth = 185f;
+        private const float FusionSlotWidth = 190f;
+        private const float OperationSlotCenterY = -101f;
 
         public static void Build()
         {
@@ -176,13 +196,20 @@ namespace Hearthstone
             PreparationUiBuilderUtility.SetRect(root, new Vector2(0.5f, 1f), new Vector2(1200f, 330f), new Vector2(0f, -300f));
 
             var listObject = PreparationUiBuilderUtility.CreateUiObject("BattleSlotList", root.transform);
-            PreparationUiBuilderUtility.SetRect(listObject, new Vector2(0.5f, 1f), new Vector2(1110f, 320f), new Vector2(0f, -130f));
+            var battleSlotHeight = BattleSlotWidth * RunCardRules.CardAspectHeight / RunCardRules.CardAspectWidth;
+            PreparationUiBuilderUtility.SetRect(
+                listObject,
+                new Vector2(0.5f, 1f),
+                new Vector2(1110f, BattleSlotListHeight),
+                new Vector2(
+                    0f,
+                    GetSlotListAnchoredY(OperationSlotCenterY, BattleSlotListHeight, battleSlotHeight)));
             var list = listObject.AddComponent<UiList>();
             list.ArragementType = UiList.EArrangement.ConstantSlot;
             list.ConstantSlotDirection = UiList.EDirection.Horizontal;
             list.ConstantSlotSize = new Vector2(
-                185f,
-                185f * RunCardRules.CardAspectHeight / RunCardRules.CardAspectWidth);
+                BattleSlotWidth,
+                battleSlotHeight);
             view.BattleOperationRoot = root;
             view.BattleSlotList = list;
         }
@@ -294,18 +321,39 @@ namespace Hearthstone
             areaInteractor.TransformOverride = root.transform;
             areaInteractor.AutoInitUiDragable = false;
 
-            var title = PreparationUiBuilderUtility.CreateUiObject("Title", root.transform);
-            PreparationUiBuilderUtility.SetRect(title, new Vector2(0f, 1f), new Vector2(850f, 46f), new Vector2(425f, -40f));
-            PreparationUiBuilderUtility.AddText(title, "融合素材", 32f);
+            var helpObject = PreparationUiBuilderUtility.CreateUiObject("FusionHelpButton", root.transform);
+            PreparationUiBuilderUtility.SetRect(
+                helpObject,
+                new Vector2(0f, 1f),
+                new Vector2(56f, 56f),
+                new Vector2(420f, -275.8f));
+            var helpButton = PreparationUiBuilderUtility.AddMedievalParchmentButton(
+                helpObject,
+                out _);
+            var helpLabelObject = PreparationUiBuilderUtility.CreateUiObject(
+                "Label",
+                helpObject.transform);
+            PreparationUiBuilderUtility.Stretch(helpLabelObject, 6f, 6f, 6f, 6f);
+            var helpLabel = PreparationUiBuilderUtility.AddText(helpLabelObject, "?", 34f);
+            helpLabel.color = new Color(0.19f, 0.14f, 0.10f, 1f);
+            ((RectTransform)helpLabel.transform).anchoredPosition = new Vector2(0f, -2f);
+            view.FusionHelpButton = helpButton;
 
             var listObject = PreparationUiBuilderUtility.CreateUiObject("FusionSlotList", root.transform);
-            PreparationUiBuilderUtility.SetRect(listObject, new Vector2(0f, 1f), new Vector2(800f, 276f), new Vector2(420f, -150f));
+            var fusionSlotHeight = FusionSlotWidth * RunCardRules.CardAspectHeight / RunCardRules.CardAspectWidth;
+            PreparationUiBuilderUtility.SetRect(
+                listObject,
+                new Vector2(0f, 1f),
+                new Vector2(800f, FusionSlotListHeight),
+                new Vector2(
+                    420f,
+                    GetSlotListAnchoredY(OperationSlotCenterY, FusionSlotListHeight, fusionSlotHeight)));
             var list = listObject.AddComponent<UiList>();
             list.ArragementType = UiList.EArrangement.ConstantSlot;
             list.ConstantSlotDirection = UiList.EDirection.Horizontal;
             list.ConstantSlotSize = new Vector2(
-                190f,
-                190f * RunCardRules.CardAspectHeight / RunCardRules.CardAspectWidth);
+                FusionSlotWidth,
+                fusionSlotHeight);
 
             var sumPanel = PreparationUiBuilderUtility.CreateUiObject("FusionSumPanel", root.transform);
             PreparationUiBuilderUtility.SetRect(
@@ -486,6 +534,11 @@ namespace Hearthstone
             view.FusionAreaInteractor = areaInteractor;
         }
 
+        private static float GetSlotListAnchoredY(float slotCenterY, float listHeight, float slotHeight)
+        {
+            return slotCenterY - listHeight * 0.5f + slotHeight * 0.5f;
+        }
+
         private static void CreateFusionRecommendationPopup(Transform parent, PreparationView view)
         {
             var overlay = PreparationUiBuilderUtility.CreateUiObject(
@@ -504,7 +557,7 @@ namespace Hearthstone
             PreparationUiBuilderUtility.AddImage(
                 panel,
                 PreparationUiBuilderUtility.LoadExistingSprite(
-                    "Assets/Resources/Art/BattleCards/UI/BattleBoardBackground.png"),
+                    "Assets/Resources/Art/BattleCards/UI/BattleBoardBackgroundAged.png"),
                 true);
 
             var parchmentAging = PreparationUiBuilderUtility.CreateUiObject(
@@ -616,11 +669,6 @@ namespace Hearthstone
         {
             var panel = PreparationUiBuilderUtility.CreateUiObject("CardPoolPanel", parent);
             PreparationUiBuilderUtility.SetRect(panel, new Vector2(0.5f, 0f), new Vector2(1780f, 630f), new Vector2(0f, 320f));
-            PreparationUiBuilderUtility.AddImage(
-                panel,
-                PreparationUiBuilderUtility.LoadSprite("PreparationCardPoolPanel"),
-                false,
-                Image.Type.Sliced);
             CreatePoolPattern(panel.transform);
             var poolInteractor = panel.AddComponent<UiInteractor>();
             poolInteractor.TransformOverride = panel.transform;
@@ -801,6 +849,20 @@ namespace Hearthstone
             var materialList = materialListObject.AddComponent<UiList>();
             materialList.ArragementType = UiList.EArrangement.Manual;
 
+            var gatherFlashFrames = LoadFusionRevealGatherFlashFrames();
+            var gatherFlash = PreparationUiBuilderUtility.CreateUiObject(
+                "GatherFlash",
+                overlay.transform);
+            PreparationUiBuilderUtility.SetRect(
+                gatherFlash,
+                new Vector2(0.5f, 0.5f),
+                new Vector2(520f, 520f),
+                Vector2.zero);
+            var gatherFlashImage = PreparationUiBuilderUtility.AddImage(gatherFlash, gatherFlashFrames[0]);
+            gatherFlashImage.preserveAspect = true;
+            gatherFlashImage.raycastTarget = false;
+            gatherFlash.SetActive(false);
+
             var cardRoot = PreparationUiBuilderUtility.CreateUiObject("CardRoot", overlay.transform);
             PreparationUiBuilderUtility.SetRect(
                 cardRoot,
@@ -817,10 +879,27 @@ namespace Hearthstone
             var resultList = resultListObject.AddComponent<UiList>();
             resultList.ArragementType = UiList.EArrangement.Manual;
 
-            var flash = PreparationUiBuilderUtility.CreateUiObject("ScreenFlash", overlay.transform);
-            PreparationUiBuilderUtility.Stretch(flash);
+            var flashMask = PreparationUiBuilderUtility.CreateUiObject("CardFlashMask", cardRoot.transform);
+            PreparationUiBuilderUtility.Stretch(flashMask);
+            var flashMaskImage = PreparationUiBuilderUtility.AddImage(
+                flashMask,
+                PreparationUiBuilderUtility.LoadSpriteAtPath(FusionRevealFlashMaskPath));
+            flashMaskImage.preserveAspect = false;
+            flashMaskImage.useSpriteMesh = false;
+            flashMaskImage.raycastTarget = false;
+            var flashMaskComponent = flashMask.AddComponent<Mask>();
+            flashMaskComponent.showMaskGraphic = false;
+
+            var flash = PreparationUiBuilderUtility.CreateUiObject("ShaderFlash", flashMask.transform);
+            PreparationUiBuilderUtility.SetRect(
+                flash,
+                new Vector2(0.5f, 0.5f),
+                new Vector2(FusionRevealFlashWidth, FusionRevealFlashHeight),
+                new Vector2(-260f, 0f));
+            flash.transform.localRotation = Quaternion.Euler(0f, 0f, -10f);
             var flashImage = PreparationUiBuilderUtility.AddImage(flash, null);
-            flashImage.color = Color.white;
+            flashImage.color = new Color(1f, 0.95f, 0.72f, 0.9f);
+            flashImage.material = LoadOrCreateFusionRevealFlashMaterial();
             flashImage.raycastTarget = false;
             var flashCanvasGroup = flash.AddComponent<CanvasGroup>();
             flashCanvasGroup.alpha = 0f;
@@ -834,12 +913,98 @@ namespace Hearthstone
             view.FusionRevealCanvasGroup = canvasGroup;
             view.FusionRevealDismissButton = dismissButton;
             view.FusionRevealMaterialCardList = materialList;
+            view.FusionRevealGatherFlash = gatherFlashImage;
+            view.FusionRevealGatherFlashFrames = gatherFlashFrames;
             view.FusionRevealCardRoot = (RectTransform)cardRoot.transform;
             view.FusionRevealCardList = resultList;
             view.FusionRevealSealedFace = sealedFace;
             view.FusionRevealCardBack = back;
             view.FusionRevealFlash = (RectTransform)flash.transform;
             view.FusionRevealFlashCanvasGroup = flashCanvasGroup;
+        }
+
+        private static Sprite[] LoadFusionRevealGatherFlashFrames()
+        {
+            var importer = AssetImporter.GetAtPath(FusionRevealGatherFlashSheetPath) as TextureImporter;
+            if (importer == null)
+                throw new InvalidOperationException(
+                    $"Fusion gather flash sheet is missing at '{FusionRevealGatherFlashSheetPath}'.");
+            importer.GetSourceTextureWidthAndHeight(out var textureWidth, out var textureHeight);
+            if (textureWidth % FusionRevealGatherFlashColumns != 0 ||
+                textureHeight % FusionRevealGatherFlashRows != 0)
+                throw new InvalidOperationException(
+                    $"Fusion gather flash sheet '{FusionRevealGatherFlashSheetPath}' must divide into a " +
+                    $"{FusionRevealGatherFlashColumns}x{FusionRevealGatherFlashRows} grid.");
+
+            importer.textureType = TextureImporterType.Sprite;
+            importer.spriteImportMode = SpriteImportMode.Multiple;
+            importer.alphaIsTransparency = true;
+            importer.mipmapEnabled = false;
+            importer.npotScale = TextureImporterNPOTScale.None;
+            importer.wrapMode = TextureWrapMode.Clamp;
+            importer.filterMode = FilterMode.Bilinear;
+#pragma warning disable CS0618
+            importer.spritesheet = CreateFusionRevealGatherFlashMetadata(textureWidth, textureHeight);
+#pragma warning restore CS0618
+            importer.SaveAndReimport();
+
+            var frames = AssetDatabase.LoadAllAssetsAtPath(FusionRevealGatherFlashSheetPath)
+                .OfType<Sprite>()
+                .OrderBy(sprite => sprite.name, StringComparer.Ordinal)
+                .ToArray();
+            if (frames.Length != FusionRevealGatherFlashFrameCount)
+                throw new InvalidOperationException(
+                    $"Fusion gather flash sheet imported {frames.Length} frames instead of " +
+                    $"{FusionRevealGatherFlashFrameCount}.");
+            return frames;
+        }
+
+        private static SpriteMetaData[] CreateFusionRevealGatherFlashMetadata(
+            int textureWidth,
+            int textureHeight)
+        {
+            var cellWidth = textureWidth / FusionRevealGatherFlashColumns;
+            var cellHeight = textureHeight / FusionRevealGatherFlashRows;
+            var metadata = new SpriteMetaData[FusionRevealGatherFlashFrameCount];
+            for (var index = 0; index < metadata.Length; ++index)
+            {
+                var column = index % FusionRevealGatherFlashColumns;
+                var rowFromTop = index / FusionRevealGatherFlashColumns;
+                metadata[index] = new SpriteMetaData
+                {
+                    name = $"FusionGatherFlash_{index:00}",
+                    rect = new Rect(
+                        column * cellWidth,
+                        textureHeight - (rowFromTop + 1) * cellHeight,
+                        cellWidth,
+                        cellHeight),
+                    alignment = (int)SpriteAlignment.Center,
+                    pivot = new Vector2(0.5f, 0.5f),
+                };
+            }
+            return metadata;
+        }
+
+        private static Material LoadOrCreateFusionRevealFlashMaterial()
+        {
+            var shader = Shader.Find(FusionRevealFlashShaderName)
+                ?? throw new InvalidOperationException(
+                    $"Fusion reveal flash shader '{FusionRevealFlashShaderName}' is unavailable.");
+            var material = AssetDatabase.LoadAssetAtPath<Material>(FusionRevealFlashMaterialPath);
+            if (material == null)
+            {
+                material = new Material(shader)
+                {
+                    name = "CardFusionRevealFlash",
+                };
+                AssetDatabase.CreateAsset(material, FusionRevealFlashMaterialPath);
+            }
+            else if (material.shader != shader)
+            {
+                material.shader = shader;
+                EditorUtility.SetDirty(material);
+            }
+            return material;
         }
 
         private static void CreateRewardReveal(Transform parent, PreparationView view)

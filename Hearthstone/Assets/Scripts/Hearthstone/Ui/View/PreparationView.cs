@@ -28,6 +28,7 @@ namespace Hearthstone
         public Vector2 EnemyPreviewClosedPosition;
         public Vector2 EnemyPreviewOpenPosition;
         public UiList FusionSlotList;
+        public Button FusionHelpButton;
         public TMP_Text FusionCurrentPointLabel;
         public TMP_Text FusionCurrentPointValue;
         public TMP_Text FusionRemainingPointLabel;
@@ -55,6 +56,8 @@ namespace Hearthstone
         public CanvasGroup FusionRevealCanvasGroup;
         public Button FusionRevealDismissButton;
         public UiList FusionRevealMaterialCardList;
+        public Image FusionRevealGatherFlash;
+        public Sprite[] FusionRevealGatherFlashFrames;
         public RectTransform FusionRevealCardRoot;
         public UiList FusionRevealCardList;
         public GameObject FusionRevealSealedFace;

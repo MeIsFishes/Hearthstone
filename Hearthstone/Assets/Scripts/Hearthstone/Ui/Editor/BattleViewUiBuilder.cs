@@ -15,11 +15,12 @@ namespace Hearthstone
         private const string CornerQuillStampPath =
             "Assets/Resources/Art/BattleCards/UI/BattleCornerQuillStamp.png";
         private const string DividerPath = "Assets/Resources/Art/BattleCards/UI/BattleCenterDividerCarving.png";
-        private const string BannerPath = "Assets/Resources/Art/BattleCards/Result/BattleVictoryBannerAged.png";
-        private const string DefeatPanelPath = "Assets/Resources/Art/BattleCards/Result/BattleDefeatPanelAged.png";
-        private const string RunVictoryPanelPath = "Assets/Resources/Art/BattleCards/Result/RunVictoryPanelAged.png";
-        private const string ReturnToMainMenuButtonPath =
-            "Assets/Resources/Art/BattleCards/Result/ReturnToMainMenuButtonAged.png";
+        private const string VictoryBannerPath =
+            "Assets/Resources/Art/BattleCards/Result/BattleVictoryBannerText.png";
+        private const string DefeatBannerPath =
+            "Assets/Resources/Art/BattleCards/Result/BattleDefeatBannerText.png";
+        private const string FinalVictoryBannerPath =
+            "Assets/Resources/Art/BattleCards/Result/BattleFinalVictoryBannerText.png";
 
         public static void Build()
         {
@@ -67,8 +68,7 @@ namespace Hearthstone
                 view.EnemyCardList = CreateCardList(root.transform, "EnemyCardList", new Vector2(0f, 285f));
                 view.PlayerCardList = CreateCardList(root.transform, "PlayerCardList", new Vector2(0f, -285f));
 
-                CreateVictoryBanner(root.transform, view);
-                CreateResultPopup(root.transform, view);
+                CreateResultBanner(root.transform, view);
 
                 PreparationUiBuilderUtility.SavePrefab(root, PrefabPath, false);
                 AssetDatabase.SaveAssets();
@@ -123,58 +123,36 @@ namespace Hearthstone
             return list;
         }
 
-        private static void CreateVictoryBanner(Transform parent, BattleView view)
+        private static void CreateResultBanner(Transform parent, BattleView view)
         {
-            var banner = PreparationUiBuilderUtility.CreateUiObject("VictoryBanner", parent);
+            var backdrop = PreparationUiBuilderUtility.CreateUiObject("ResultBackdrop", parent);
+            PreparationUiBuilderUtility.Stretch(backdrop);
+            var backdropImage = PreparationUiBuilderUtility.AddImage(backdrop, null, true);
+            backdropImage.color = new Color(0.18f, 0.18f, 0.18f, 0.62f);
+
+            var banner = PreparationUiBuilderUtility.CreateUiObject("ResultBanner", parent);
             var rect = PreparationUiBuilderUtility.SetRect(
                 banner,
                 new Vector2(0.5f, 0.5f),
                 new Vector2(1200f, 400f),
                 new Vector2(-1450f, 0f));
-            var image = PreparationUiBuilderUtility.AddImage(banner, LoadSprite(BannerPath));
+            var victoryBanner = LoadSprite(VictoryBannerPath);
+            var defeatBanner = LoadSprite(DefeatBannerPath);
+            var finalVictoryBanner = LoadSprite(FinalVictoryBannerPath);
+            var image = PreparationUiBuilderUtility.AddImage(banner, victoryBanner);
             image.preserveAspect = true;
             image.raycastTarget = false;
             var canvasGroup = banner.AddComponent<CanvasGroup>();
 
-            view.VictoryBannerRoot = rect;
-            view.VictoryBannerCanvasGroup = canvasGroup;
+            view.ResultBackdropImage = backdropImage;
+            view.ResultBannerRoot = rect;
+            view.ResultBannerCanvasGroup = canvasGroup;
+            view.ResultBannerImage = image;
+            view.VictoryResultBanner = victoryBanner;
+            view.DefeatResultBanner = defeatBanner;
+            view.FinalVictoryResultBanner = finalVictoryBanner;
+            backdrop.SetActive(false);
             banner.SetActive(false);
-        }
-
-        private static void CreateResultPopup(Transform parent, BattleView view)
-        {
-            LoadSprite(RunVictoryPanelPath);
-            var blocker = PreparationUiBuilderUtility.CreateUiObject("ResultPopup", parent);
-            PreparationUiBuilderUtility.Stretch(blocker);
-            var blockerImage = PreparationUiBuilderUtility.AddImage(blocker, null, true);
-            blockerImage.color = new Color(0f, 0f, 0f, 0.68f);
-            var canvasGroup = blocker.AddComponent<CanvasGroup>();
-
-            var panel = PreparationUiBuilderUtility.CreateUiObject("Panel", blocker.transform);
-            PreparationUiBuilderUtility.SetRect(panel, new Vector2(0.5f, 0.5f), new Vector2(740f, 900f), Vector2.zero);
-            var panelImage = PreparationUiBuilderUtility.AddImage(panel, LoadSprite(DefeatPanelPath), true);
-            panelImage.preserveAspect = true;
-
-            var returnButton = PreparationUiBuilderUtility.CreateUiObject("ReturnToMainMenuButton", panel.transform);
-            PreparationUiBuilderUtility.SetRect(
-                returnButton,
-                new Vector2(0.5f, 0.5f),
-                new Vector2(510f, 170f),
-                new Vector2(0f, -280f));
-            var buttonImage = PreparationUiBuilderUtility.AddImage(
-                returnButton,
-                LoadSprite(ReturnToMainMenuButtonPath),
-                true);
-            buttonImage.preserveAspect = true;
-            var button = returnButton.AddComponent<Button>();
-            button.targetGraphic = buttonImage;
-            button.navigation = new Navigation { mode = Navigation.Mode.None };
-
-            view.ResultPopupRoot = blocker;
-            view.ResultPopupCanvasGroup = canvasGroup;
-            view.ResultPopupImage = panelImage;
-            view.ReturnToMainMenuButton = button;
-            blocker.SetActive(false);
         }
 
         private static Sprite LoadSprite(string path)

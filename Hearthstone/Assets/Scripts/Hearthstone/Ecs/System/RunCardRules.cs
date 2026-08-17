@@ -728,7 +728,7 @@ namespace Hearthstone
                 }
                 attack += material.Attack;
                 maxHealth += material.MaxHealth;
-                keywords = BattleKeywordRules.UnionKeywords(keywords, material.Keywords);
+                keywords = BattleKeywordRules.MergeFusionKeywords(keywords, material.Keywords);
             }
 
             var sortedFirstTypeId = firstTypeId;
@@ -847,8 +847,9 @@ namespace Hearthstone
             if (sourceSlot == targetSlot)
                 return false;
 
+            var targetCardNumber = runState.BattleSlotCardNumbers[targetSlot];
             if (sourceSlot >= 0)
-                runState.BattleSlotCardNumbers[sourceSlot] = 0;
+                runState.BattleSlotCardNumbers[sourceSlot] = targetCardNumber;
             runState.BattleSlotCardNumbers[targetSlot] = cardNumber;
             runState.Revision.SetValue(runState.Revision.Value + 1);
             return true;

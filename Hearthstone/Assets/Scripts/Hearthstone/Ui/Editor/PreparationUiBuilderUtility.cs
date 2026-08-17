@@ -18,7 +18,7 @@ namespace Hearthstone
             "Assets/Resources/Art/Common/UI/MedievalParchmentControl.png";
         private const string ChineseFontAssetPath = "Assets/Resources/Fonts/NotoSansSC-SemiBold Dynamic SDF.asset";
         private const string RequiredChineseCharacters =
-            "备战阶段卡槽位池哥布林战士弓手投弹野猪食人魔融合造物出战素材已选合计继续嘲讽远射爆裂冲锋查看拥有智能推荐无可用组合选择智能寻找牌库中可以融合的组合战斗胜利失败整局恭喜完成全部轮次重新开始游戏升变敌方阵容✓";
+            "备战阶段卡槽位池哥布林战士弓手投弹野猪食人魔融合造物出战素材已选合计继续嘲讽远射爆裂冲锋查看拥有智能推荐无可用组合选择智能寻找牌库中可以融合的组合战斗胜利失败最终整局恭喜完成全部轮次重新开始游戏升变敌方阵容✓";
         internal const float CardPoolViewportWidth = 1540f;
         internal static float CardPoolCellWidth => CardPoolViewportWidth / RunCardRules.CardsPerRow;
         internal static float CardPoolCellHeight =>

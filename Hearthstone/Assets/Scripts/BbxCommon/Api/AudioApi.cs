@@ -2,6 +2,8 @@ namespace BbxCommon
 {
     public static class AudioApi
     {
+        private const float DefaultBgmVolume = 0.7f;
+
         public static AudioHandle Play(string key)
         {
             return Internal.AudioManager.Play(key, AudioPlayOptions.Default);
@@ -25,6 +27,7 @@ namespace BbxCommon
             bool loop = true)
         {
             var options = AudioPlayOptions.Default;
+            options.Volume = DefaultBgmVolume;
             options.Loop = loop;
             return Internal.AudioManager.SetBgm(
                 key,

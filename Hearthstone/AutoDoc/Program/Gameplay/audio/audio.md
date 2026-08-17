@@ -8,7 +8,7 @@
 
 ### 1.2 Csv和ScriptableObject配置项
 
-当前无业务 Csv 或 ScriptableObject 音频配置。`ResourceApi.LoadAudio()` 通过统一资源索引按不含路径与扩展名的 key 异步加载 AudioClip；当前 BGM 资源为 `Assets/Resources/BGM/Lobby.mp3`、`Battle.mp3`、`Win.mp3` 与 `Failed.mp3`，索引 key 分别为 `Lobby`、`Battle`、`Win` 与 `Failed`。`Battle.mp3` 是当前业务所称的第一首战斗曲；`Battle2.mp3` 已存在于资源目录，但当前流程没有请求它。
+当前无业务 Csv 或 ScriptableObject 音频配置。`ResourceApi.LoadAudio()` 通过统一资源索引按不含路径与扩展名的 key 异步加载 AudioClip；当前 BGM 资源为 `Assets/Resources/BGM/Lobby.mp3`、`Battle.mp3`、`Win.mp3` 与 `Failed.mp3`，索引 key 分别为 `Lobby`、`Battle`、`Win` 与 `Failed`。`Battle.mp3` 是当前业务所称的第一首战斗曲；`Battle2.mp3` 已存在于资源目录，但当前流程没有请求它。结算横幅继续点击使用 `Assets/Resources/BbxCommon/Audio/Library/UI Audio/click1.ogg`，唯一索引 key 为 `click1`。
 
 ## 2. 逻辑驱动
 
@@ -30,8 +30,8 @@
 
 ### 2.4 调用链路梳理
 
-1. 普通音效继续通过 `AudioApi.Play()` 创建独立播放句柄，可按句柄或分组停止，并沿用优先级、并发限制、声像和音量能力。
-2. BGM 通过 `AudioApi.SetBgm(string key, float transitionDurationSeconds = 0f, bool loop = true)` 设置。切换时长为可选参数，默认即时切换；大于零时，新曲从零音量淡入，旧曲从当前包络淡出，二者共享同一时长。
+1. 普通音效继续通过 `AudioApi.Play()` 创建独立播放句柄，可按句柄或分组停止，并沿用优先级、并发限制、声像和音量能力。战斗结算横幅的有效继续点击以 `0.7` 音量播放一次 `click1`；播放发生在点击被消费后、备战或主菜单分流前，因此无效点击和重复点击不会叠播。
+2. BGM 通过 `AudioApi.SetBgm(string key, float transitionDurationSeconds = 0f, bool loop = true)` 设置。该入口把所有 BGM 的目标音量统一设为 `0.7`，不改变普通 `AudioApi.Play()` 音效的默认音量。切换时长为可选参数，默认即时切换；大于零时，新曲从零音量淡入，旧曲从当前包络淡出，二者共享同一时长。
 3. 当前 key 仍在播放时再次请求同一 BGM 会直接返回现有句柄，不重新加载或从头播放。请求不同 key 时先登记新播放，再淡出旧句柄；空 key 会返回无效句柄且不打断当前 BGM，非有限或非正时长按即时切换处理。
 4. Driver 通过 `ResourceApi.LoadAudio()` 异步取得 AudioClip。句柄若在加载完成前已经停止，完成回调不会再分配声源；资源不存在时播放项会被清理。
 5. 非循环 BGM 在 AudioSource 自然结束后仅停止并回收，不自动恢复上一首、不维护播放列表，也不隐式请求新曲。调用方仍可使用 `SetBgm()` 返回的句柄通过现有 `AudioApi.Stop()` 或 `FadeOut()` 主动停止。

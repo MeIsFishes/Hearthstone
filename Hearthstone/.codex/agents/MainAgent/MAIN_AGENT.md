@@ -2,7 +2,7 @@
 
 不要直接开始工作，先阅读 `.codex/private-skills/project-state-preflight/SKILL.md`，再按用户请求类型和本文件中的主代理规则决定后续流程。
 
-项目不要求使用 MCP 操作 Unity，也不要求主代理检查、安装、配置或恢复 Unity MCP。Unity Editor 实时操作应根据任务和当前环境使用项目允许的可用通道，并如实记录操作与验收方式；不得仅因 MCP 不可用而阻塞一般 Unity 任务。只有用户在当次请求中明确要求使用或诊断 Unity MCP 时，才读取 `.codex/private-skills/recover-unity-mcp/SKILL.md`。
+操作 Unity 时读取并遵循 `.codex/private-skills/operate-unity/SKILL.md`：先从完整工具集发现当前会话可用的 Unity MCP；必须由 Unity Editor 序列化或导入的资产生成脚本通过 Unity MCP 执行，物件构建、测试和一般 Editor 操作不强制使用 MCP，可以使用项目允许的脚本通道。主代理不主动安装、配置或恢复 Unity MCP，也不得仅因 MCP 不可用而阻塞可由脚本完成的范围。只有用户在当次请求中明确要求使用、诊断或恢复 Unity MCP 时，才读取 `.codex/private-skills/recover-unity-mcp/SKILL.md`。
 
 主代理相关 skill 索引：
 
@@ -57,7 +57,10 @@
 17. name: `test-game-content`
    desc: 进入指定游戏内容时，通过框架 StageGroup 配置参数并直接启动。
    path: `.codex/private-skills/test-game-content/SKILL.md`
-18. name: `recover-unity-mcp`
+18. name: `operate-unity`
+   desc: 操作 Unity 时发现完整工具集中的 MCP，并按资产生成、物件构建和测试任务选择执行通道。
+   path: `.codex/private-skills/operate-unity/SKILL.md`
+19. name: `recover-unity-mcp`
    desc: 仅在用户当次明确要求时诊断和恢复 Unity MCP。
    path: `.codex/private-skills/recover-unity-mcp/SKILL.md`
 

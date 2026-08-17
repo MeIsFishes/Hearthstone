@@ -79,18 +79,48 @@ namespace Hearthstone
 
         public bool RegisterMany(IEnumerable<int> cardNumbers)
         {
+            return RegisterManyAndGetNew(cardNumbers).Count > 0;
+        }
+
+        public HashSet<int> RegisterManyAndGetNew(IEnumerable<int> cardNumbers)
+        {
+            var newlyUnlocked = new HashSet<int>();
             if (cardNumbers == null)
-                return false;
+                return newlyUnlocked;
             EnsureLoaded();
-            var changed = false;
             foreach (var cardNumber in cardNumbers)
             {
-                if (CardCollectionCatalog.IsCollectible(cardNumber))
-                    changed |= m_Unlocked.Add(cardNumber);
+                if (CardCollectionCatalog.IsCollectible(cardNumber) && m_Unlocked.Add(cardNumber))
+                    newlyUnlocked.Add(cardNumber);
             }
-            if (changed)
+            if (newlyUnlocked.Count > 0)
                 Save();
-            return changed;
+            return newlyUnlocked;
+        }
+
+        public bool RegisterFusionResult(RunCardInstanceData resultCard)
+        {
+            return resultCard.IsValid && Register(resultCard.PresentationCardNumber);
+        }
+
+        public bool RegisterOwnedCards(RunStateSingletonRawComponent runState)
+        {
+            if (runState == null)
+                return false;
+            var cardNumbers = new List<int>();
+            for (var cardNumber = RunCardRules.FirstCardNumber;
+                 cardNumber <= RunCardRules.LastCardNumber;
+                 cardNumber++)
+            {
+                var copyCount = runState.GetCardCopyCount(cardNumber);
+                for (var copyIndex = 0; copyIndex < copyCount; copyIndex++)
+                {
+                    var card = runState.GetCardInstance(cardNumber, copyIndex);
+                    if (card.IsValid)
+                        cardNumbers.Add(card.PresentationCardNumber);
+                }
+            }
+            return RegisterMany(cardNumbers);
         }
 
         public void Clear()
@@ -169,29 +199,19 @@ namespace Hearthstone
         public static CardCollectionRepository Repository =>
             s_Repository ?? (s_Repository = new CardCollectionRepository(SavePath));
 
-        public static void RegisterRewardBatch(PreparationRewardBatchStartupData batch)
+        public static HashSet<int> RegisterRewardBatch(PreparationRewardBatchStartupData batch)
         {
             if (batch == null)
-                return;
+                return new HashSet<int>();
             var cardNumbers = new List<int>();
             for (var index = 0; index < batch.Grants.Count; index++)
                 cardNumbers.Add(batch.Grants[index].CardNumber);
-            Repository.RegisterMany(cardNumbers);
+            return Repository.RegisterManyAndGetNew(cardNumbers);
         }
 
         public static void RegisterOwnedCards(RunStateSingletonRawComponent runState)
         {
-            if (runState == null)
-                return;
-            var cardNumbers = new List<int>();
-            for (var cardNumber = RunCardRules.FirstCardNumber;
-                 cardNumber <= RunCardRules.LastCardNumber;
-                 cardNumber++)
-            {
-                if (runState.HasCard(cardNumber))
-                    cardNumbers.Add(cardNumber);
-            }
-            Repository.RegisterMany(cardNumbers);
+            Repository.RegisterOwnedCards(runState);
         }
 
         public static void Clear()

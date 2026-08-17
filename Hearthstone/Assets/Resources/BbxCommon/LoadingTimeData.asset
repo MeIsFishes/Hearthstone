@@ -15,60 +15,60 @@ MonoBehaviour:
   LoadingItemTimeDic:
     m_Items:
     - Key: Game Engine Stage.Load.InitReflectionAndResource
-      Value: 536251000
+      Value: 165790400
     - Key: Game Engine Stage.Load.Scene
-      Value: 123800
+      Value: 176600
     - Key: Game Engine Stage.Load.UI
-      Value: 53000
+      Value: 61000
     - Key: Game Engine Stage.Load.Data
-      Value: 212173800
+      Value: 260808200
     - Key: Game Engine Stage.Load.Other
-      Value: 1572900
+      Value: 1939900
     - Key: Game Engine Stage.Load.LoadLocTranslations
-      Value: 347000
+      Value: 371300
     - Key: BattleStage.Load.InitializeBattleRuntime
-      Value: 5943400
+      Value: 6177100
     - Key: BattleStage.Load.Scene
-      Value: 900
+      Value: 1300
     - Key: BattleStage.Load.UI
-      Value: 28986800
+      Value: 34630200
     - Key: BattleStage.Load.Data
-      Value: 8500
+      Value: 10300
     - Key: BattleStage.Load.Other
-      Value: 738800
+      Value: 1087300
     - Key: RunStateStage.Load.InitializeRunStateRuntime
-      Value: 2255700
+      Value: 2610100
     - Key: RunStateStage.Load.Scene
-      Value: 400
+      Value: 700
     - Key: RunStateStage.Load.UI
-      Value: 300
+      Value: 400
     - Key: RunStateStage.Load.Data
       Value: 7200
     - Key: RunStateStage.Load.Other
-      Value: 21600
+      Value: 24700
     - Key: BattleStage.Unload
-      Value: 6502400
+      Value: 4870000
     - Key: PreparationStage.Load.InitializePreparationRuntime
-      Value: 10448600
+      Value: 10757500
     - Key: PreparationStage.Load.Scene
-      Value: 700
+      Value: 500
     - Key: PreparationStage.Load.UI
-      Value: 52521600
+      Value: 67343200
     - Key: PreparationStage.Load.Data
-      Value: 9000
+      Value: 7200
     - Key: PreparationStage.Load.Other
-      Value: 23200
+      Value: 24900
     - Key: PreparationStage.Unload
-      Value: 6700900
+      Value: 7416100
     - Key: RunStateStage.Unload
-      Value: 367400
+      Value: 555700
     - Key: MainMenuStage.Load.Scene
-      Value: 1200
+      Value: 2200
     - Key: MainMenuStage.Load.UI
-      Value: 2676255800
+      Value: 3077907400
     - Key: MainMenuStage.Load.Data
-      Value: 9500
+      Value: 9900
     - Key: MainMenuStage.Load.Other
-      Value: 21600
+      Value: 23000
     - Key: MainMenuStage.Unload
-      Value: 186051400
+      Value: 193317200

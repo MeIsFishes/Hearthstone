@@ -207,12 +207,16 @@ namespace Hearthstone
         public int BattleNumber;
         public string BatchId;
         public RunCardInstanceData[] RewardCards = Array.Empty<RunCardInstanceData>();
+        public bool[] RewardCardsAreNewCollectionEntries = Array.Empty<bool>();
         public EnemyBattlePreviewStartupData EnemyPreview;
         public readonly int[] FusionSlotCardNumbers = new int[RunCardRules.FusionSlotCount];
         public readonly ListenableVariable<int> FusionRevision = new ListenableVariable<int>(0);
         public bool WasNewlyApplied;
 
-        public void Initialize(PreparationRoundStartupData round, bool wasNewlyApplied)
+        public void Initialize(
+            PreparationRoundStartupData round,
+            bool wasNewlyApplied,
+            ISet<int> newlyUnlockedCollectionCards = null)
         {
             var batch = round.RewardBatch;
             BattleNumber = round.BattleNumber;
@@ -220,23 +224,31 @@ namespace Hearthstone
             WasNewlyApplied = wasNewlyApplied;
             EnemyPreview = round.EnemyPreview?.CreateSnapshot();
             RewardCards = new RunCardInstanceData[batch.Grants.Count];
+            RewardCardsAreNewCollectionEntries = new bool[batch.Grants.Count];
             for (var index = 0; index < RewardCards.Length; index++)
             {
                 var grant = batch.Grants[index];
                 RewardCards[index] = new RunCardInstanceData(grant.CardNumber, grant.Attack, grant.MaxHealth);
+                RewardCardsAreNewCollectionEntries[index] = wasNewlyApplied &&
+                    newlyUnlockedCollectionCards != null &&
+                    newlyUnlockedCollectionCards.Contains(RewardCards[index].PresentationCardNumber);
             }
             Array.Clear(FusionSlotCardNumbers, 0, FusionSlotCardNumbers.Length);
             FusionRevision.SetValue(0);
         }
 
-        public void Initialize(PreparationRewardBatchStartupData batch, bool wasNewlyApplied)
+        public void Initialize(
+            PreparationRewardBatchStartupData batch,
+            bool wasNewlyApplied,
+            ISet<int> newlyUnlockedCollectionCards = null)
         {
             Initialize(
                 new PreparationRoundStartupData(
                     1,
                     RunCardRules.InitialBattleSlotCount,
                     batch),
-                wasNewlyApplied);
+                wasNewlyApplied,
+                newlyUnlockedCollectionCards);
         }
 
         protected override void OnSingletonCollect()
@@ -245,6 +257,7 @@ namespace Hearthstone
             BattleNumber = 0;
             BatchId = null;
             RewardCards = Array.Empty<RunCardInstanceData>();
+            RewardCardsAreNewCollectionEntries = Array.Empty<bool>();
             EnemyPreview = null;
             Array.Clear(FusionSlotCardNumbers, 0, FusionSlotCardNumbers.Length);
             FusionRevision.SetValue(0);

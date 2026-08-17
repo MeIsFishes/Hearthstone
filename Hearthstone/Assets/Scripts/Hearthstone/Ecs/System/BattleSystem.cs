@@ -67,7 +67,7 @@ namespace Hearthstone
             var attackerEntity = attackerCards[attackerSlot];
             var attacker = attackerEntity.GetRawComponent<BattleCardRawComponent>();
             if (BattleKeywordRules.Has(attacker.Keywords, EBattleKeyword.Charge))
-                ApplyCharge(attackerCards);
+                ApplyCharge(attackerCards, attacker.Keywords);
 
             var tauntMask = BuildKeywordMask(targetCards, EBattleKeyword.Taunt);
             var candidateMask = BattleRules.FilterTargetCandidateMask(targetMask, tauntMask);
@@ -85,9 +85,15 @@ namespace Hearthstone
             session.CurrentAttacker.SetValue(attackerEntity);
             session.CurrentTarget.SetValue(targetEntity);
 
-            var damage = BattleRules.ResolveKeywordDamage(attacker.Attack, target.Attack, attacker.Keywords);
+            var rawDamage = BattleRules.ResolveKeywordDamage(attacker.Attack, target.Attack, attacker.Keywords);
+            var damage = new BattleAttackDamageData(
+                BattleRules.ResolveIncomingDamage(rawDamage.MainDamage, target.Keywords),
+                rawDamage.BlastDamage,
+                BattleRules.ResolveIncomingDamage(rawDamage.CounterDamage, attacker.Keywords));
             var blastDistance = BattleKeywordRules.Has(attacker.Keywords, EBattleKeyword.Blast)
-                ? BattleKeywordRules.GetConfig(EBattleKeyword.Blast).BlastDistance
+                ? BattleKeywordRules.GetConfig(
+                    EBattleKeyword.Blast,
+                    BattleKeywordRules.GetLevel(attacker.Keywords, EBattleKeyword.Blast)).BlastDistance
                 : 0;
             var adjacentMask = damage.BlastDamage > 0
                 ? BattleRules.GetAdjacentLivingMask(targetSlot, targetMask, blastDistance, targetCards.Length)
@@ -185,10 +191,13 @@ namespace Hearthstone
                 if (adjacent == null)
                     continue;
                 var adjacentHealthBefore = adjacent.CurrentHealth.Value;
-                adjacent.SetCurrentHealthWithoutAliveCommit(adjacentHealthBefore - session.PendingDamage.BlastDamage);
+                var adjacentDamage = BattleRules.ResolveIncomingDamage(
+                    session.PendingDamage.BlastDamage,
+                    adjacent.Keywords);
+                adjacent.SetCurrentHealthWithoutAliveCommit(adjacentHealthBefore - adjacentDamage);
                 DebugApi.Log(
                     $"[BattleKeyword] AdjacentDamage Action={session.ActionIndex + 1} " +
-                    $"Slot={slot} Card={adjacent.CardNumber} Damage={session.PendingDamage.BlastDamage} " +
+                    $"Slot={slot} Card={adjacent.CardNumber} Damage={adjacentDamage} " +
                     $"Health={adjacentHealthBefore}->{adjacent.CurrentHealth.Value}");
             }
         }
@@ -281,9 +290,11 @@ namespace Hearthstone
             session.OutcomePresentationCompleted.SetValue(true);
         }
 
-        private static void ApplyCharge(Entity[] cards)
+        private static void ApplyCharge(Entity[] cards, EBattleKeyword attackerKeywords)
         {
-            var charge = BattleKeywordRules.GetConfig(EBattleKeyword.Charge);
+            var charge = BattleKeywordRules.GetConfig(
+                EBattleKeyword.Charge,
+                BattleKeywordRules.GetLevel(attackerKeywords, EBattleKeyword.Charge));
             for (var slot = 0; slot < cards.Length; slot++)
             {
                 var entity = cards[slot];

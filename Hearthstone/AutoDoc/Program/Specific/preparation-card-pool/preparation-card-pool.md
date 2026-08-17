@@ -4,7 +4,7 @@
 
 `RunStateStage` 是一次游戏过程中的持久 Stage。战斗组与备战组分别为 `RunStateStage + BattleStage`、`RunStateStage + PreparationStage`，因此两组切换不会回收整局状态。
 
-`RunStateSingletonRawComponent` 是唯一权威状态，使用编号索引数组保存 `1~213` 的首张持有卡实例，并以按编号分组的附加实例列表保存同编号第二张及后续副本；长度为 6 的数组按卡号保存最大阵容，`UnlockedBattleSlotCount` 保存当前轮累计解锁的 `2~6` 个槽位，BatchId 到 canonical payload 指纹的账本记录已经应用的摸牌批次。`99` 是永不写入持有状态的封印分隔位，`100~213` 是融合结果实例。每张副本分别保存结果卡号、表现来源卡号、永久攻击力、永久最大生命、词条集合和运行时等阶；普通卡及双卡、三卡结果的表现来源默认等于自身卡号，四卡结果在融合提交时记录动态选出的三卡版本。`GetCardCopyCount()` 与 `GetCardInstance(cardNumber, copyIndex)` 提供副本读取，`Revision` 在一次有效整局写入后递增，供界面监听。
+`RunStateSingletonRawComponent` 是唯一权威状态，使用编号索引数组保存 `1~213` 的首张持有卡实例，并以按编号分组的附加实例列表保存同编号第二张及后续副本；长度为 6 的数组按卡号保存最大阵容，`UnlockedBattleSlotCount` 保存当前轮累计解锁的 `2~6` 个槽位，BatchId 到 canonical payload 指纹的账本记录已经应用的摸牌批次。`99` 是永不写入持有状态的封印分隔位，`100~213` 是融合结果实例。每张副本分别保存结果卡号、表现来源卡号、永久攻击力、永久最大生命、带 1～4 级编码的词条集合和运行时等阶；普通卡及双卡、三卡结果的表现来源默认等于自身卡号，四卡结果在融合提交时记录动态选出的三卡版本。`GetCardCopyCount()` 与 `GetCardInstance(cardNumber, copyIndex)` 提供副本读取，`Revision` 在一次有效整局写入后递增，供界面监听。
 
 备战启动数据为 `PreparationRoundStartupData`，携带本轮编号、累计已解锁槽位数、动态长度的 `PreparationRewardBatchStartupData` 和 `EnemyBattlePreviewStartupData`；正式战斗启动数据为 `BattleStageStartupData`，携带同一轮编号，并可携带显式验收 Scenario，或 Continue 点击瞬间的 `2~6` 槽玩家阵容快照与进入备战前已经生成的敌方快照。敌方快照保存关卡号、生成种子、敌方目标选择随机状态和每个槽位的完整 `RunCardInstanceData`。正常 Continue 保持 `Scenario=null`，BattleStage 的初始化 LoadItem 从两侧快照创建 Entity，不重读可变的 Run battle slots，也不重新抽取敌方配置或属性。奖励批次包含非空 BatchId 和任意非负数量的 `RewardCardGrantStartupData`；每个 grant 包含卡牌编号、永久攻击力和永久最大生命。构造与跨 Stage 传递均使用防御性深拷贝。
 
@@ -23,13 +23,13 @@
 
 ## 3. 编成规则
 
-不可变玩法契约集中在 `RunCardRules`：初始 2 个、最多 6 个战斗槽，普通卡编号 `1~98`、封印位 `99`、融合目标编号和 `99`、融合卡编号 `100~213`、四卡传奇起始内部编号 `149`、每行 7 张、无额外副本时基础 31 行、卡面 `25:36`。每轮摸牌数由 `BattleProgressionCsvData` 配置；当前第 1 轮摸 3 张，第 2～5 轮每轮摸 5 张，累计槽位依次为 `2、3、4、5、6`。牌库按副本展开后行数由实际条目数派生。基础卡牌种类固定为 `1~5`，类型 5 的巨魔在融合公式中最多出现两次。
+不可变玩法契约集中在 `RunCardRules`：初始 2 个、最多 6 个战斗槽，普通卡编号 `1~98`、封印位 `99`、融合目标编号和 `99`、融合卡编号 `100~213`、四卡传奇起始内部编号 `149`、每行 7 张、无额外副本时基础 31 行、卡面 `25:36`。每轮摸牌数由 `BattleProgressionCsvData` 配置；当前第 1 轮摸 3 张，第 2～7 轮每轮摸 4 张，累计槽位依次为 `2、3、4、4、5、5、6`。牌库按副本展开后行数由实际条目数派生。基础卡牌种类固定为 `1~5`，类型 5 的巨魔在融合公式中最多出现两次。
 
-`TryPlaceCard()` 仅接受已持有卡和有效槽索引。卡牌从池中放入槽位时会替换目标卡；已上阵卡移至另一槽时先清空原槽再落入目标槽，因此同一编号不会占据两个槽。`TryRemoveCardFromBattleSlot()` 只在来源槽仍保存预期卡号时清空该槽并递增 `Revision`，用于拖离原出战槽后退回牌库；若卡已成功移到其他槽，预期卡号校验会阻止回调再次移除。无效目标不改变状态。
+`TryPlaceCard()` 仅接受已持有卡和有效槽索引。卡牌从池中放入槽位时会替换目标卡；已上阵卡移至另一槽时，规则先读取目标卡，再把目标卡写回来源槽并把来源卡写入目标槽，因此空目标表现为移动、占用目标表现为原子交换，且整个操作只递增一次 `Revision`。`TryRemoveCardFromBattleSlot()` 只在来源槽仍保存预期卡号时清空该槽并递增 `Revision`；UI 仅在已上阵卡释放到牌库视口内时调用该入口，其他无效区域保持原阵容。若卡已成功移动或交换，预期卡号校验也会阻止拖拽回调再次移除。无效目标不改变状态。
 
-`BattleCardCsvData` 的 `FusionRecipeTypeIds` 以 `List<int>` 保存排序后的基础类型 ID。CSV 读取每一条 `100~213` 融合卡时，会把 2～4 项公式编码成与正卡号不冲突的负整数键并登记进 `DataApi`，运行时以 O(1) 查询结果；交换素材顺序不会产生不同键。表中共有 15 条双卡、34 条三卡和 65 条四卡公式；仍不登记包含三张及以上巨魔的组合。每个融合结果使用与卡号相同的独立类型 ID；类型表的攻血范围和初始词条留空，并按配方长度配置银、金、传奇默认等阶。编号 `100~148` 的 `ArtworkKey` 使用 `FusionCard_100`～`FusionCard_148`，与同名 Resources 图片一一对应；资源字典沿用既有自动索引，Controller 仍只通过 `ResourceApi.LoadSprite()` 读取原画。四卡结果不把自身配置行当作权威表现：规则层根据实际四张素材计算一个 `100~148` 三卡表现来源，卡面与战斗从该来源读取原画、名称和攻击表现。
+`BattleCardCsvData` 的 `FusionRecipeTypeIds` 以 `List<int>` 保存排序后的基础类型 ID。CSV 读取每一条 `100~213` 融合卡时，会把 2～4 项公式编码成与正卡号不冲突的负整数键并登记进 `DataApi`，运行时以 O(1) 查询结果；交换素材顺序不会产生不同键。表中共有 15 条双卡、34 条三卡和 65 条四卡公式；仍不登记包含三张及以上巨魔的组合。每个融合结果使用与卡号相同的独立类型 ID；类型表的攻血范围和初始词条留空，并按配方长度配置银、金、传奇默认等阶。编号 `100~148` 的 `ArtworkKey` 使用 `FusionCard_100`～`FusionCard_148`，与同名 Resources 图片一一对应；资源字典沿用既有自动索引，Controller 仍只通过 `ResourceApi.LoadSprite()` 读取原画。四卡结果不把自身配置行当作权威表现：规则层根据实际四张素材计算一个 `100~148` 三卡表现来源，卡面与战斗从该来源读取原画、名称和攻击表现；融合提交后的图鉴登记也使用结果实例的同一 `PresentationCardNumber`，从而解锁对应三卡版本而不是不可收藏的四卡实际编号。
 
-融合页通过 4 个 Preparation session 槽保存 2～4 个互异卡号且已持有的普通卡；同编号存在多个副本时仍只能同时选择该编号一次。`EvaluateFusion()` 统一派生素材数、编号和、公式采用数量、结果卡号、表现来源卡号与阻断原因；素材数有效后必须先满足 `CardNumberSum == FusionTargetCardNumberSum`，即编号和严格等于 `99`，低于或高于目标都返回 `CardNumberSumNotExact`，不会进入配方提交。精确命中后才对全部素材类型做无序规范化，并以完整组合查询对应公式。四卡评估保留卡号与类型的配对关系，按卡号升序排序后丢弃最低点数的一张，再用其余三张的基础类型查询对应三卡融合卡号作为 `PresentationCardNumber`；完整四类型仍用于查询四卡结果。若任一结果不存在、四卡表现所需三卡版本不存在、结果已经持有，或材料包含 99/融合卡，则拒绝提交。`TryFuse()` 复用同一评估结果完成全部校验和攻血溢出检查，再一次性消耗每个素材卡号的首张副本、清除其占用的出战槽、生成对应的 `100~213` 结果卡并清空融合槽；若被消耗卡号仍有副本，下一张副本会提升为该编号首张实例并继续保留在牌库。结果的永久攻击与最大生命为全部素材永久值之和，词条为全部素材词条的规范化并集；运行时等阶由实际材料数直接写为银、金或传奇，不由 UI 或敌我关系推导。四卡结果只把表现来源切换到最高点数三张对应的三卡版本，结果卡号、四张素材属性、词条和传奇等阶都不降为三卡。已应用奖励账本不会被融合改写。
+融合页通过 4 个 Preparation session 槽保存 2～4 个互异卡号且已持有的普通卡；同编号存在多个副本时仍只能同时选择该编号一次。`EvaluateFusion()` 统一派生素材数、编号和、公式采用数量、结果卡号、表现来源卡号与阻断原因；素材数有效后必须先满足 `CardNumberSum == FusionTargetCardNumberSum`，即编号和严格等于 `99`，低于或高于目标都返回 `CardNumberSumNotExact`，不会进入配方提交。精确命中后才对全部素材类型做无序规范化，并以完整组合查询对应公式。四卡评估保留卡号与类型的配对关系，按卡号升序排序后丢弃最低点数的一张，再用其余三张的基础类型查询对应三卡融合卡号作为 `PresentationCardNumber`；完整四类型仍用于查询四卡结果。若任一结果不存在、四卡表现所需三卡版本不存在、结果已经持有，或材料包含 99/融合卡，则拒绝提交。`TryFuse()` 复用同一评估结果完成全部校验和攻血溢出检查，再一次性消耗每个素材卡号的首张副本、清除其占用的出战槽、生成对应的 `100~213` 结果卡并清空融合槽；若被消耗卡号仍有副本，下一张副本会提升为该编号首张实例并继续保留在牌库。结果的永久攻击与最大生命为全部素材永久值之和；`BattleKeywordRules.MergeFusionKeywords()` 按每种基础词条在素材中的总等级累加并封顶 4 级，不同词条同时保留。普通集合合并仍由幂等的 `UnionKeywords()` 取各词条最高等级，避免非融合调用重复升级。运行时等阶由实际材料数直接写为银、金或传奇，不由 UI 或敌我关系推导。四卡结果只把表现来源切换到最高点数三张对应的三卡版本，结果卡号、四张素材属性、词条和传奇等阶都不降为三卡。已应用奖励账本不会被融合改写。
 
 `FindFusionRecommendations()` 是融合规则的只读查询入口。调用方传入当前 Run state、Preparation session 与可复用结果列表；入口先清空结果。融合槽为空时，候选覆盖全部已持有普通卡，并按目标材料数 2、3、4 依次枚举互异组合；融合槽非空时，当前槽内卡号组成固定集合，候选只遍历其余已持有普通卡，并枚举补齐后的组合。只有编号和正好为 `99` 且复用 `EvaluateFusion()` 得到 `CanFuse` 的组合才写入 `FusionRecommendationData`。因此推荐会同时排除不存在的配方与已经持有的结果卡；非空查询还保证每条结果包含全部已选素材。数据内卡号升序保存，材料数和结果卡号一并保留给选择时的权威复核；推荐窗口只渲染素材卡，不把结果卡号输出成额外卡面。查询本身不修改 Run state、融合槽或 Revision。
 
@@ -47,8 +47,8 @@
 
 ## 5. 主要文件
 
-- 规则与状态：`Assets/Scripts/Hearthstone/Ecs/System/RunCardRules.cs`、`Assets/Scripts/Hearthstone/Ecs/RawComponent/Singleton/RunStateSingletonRawComponent.cs`
-- 卡牌、公式、轮次与敌方阵容配置：`Assets/Scripts/Hearthstone/Config/Csv/BattleCardCsvData.cs`、`BattleCardTypeCsvData.cs`、`BattleProgressionCsvData.cs`、`Assets/Resources/Config/BattleCardCsvData.csv`、`BattleCardTypeCsvData.csv`、`BattleProgressionCsvData.csv`、`EnemyLineupCsvData.csv`
+- 规则与状态：`Assets/Scripts/Hearthstone/Ecs/System/RunCardRules.cs`、`BattleKeywordRules.cs`、`Assets/Scripts/Hearthstone/Ecs/RawComponent/Singleton/RunStateSingletonRawComponent.cs`
+- 卡牌、词条、公式、轮次与敌方阵容配置：`Assets/Scripts/Hearthstone/Config/Csv/BattleCardCsvData.cs`、`BattleCardTypeCsvData.cs`、`BattleKeywordCsvData.cs`、`BattleProgressionCsvData.cs`、`Assets/Resources/Config/BattleCardCsvData.csv`、`BattleCardTypeCsvData.csv`、`BattleKeywordCsvData.csv`、`BattleProgressionCsvData.csv`、`EnemyLineupCsvData.csv`
 - 启动数据：`Assets/Scripts/Hearthstone/GameStage/BattleStageStartupData.cs`
 - 运行入口：`Assets/Scripts/Hearthstone/Bootstrap/HearthstoneGameEngine.cs`
 - Stage：`Assets/Scripts/Hearthstone/GameStage/RunStateStages.cs`、`PreparationStages.cs`、`BattleStages.cs`

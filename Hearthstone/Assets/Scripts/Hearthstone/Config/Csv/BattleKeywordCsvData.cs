@@ -6,6 +6,7 @@ namespace Hearthstone
     public sealed class BattleKeywordCsvData : CsvDataBase<BattleKeywordCsvData>
     {
         public EBattleKeyword Keyword;
+        public int Level;
         public string DisplayName;
         public string Description;
         public int DisplayOrder;
@@ -14,6 +15,7 @@ namespace Hearthstone
         public int BlastDistance;
         public int AttackGain;
         public int HealthGain;
+        public int DamageReduction;
         public bool SuppressCounterDamage;
 
         public override EDataLoad GetDataLoadType() => EDataLoad.Override;
@@ -23,6 +25,7 @@ namespace Hearthstone
         protected override void ReadLine()
         {
             Keyword = ParseEnumFromKey<EBattleKeyword>(nameof(Keyword));
+            Level = ParseIntFromKey(nameof(Level));
             DisplayName = GetStringFromKey(nameof(DisplayName));
             Description = GetStringFromKey(nameof(Description));
             DisplayOrder = ParseIntFromKey(nameof(DisplayOrder));
@@ -31,12 +34,15 @@ namespace Hearthstone
             BlastDistance = ParseIntFromKey(nameof(BlastDistance));
             AttackGain = ParseIntFromKey(nameof(AttackGain));
             HealthGain = ParseIntFromKey(nameof(HealthGain));
+            DamageReduction = ParseIntFromKey(nameof(DamageReduction));
             SuppressCounterDamage = ParseBoolFromKey(nameof(SuppressCounterDamage));
             var numericKeyword = (int)Keyword;
             if (Keyword == EBattleKeyword.None ||
                 BattleKeywordRules.Normalize(Keyword) != Keyword ||
                 (numericKeyword & (numericKeyword - 1)) != 0)
                 throw new InvalidOperationException($"Battle keyword '{Keyword}' must contain exactly one known flag.");
+            if (Level < 1 || Level > BattleKeywordRules.MaximumLevel)
+                throw new InvalidOperationException($"Battle keyword '{Keyword}' has invalid level {Level}.");
             if (string.IsNullOrWhiteSpace(DisplayName))
                 throw new InvalidOperationException($"Battle keyword '{Keyword}' has no display name.");
             if (string.IsNullOrWhiteSpace(Description))
@@ -45,9 +51,9 @@ namespace Hearthstone
                 throw new InvalidOperationException($"Battle keyword '{Keyword}' has an invalid display order.");
             if (DamageNumerator < 0 || DamageDenominator <= 0)
                 throw new InvalidOperationException($"Battle keyword '{Keyword}' has an invalid damage ratio.");
-            if (BlastDistance < 0 || AttackGain < 0 || HealthGain < 0)
+            if (BlastDistance < 0 || AttackGain < 0 || HealthGain < 0 || DamageReduction < 0)
                 throw new InvalidOperationException($"Battle keyword '{Keyword}' has an invalid non-negative behavior value.");
-            DataApi.SetData((int)Keyword, this);
+            DataApi.SetData(BattleKeywordRules.GetConfigDataId(Keyword, Level), this);
         }
     }
 }

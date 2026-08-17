@@ -66,12 +66,16 @@ namespace Hearthstone
 
                 runState.SetUnlockedBattleSlotCount(round.UnlockedBattleSlotCount);
                 var result = RunCardRules.ApplyRewardBatch(runState, batch);
-                if (result == ERewardBatchApplyResult.Applied)
-                    CardCollectionSave.RegisterRewardBatch(batch);
+                var newlyUnlockedCollectionCards = result == ERewardBatchApplyResult.Applied
+                    ? CardCollectionSave.RegisterRewardBatch(batch)
+                    : null;
                 var session = EcsApi.AddSingletonRawComponent<PreparationSessionSingletonRawComponent>();
                 if (session == null)
                     throw new InvalidOperationException("Unable to create PreparationSessionSingletonRawComponent.");
-                session.Initialize(round, result == ERewardBatchApplyResult.Applied);
+                session.Initialize(
+                    round,
+                    result == ERewardBatchApplyResult.Applied,
+                    newlyUnlockedCollectionCards);
                 if (EcsApi.AddSingletonRawComponent<PreparationContinueSingletonRawComponent>() == null)
                     throw new InvalidOperationException("Unable to create PreparationContinueSingletonRawComponent.");
                 DebugApi.Log(

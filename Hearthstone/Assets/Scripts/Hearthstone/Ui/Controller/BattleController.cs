@@ -8,16 +8,12 @@ namespace Hearthstone
     {
         private BattleSessionSingletonRawComponent m_Session;
         private ListenableItemListener m_ResultListener;
-        private float m_VictoryBannerElapsed;
-        private bool m_VictoryBannerActive;
-        private float m_PopupElapsed;
-        private bool m_PopupAnimating;
-
-        protected override void OnUiInit()
-        {
-            if (m_View.ReturnToMainMenuButton != null)
-                m_View.ReturnToMainMenuButton.onClick.AddListener(OnReturnToMainMenuClicked);
-        }
+        private float m_ResultBannerElapsed;
+        private bool m_ResultBannerActive;
+        private float m_TimeScaleBeforeResult = 1f;
+        private bool m_ResultPauseOwned;
+        private bool m_ResultContinueReady;
+        private bool m_ResultContinueConsumed;
 
         protected override void InitListeners()
         {
@@ -43,10 +39,15 @@ namespace Hearthstone
 
         protected override void OnUiUpdate(float deltaTime)
         {
-            if (m_VictoryBannerActive)
-                UpdateVictoryBanner(deltaTime);
-            if (m_PopupAnimating)
-                UpdatePopup(deltaTime);
+            var presentationDeltaTime = m_ResultPauseOwned
+                ? Time.unscaledDeltaTime
+                : deltaTime;
+            if (m_ResultBannerActive)
+                UpdateResultBanner(presentationDeltaTime);
+            if (m_ResultContinueReady &&
+                m_ResultContinueConsumed == false &&
+                Input.GetMouseButtonDown(0))
+                ContinueAfterResult();
         }
 
         protected override void OnUiClose()
@@ -80,118 +81,123 @@ namespace Hearthstone
             switch (result)
             {
                 case EBattleResult.PlayerVictory:
-                    StartVictoryBanner();
+                    PauseForResult();
+                    StartResultBanner(
+                        m_Session != null && m_Session.IsFinalBattle
+                            ? m_View.FinalVictoryResultBanner
+                            : m_View.VictoryResultBanner);
                     break;
                 case EBattleResult.EnemyVictory:
-                    ShowResultPopup(false);
+                    PauseForResult();
+                    StartResultBanner(m_View.DefeatResultBanner);
                     break;
             }
         }
 
-        private void StartVictoryBanner()
+        private void StartResultBanner(Sprite resultBanner)
         {
-            m_VictoryBannerElapsed = 0f;
-            m_VictoryBannerActive = true;
-            if (m_View.ResultPopupRoot != null)
-                m_View.ResultPopupRoot.SetActive(false);
-            if (m_View.VictoryBannerRoot == null)
+            m_ResultBannerElapsed = 0f;
+            m_ResultBannerActive = true;
+            if (m_View.ResultBackdropImage != null)
+                m_View.ResultBackdropImage.gameObject.SetActive(true);
+            if (m_View.ResultBannerImage != null)
+                m_View.ResultBannerImage.sprite = resultBanner;
+            if (m_View.ResultBannerRoot == null)
+            {
+                m_ResultContinueReady = true;
                 return;
-            m_View.VictoryBannerRoot.gameObject.SetActive(true);
-            m_View.VictoryBannerRoot.anchoredPosition = new Vector2(-1450f, 0f);
-            if (m_View.VictoryBannerCanvasGroup != null)
-                m_View.VictoryBannerCanvasGroup.alpha = 1f;
+            }
+            if (resultBanner != null)
+            {
+                const float maxBannerWidth = 1200f;
+                const float maxBannerHeight = 720f;
+                var aspectRatio = resultBanner.rect.width / resultBanner.rect.height;
+                var width = Mathf.Min(maxBannerWidth, maxBannerHeight * aspectRatio);
+                m_View.ResultBannerRoot.sizeDelta = new Vector2(width, width / aspectRatio);
+            }
+            m_View.ResultBannerRoot.gameObject.SetActive(true);
+            m_View.ResultBannerRoot.anchoredPosition = new Vector2(-1450f, 0f);
+            if (m_View.ResultBannerCanvasGroup != null)
+                m_View.ResultBannerCanvasGroup.alpha = 1f;
         }
 
-        private void UpdateVictoryBanner(float deltaTime)
+        private void UpdateResultBanner(float deltaTime)
         {
-            m_VictoryBannerElapsed += Mathf.Max(0f, deltaTime);
+            m_ResultBannerElapsed += Mathf.Max(0f, deltaTime);
             var enterEnd = BattleRules.VictoryBannerEnterDuration;
-            var holdEnd = enterEnd + BattleRules.VictoryBannerHoldDuration;
-            var exitEnd = holdEnd + BattleRules.VictoryBannerExitDuration;
-            if (m_View.VictoryBannerRoot != null)
+            if (m_ResultBannerElapsed >= enterEnd)
             {
-                if (m_VictoryBannerElapsed < enterEnd)
-                {
-                    var progress = Mathf.SmoothStep(
-                        0f,
-                        1f,
-                        m_VictoryBannerElapsed / BattleRules.VictoryBannerEnterDuration);
-                    m_View.VictoryBannerRoot.anchoredPosition =
-                        new Vector2(Mathf.Lerp(-1450f, 0f, progress), 0f);
-                }
-                else if (m_VictoryBannerElapsed < holdEnd)
-                {
-                    m_View.VictoryBannerRoot.anchoredPosition = Vector2.zero;
-                }
-                else
-                {
-                    var progress = Mathf.SmoothStep(
-                        0f,
-                        1f,
-                        (m_VictoryBannerElapsed - holdEnd) / BattleRules.VictoryBannerExitDuration);
-                    m_View.VictoryBannerRoot.anchoredPosition =
-                        new Vector2(Mathf.Lerp(0f, 1450f, progress), 0f);
-                }
+                if (m_View.ResultBannerRoot != null)
+                    m_View.ResultBannerRoot.anchoredPosition = Vector2.zero;
+                m_ResultBannerActive = false;
+                m_ResultContinueReady = true;
+                return;
+            }
+            if (m_View.ResultBannerRoot == null)
+                return;
+            var progress = Mathf.SmoothStep(
+                0f,
+                1f,
+                m_ResultBannerElapsed / BattleRules.VictoryBannerEnterDuration);
+            m_View.ResultBannerRoot.anchoredPosition =
+                new Vector2(Mathf.Lerp(-1450f, 0f, progress), 0f);
+        }
+
+        private void PauseForResult()
+        {
+            if (m_ResultPauseOwned)
+                return;
+
+            m_TimeScaleBeforeResult = Time.timeScale;
+            Time.timeScale = 0f;
+            m_ResultPauseOwned = true;
+            m_ResultContinueReady = false;
+            m_ResultContinueConsumed = false;
+        }
+
+        private void ContinueAfterResult()
+        {
+            if (m_ResultContinueReady == false ||
+                m_ResultContinueConsumed ||
+                m_Session == null)
+                return;
+
+            m_ResultContinueConsumed = true;
+            AudioApi.Play("click1", 0.7f);
+            var continueToPreparation =
+                m_Session.Result.Value == EBattleResult.PlayerVictory &&
+                m_Session.IsFinalBattle == false;
+            ReleaseResultPause();
+            if (continueToPreparation)
+            {
+                m_Session.OutcomePresentationCountdown = 0f;
+                m_Session.OutcomePresentationCompleted.SetValue(true);
+                return;
             }
 
-            if (m_VictoryBannerElapsed < exitEnd)
-                return;
-            m_VictoryBannerActive = false;
-            if (m_View.VictoryBannerRoot != null)
-                m_View.VictoryBannerRoot.gameObject.SetActive(false);
-            if (m_Session != null && m_Session.IsFinalBattle)
-                ShowResultPopup(true);
-        }
-
-        private void ShowResultPopup(bool wholeRunVictory)
-        {
-            if (m_View.ResultPopupRoot == null)
-                return;
-            var resourcePath = wholeRunVictory
-                ? "RunVictoryPanelAged"
-                : "BattleDefeatPanelAged";
-            if (m_View.ResultPopupImage != null)
-                m_View.ResultPopupImage.sprite = ResourceApi.LoadSprite(resourcePath);
-            m_View.ResultPopupRoot.SetActive(true);
-            m_PopupElapsed = 0f;
-            m_PopupAnimating = true;
-            if (m_View.ResultPopupCanvasGroup != null)
-                m_View.ResultPopupCanvasGroup.alpha = 0f;
-            m_View.ResultPopupRoot.transform.localScale = Vector3.one * 0.9f;
-        }
-
-        private void UpdatePopup(float deltaTime)
-        {
-            m_PopupElapsed += Mathf.Max(0f, deltaTime);
-            var progress = Mathf.Clamp01(m_PopupElapsed / 0.18f);
-            var eased = Mathf.SmoothStep(0f, 1f, progress);
-            if (m_View.ResultPopupCanvasGroup != null)
-                m_View.ResultPopupCanvasGroup.alpha = eased;
-            if (m_View.ResultPopupRoot != null)
-                m_View.ResultPopupRoot.transform.localScale = Vector3.one * Mathf.Lerp(0.9f, 1f, eased);
-            if (progress >= 1f)
-                m_PopupAnimating = false;
-        }
-
-        private void OnReturnToMainMenuClicked()
-        {
-            if (m_View.ReturnToMainMenuButton != null)
-                m_View.ReturnToMainMenuButton.interactable = false;
             HearthstoneGameEngine.Instance?.EnterMainMenuStageGroup();
+        }
+
+        private void ReleaseResultPause()
+        {
+            if (m_ResultPauseOwned == false)
+                return;
+
+            Time.timeScale = m_TimeScaleBeforeResult;
+            m_ResultPauseOwned = false;
         }
 
         private void ResetResultPresentation()
         {
-            m_VictoryBannerActive = false;
-            m_VictoryBannerElapsed = 0f;
-            m_PopupAnimating = false;
-            m_PopupElapsed = 0f;
-            if (m_View.VictoryBannerRoot != null)
-                m_View.VictoryBannerRoot.gameObject.SetActive(false);
-            if (m_View.ResultPopupRoot != null)
-                m_View.ResultPopupRoot.SetActive(false);
-            if (m_View.ReturnToMainMenuButton != null)
-                m_View.ReturnToMainMenuButton.interactable = true;
+            ReleaseResultPause();
+            m_ResultBannerActive = false;
+            m_ResultBannerElapsed = 0f;
+            m_ResultContinueReady = false;
+            m_ResultContinueConsumed = false;
+            if (m_View.ResultBackdropImage != null)
+                m_View.ResultBackdropImage.gameObject.SetActive(false);
+            if (m_View.ResultBannerRoot != null)
+                m_View.ResultBannerRoot.gameObject.SetActive(false);
         }
     }
 }

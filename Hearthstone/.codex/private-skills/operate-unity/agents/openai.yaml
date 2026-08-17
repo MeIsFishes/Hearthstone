@@ -1,0 +1,4 @@
+interface:
+  display_name: "操作 Unity"
+  short_description: "发现 Unity MCP 并按任务边界执行资产生成、物件构建与测试"
+  default_prompt: "使用 $operate-unity 在当前项目中选择合适通道完成 Unity 操作。"

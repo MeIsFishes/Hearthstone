@@ -9,12 +9,13 @@ namespace Hearthstone
     {
         public UiList EnemyCardList;
         public UiList PlayerCardList;
-        public RectTransform VictoryBannerRoot;
-        public CanvasGroup VictoryBannerCanvasGroup;
-        public GameObject ResultPopupRoot;
-        public CanvasGroup ResultPopupCanvasGroup;
-        public Image ResultPopupImage;
-        public Button ReturnToMainMenuButton;
+        public Image ResultBackdropImage;
+        public RectTransform ResultBannerRoot;
+        public CanvasGroup ResultBannerCanvasGroup;
+        public Image ResultBannerImage;
+        public Sprite VictoryResultBanner;
+        public Sprite DefeatResultBanner;
+        public Sprite FinalVictoryResultBanner;
 
         public override Type GetControllerType()
         {

@@ -185,7 +185,8 @@ namespace Hearthstone.Tests
             Assert.NotNull(ResourceApi.LoadSprite("Boar"));
             Assert.NotNull(ResourceApi.LoadSprite("Ogre"));
             Assert.NotNull(ResourceApi.LoadSprite("CardNumberBadgeHex"));
-            Assert.NotNull(ResourceApi.LoadSprite("CardFrame-v3"));
+            Assert.NotNull(ResourceApi.LoadSprite("CardFrameRoundedSubtleOpenCornersPreview"));
+            Assert.NotNull(ResourceApi.LoadSprite("CardArtworkRoundedMask"));
             Assert.NotNull(ResourceApi.LoadSprite("BattleBoardBackground"));
             Assert.NotNull(ResourceApi.LoadSprite("BattleCenterDividerCarving"));
             Assert.NotNull(ResourceApi.LoadSprite("BattleAttackSwordSlash"));
@@ -282,7 +283,7 @@ namespace Hearthstone.Tests
         }
 
         [Test]
-        public void RuntimeEnemyLineupsContainThreeRequestedCompositionsForEachBattle()
+        public void RuntimeEnemyLineupsContainFiveRequestedCompositionsForEachBattle()
         {
             LoadRuntimeCardData();
             ResourceApi.Initialize();
@@ -291,11 +292,13 @@ namespace Hearthstone.Tests
             CsvApi.ReadFromString<EnemyLineupCsvData>(nameof(EnemyLineupCsvData), csvAsset.text);
             var expectedCompositions = new[]
             {
-                new[] { 1, 1 },
+                new[] { 1 },
                 new[] { 1, 1, 1 },
-                new[] { 1, 2, 2, 1 },
-                new[] { 1, 3, 2, 2, 2 },
-                new[] { 1, 3, 3, 3, 2, 1 },
+                new[] { 1, 2, 1, 1 },
+                new[] { 1, 2, 2, 2 },
+                new[] { 1, 3, 3, 2, 1 },
+                new[] { 2, 3, 3, 2, 2 },
+                new[] { 2, 3, 3, 3, 3, 1 },
             };
             var rowCounts = new int[expectedCompositions.Length];
             var totalRows = 0;
@@ -314,8 +317,8 @@ namespace Hearthstone.Tests
                     Assert.AreEqual(expected[slot], materialCount);
                 }
             }
-            Assert.AreEqual(15, totalRows);
-            CollectionAssert.AreEqual(new[] { 3, 3, 3, 3, 3 }, rowCounts);
+            Assert.AreEqual(35, totalRows);
+            CollectionAssert.AreEqual(new[] { 5, 5, 5, 5, 5, 5, 5 }, rowCounts);
         }
 
         [Test]
@@ -563,7 +566,7 @@ namespace Hearthstone.Tests
         {
             var font = Resources.Load<TMP_FontAsset>("Fonts/NotoSansSC-Dynamic SDF");
             Assert.NotNull(font);
-            const string interfaceCharacters = "战斗胜利失败阵亡哥布林战士弓手投弹野猪食人魔";
+            const string interfaceCharacters = "战斗胜利失败最终阵亡哥布林战士弓手投弹野猪食人魔";
             if (font.HasCharacters(interfaceCharacters) == false)
             {
                 Assert.IsTrue(font.TryAddCharacters(interfaceCharacters, out var missingCharacters));
@@ -584,7 +587,9 @@ namespace Hearthstone.Tests
             Assert.NotNull(view.CardFrame);
             Assert.NotNull(view.AttackerHighlight);
             Assert.NotNull(view.TargetHighlight);
-            Assert.AreEqual("CardFrame-v3", view.CardFrame.sprite.name);
+            Assert.AreEqual(
+                "CardFrameRoundedSubtleOpenCornersPreview",
+                view.CardFrame.sprite.name);
             Assert.AreSame(view.CardFrame.sprite, view.AttackerHighlight.sprite);
             Assert.AreSame(view.CardFrame.sprite, view.TargetHighlight.sprite);
 
@@ -595,9 +600,71 @@ namespace Hearthstone.Tests
             Assert.NotNull(view.ArtworkArea);
             Assert.AreEqual(Image.Type.Simple, view.ArtworkArea.type);
             Assert.IsFalse(view.ArtworkArea.preserveAspect);
-            Assert.AreEqual(new Vector2(0.5f, 0.5f), view.ArtworkArea.rectTransform.anchorMin);
-            Assert.AreEqual(new Vector2(0.5f, 0.5f), view.ArtworkArea.rectTransform.anchorMax);
-            Assert.AreEqual(new Vector2(210f, 297f), view.ArtworkArea.rectTransform.sizeDelta);
+            Assert.IsFalse(view.ArtworkArea.useSpriteMesh);
+
+            var artworkViewport = view.ArtworkArea.transform.parent as RectTransform;
+            Assert.NotNull(artworkViewport);
+            Assert.AreEqual("ArtworkViewport", artworkViewport.name);
+            Assert.IsNull(artworkViewport.GetComponent<RectMask2D>());
+            var artworkMask = artworkViewport.GetComponent<Mask>();
+            var artworkMaskImage = artworkViewport.GetComponent<Image>();
+            Assert.NotNull(artworkMask);
+            Assert.IsFalse(artworkMask.showMaskGraphic);
+            Assert.NotNull(artworkMaskImage);
+            Assert.AreEqual("CardArtworkRoundedMask", artworkMaskImage.sprite.name);
+            Assert.IsFalse(artworkMaskImage.preserveAspect);
+            Assert.IsFalse(artworkMaskImage.useSpriteMesh);
+            AssertArtworkViewportFitsInsideFrame(view.CardFrame.rectTransform, artworkViewport);
+            Assert.AreEqual(Vector2.zero, view.ArtworkArea.rectTransform.anchorMin);
+            Assert.AreEqual(Vector2.one, view.ArtworkArea.rectTransform.anchorMax);
+            Assert.AreEqual(Vector2.zero, view.ArtworkArea.rectTransform.offsetMin);
+            Assert.AreEqual(Vector2.zero, view.ArtworkArea.rectTransform.offsetMax);
+            Assert.AreSame(artworkViewport, view.ArtworkArea.transform.parent);
+            Assert.IsFalse(view.HealthText.transform.IsChildOf(artworkViewport));
+            Assert.IsFalse(view.AttackText.transform.IsChildOf(artworkViewport));
+            Assert.IsFalse(view.CardNumberBadge.transform.IsChildOf(artworkViewport));
+            Assert.IsFalse(view.SkillDescriptionText.transform.IsChildOf(artworkViewport));
+            Assert.Less(artworkViewport.GetSiblingIndex(), view.CardFrame.transform.GetSiblingIndex());
+        }
+
+        [Test]
+        public void DeadBattleCardUsesMaskedBrokenSwordOverlay()
+        {
+            const string brokenSwordPath =
+                "Assets/Resources/Art/BattleCards/UI/DeathBrokenSwordIcon.png";
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(
+                "Assets/Resources/Ui/BattleCardItem.prefab");
+            var importer = AssetImporter.GetAtPath(brokenSwordPath) as TextureImporter;
+            Assert.NotNull(prefab);
+            Assert.NotNull(importer);
+
+            var view = prefab.GetComponent<BattleCardItemView>();
+            Assert.NotNull(view);
+            Assert.NotNull(view.DeadOverlay);
+            Assert.AreSame(view.ArtworkArea.transform.parent, view.DeadOverlay.transform.parent);
+            Assert.AreEqual(Vector2.zero, view.DeadOverlay.rectTransform.anchorMin);
+            Assert.AreEqual(Vector2.one, view.DeadOverlay.rectTransform.anchorMax);
+            Assert.AreEqual(Vector2.zero, view.DeadOverlay.rectTransform.offsetMin);
+            Assert.AreEqual(Vector2.zero, view.DeadOverlay.rectTransform.offsetMax);
+            Assert.AreEqual(Color.black.r, view.DeadOverlay.color.r);
+            Assert.AreEqual(Color.black.g, view.DeadOverlay.color.g);
+            Assert.AreEqual(Color.black.b, view.DeadOverlay.color.b);
+            Assert.That(view.DeadOverlay.color.a, Is.EqualTo(0.62f).Within(0.001f));
+            Assert.IsFalse(view.DeadOverlay.raycastTarget);
+            Assert.IsNull(view.DeadOverlay.transform.Find("DeadText"));
+
+            var brokenSword = view.DeadOverlay.transform
+                .Find("BrokenSwordIcon")
+                ?.GetComponent<Image>();
+            Assert.NotNull(brokenSword);
+            Assert.NotNull(brokenSword.sprite);
+            Assert.AreEqual(brokenSwordPath, AssetDatabase.GetAssetPath(brokenSword.sprite));
+            Assert.AreEqual(new Vector2(156f, 156f), brokenSword.rectTransform.sizeDelta);
+            Assert.IsTrue(brokenSword.preserveAspect);
+            Assert.IsFalse(brokenSword.raycastTarget);
+            Assert.AreEqual(TextureImporterType.Sprite, importer.textureType);
+            Assert.AreEqual(SpriteImportMode.Single, importer.spriteImportMode);
+            Assert.IsTrue(importer.alphaIsTransparency);
         }
 
         [Test]
@@ -732,7 +799,7 @@ namespace Hearthstone.Tests
         }
 
         [Test]
-        public void BattleCardArtworkNormalizesImportedRatiosToSlightlyWideDrawingRect()
+        public void BattleCardArtworkAndRoundedMaskShareTheFramePixelCanvas()
         {
             var ordinaryTexture = AssetDatabase.LoadAssetAtPath<Texture2D>(
                 "Assets/Resources/Art/BattleCards/GoblinWarrior_004.png");
@@ -753,11 +820,25 @@ namespace Hearthstone.Tests
             var view = prefab.GetComponent<BattleCardItemView>();
             Assert.NotNull(view);
             Assert.IsFalse(view.ArtworkArea.preserveAspect);
-            Assert.AreEqual(new Vector2(210f, 297f), view.ArtworkArea.rectTransform.sizeDelta);
-            Assert.AreEqual(210f / 297f, view.ArtworkArea.rectTransform.sizeDelta.x /
-                view.ArtworkArea.rectTransform.sizeDelta.y, 0.0001f);
-            Assert.Greater(210f / 297f, 2f / 3f);
-            Assert.AreEqual(20f, (250f - view.ArtworkArea.rectTransform.sizeDelta.x) * 0.5f);
+            var artworkViewport = view.ArtworkArea.transform.parent as RectTransform;
+            Assert.NotNull(artworkViewport);
+            AssertArtworkViewportFitsInsideFrame(view.CardFrame.rectTransform, artworkViewport);
+            Assert.AreEqual(Vector2.zero, view.ArtworkArea.rectTransform.offsetMin);
+            Assert.AreEqual(Vector2.zero, view.ArtworkArea.rectTransform.offsetMax);
+
+            var maskTexture = AssetDatabase.LoadAssetAtPath<Texture2D>(
+                "Assets/Resources/Art/BattleCards/UI/CardArtworkRoundedMask.png");
+            var frameTexture = AssetDatabase.LoadAssetAtPath<Texture2D>(
+                "Assets/Resources/Art/BattleCards/UI/CardFrameRoundedSubtleOpenCornersPreview.png");
+            Assert.NotNull(maskTexture);
+            Assert.NotNull(frameTexture);
+            Assert.AreEqual(new Vector2Int(1024, 1536), new Vector2Int(maskTexture.width, maskTexture.height));
+            Assert.AreEqual(new Vector2Int(1024, 1536), new Vector2Int(frameTexture.width, frameTexture.height));
+
+            AssertPixelAlignedCardImporter(
+                "Assets/Resources/Art/BattleCards/UI/CardArtworkRoundedMask.png");
+            AssertPixelAlignedCardImporter(
+                "Assets/Resources/Art/BattleCards/UI/CardFrameRoundedSubtleOpenCornersPreview.png");
 
             var controllerScript = AssetDatabase.LoadAssetAtPath<MonoScript>(
                 "Assets/Scripts/Hearthstone/Ui/Controller/BattleCardItemController.cs");
@@ -775,8 +856,12 @@ namespace Hearthstone.Tests
             var view = prefab.GetComponent<BattleCardItemView>();
             Assert.NotNull(view);
             Assert.NotNull(view.CardHoverListener);
+            Assert.NotNull(view.CardClickListener);
+            Assert.NotNull(view.CardDragListener);
             Assert.NotNull(view.CardHoverInput);
-            Assert.AreSame(view.CardHoverListener, view.PreparationDragable.EventListener);
+            Assert.AreSame(view.CardDragListener, view.PreparationDragable.EventListener);
+            Assert.AreNotSame(view.CardHoverListener, view.CardDragListener);
+            Assert.AreNotSame(view.CardClickListener, view.CardDragListener);
             var hoverImage = view.CardHoverInput;
             Assert.NotNull(hoverImage);
             Assert.AreSame(view.CardBackground, hoverImage);
@@ -796,7 +881,7 @@ namespace Hearthstone.Tests
                 BattleCardItemController.GetTierFrameColor(EBattleCardTier.Legendary));
 
             const string emptySlotPath =
-                "Assets/Resources/Art/Preparation/UI/PreparationPoolEmptySlot.png";
+                "Assets/Resources/Art/Preparation/UI/PreparationPoolEmptySlotAgedWood01.png";
             var emptySlotTexture = AssetDatabase.LoadAssetAtPath<Texture2D>(emptySlotPath);
             var emptySlotSprite = AssetDatabase.LoadAssetAtPath<Sprite>(emptySlotPath);
             var emptySlotImporter = AssetImporter.GetAtPath(emptySlotPath) as TextureImporter;
@@ -810,6 +895,36 @@ namespace Hearthstone.Tests
             Assert.IsTrue(emptySlotImporter.DoesSourceTextureHaveAlpha());
             Assert.AreSame(emptySlotSprite, emptySlotImage.sprite);
             Assert.IsTrue(emptySlotImage.preserveAspect);
+            ResourceApi.Initialize();
+            for (var variant = 1; variant <= 5; variant++)
+            {
+                var variantPath =
+                    $"Assets/Resources/Art/Preparation/UI/PreparationPoolEmptySlotAgedWood{variant:00}.png";
+                var variantTexture = AssetDatabase.LoadAssetAtPath<Texture2D>(variantPath);
+                var variantSprite = AssetDatabase.LoadAssetAtPath<Sprite>(variantPath);
+                var variantImporter = AssetImporter.GetAtPath(variantPath) as TextureImporter;
+                Assert.NotNull(variantTexture, variantPath);
+                Assert.NotNull(variantSprite, variantPath);
+                Assert.NotNull(variantImporter, variantPath);
+                Assert.AreEqual(1024, variantTexture.width, variantPath);
+                Assert.AreEqual(1536, variantTexture.height, variantPath);
+                Assert.IsTrue(variantImporter.DoesSourceTextureHaveAlpha(), variantPath);
+                Assert.AreSame(variantSprite, ResourceApi.LoadSprite(variantSprite.name), variantPath);
+            }
+            var variantResolver = typeof(BattleCardItemController).GetMethod(
+                "ResolveEmptySlotVariantIndex",
+                BindingFlags.Static | BindingFlags.NonPublic);
+            Assert.NotNull(variantResolver);
+            var resolvedVariants = new System.Collections.Generic.HashSet<int>();
+            for (var seed = 0; seed < 100; seed++)
+            {
+                var first = (int)variantResolver.Invoke(null, new object[] { 6, seed, 0 });
+                var second = (int)variantResolver.Invoke(null, new object[] { 6, seed, 0 });
+                Assert.AreEqual(first, second);
+                Assert.That(first, Is.InRange(0, 4));
+                resolvedVariants.Add(first);
+            }
+            Assert.AreEqual(5, resolvedVariants.Count);
             var emptySlotRect = (RectTransform)view.PreparationEmptyState.transform;
             Assert.AreEqual(Vector2.zero, emptySlotRect.offsetMin);
             Assert.AreEqual(Vector2.zero, emptySlotRect.offsetMax);
@@ -834,7 +949,7 @@ namespace Hearthstone.Tests
         }
 
         [Test]
-        public void BattleCardPreparationHoverAndDragShareOneUnblockedInputSurface()
+        public void BattleCardPreparationUsesIndependentEventSourcesOnOneInputSurface()
         {
             var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(
                 "Assets/Resources/Ui/BattleCardItem.prefab");
@@ -845,11 +960,18 @@ namespace Hearthstone.Tests
             Assert.NotNull(view.CardBackground);
             Assert.NotNull(view.CardHoverInput);
             Assert.NotNull(view.CardHoverListener);
+            Assert.NotNull(view.CardClickListener);
+            Assert.NotNull(view.CardDragListener);
             Assert.NotNull(view.PreparationDragable);
             Assert.NotNull(view.PreparationDragable.EventListener);
             Assert.AreSame(view.CardBackground, view.CardHoverInput);
-            Assert.AreSame(view.CardHoverListener, view.PreparationDragable.EventListener);
+            Assert.AreSame(view.CardDragListener, view.PreparationDragable.EventListener);
+            Assert.AreNotSame(view.CardHoverListener, view.CardClickListener);
+            Assert.AreNotSame(view.CardHoverListener, view.CardDragListener);
+            Assert.AreNotSame(view.CardClickListener, view.CardDragListener);
             Assert.AreSame(prefab, view.CardHoverListener.gameObject);
+            Assert.AreSame(prefab, view.CardClickListener.gameObject);
+            Assert.AreSame(prefab, view.CardDragListener.gameObject);
             Assert.IsNull(prefab.transform.Find("HoverInput"));
         }
 
@@ -911,22 +1033,20 @@ namespace Hearthstone.Tests
             Assert.AreEqual(sharedAspect, poolSlotSize.x / poolSlotSize.y, 0.0001f);
             var battleSlotSize = preparationView.BattleSlotList.ConstantSlotSize;
             Assert.AreEqual(sharedAspect, battleSlotSize.x / battleSlotSize.y, 0.0001f);
-            var expectedBattleSlotScale = Vector2.one * 0.6f;
+            var expectedBattleSlotScale = Vector2.one * (battleSlotSize.x / sharedSize.x);
             var battleOccupiedSize = Vector2.Scale(sharedSize, expectedBattleSlotScale);
-            Assert.AreEqual(150f, battleOccupiedSize.x, 0.001f);
-            Assert.AreEqual(216f, battleOccupiedSize.y, 0.001f);
+            Assert.AreEqual(battleSlotSize.x, battleOccupiedSize.x, 0.001f);
+            Assert.AreEqual(battleSlotSize.y, battleOccupiedSize.y, 0.001f);
             var battleSlotGap = battleSlotSize.x - battleOccupiedSize.x;
-            Assert.AreEqual(35f, battleSlotGap, 0.001f);
-            Assert.Greater(battleSlotGap, 0f);
+            Assert.AreEqual(0f, battleSlotGap, 0.001f);
             var fusionSlotSize = preparationView.FusionSlotList.ConstantSlotSize;
             Assert.AreEqual(sharedAspect, fusionSlotSize.x / fusionSlotSize.y, 0.0001f);
-            var expectedFusionSlotScale = Vector2.one * 0.6f;
+            var expectedFusionSlotScale = Vector2.one * (fusionSlotSize.x / sharedSize.x);
             var fusionOccupiedSize = Vector2.Scale(sharedSize, expectedFusionSlotScale);
-            Assert.AreEqual(150f, fusionOccupiedSize.x, 0.001f);
-            Assert.AreEqual(216f, fusionOccupiedSize.y, 0.001f);
+            Assert.AreEqual(fusionSlotSize.x, fusionOccupiedSize.x, 0.001f);
+            Assert.AreEqual(fusionSlotSize.y, fusionOccupiedSize.y, 0.001f);
             var fusionSlotGap = fusionSlotSize.x - fusionOccupiedSize.x;
-            Assert.AreEqual(40f, fusionSlotGap, 0.001f);
-            Assert.Greater(fusionSlotGap, 0f);
+            Assert.AreEqual(0f, fusionSlotGap, 0.001f);
 
             var controllerScript = AssetDatabase.LoadAssetAtPath<MonoScript>(
                 "Assets/Scripts/Hearthstone/Ui/Controller/PreparationController.cs");
@@ -937,10 +1057,10 @@ namespace Hearthstone.Tests
             StringAssert.Contains(
                 "m_View.BattleSlotList.ConstantSlotSize",
                 controllerScript.text);
-            StringAssert.Contains("BattleSlotVisualFillRatio = 150f / 185f", controllerScript.text);
-            StringAssert.Contains("FusionSlotVisualFillRatio = 150f / 190f", controllerScript.text);
+            StringAssert.DoesNotContain("BattleSlotVisualFillRatio", controllerScript.text);
+            StringAssert.DoesNotContain("FusionSlotVisualFillRatio", controllerScript.text);
             StringAssert.AreEqualIgnoringCase(
-                "PreparationPoolEmptySlot",
+                "PreparationPoolEmptySlotAgedWood01",
                 sharedView.PreparationBattleSlotEmptyState.GetComponent<Image>().sprite.name);
             Assert.AreSame(
                 sharedView.PreparationBattleSlotEmptyState.GetComponent<Image>().sprite,
@@ -977,11 +1097,15 @@ namespace Hearthstone.Tests
             var itemControllerScript = AssetDatabase.LoadAssetAtPath<MonoScript>(
                 "Assets/Scripts/Hearthstone/Ui/Controller/BattleCardItemController.cs");
             Assert.NotNull(itemControllerScript);
-            StringAssert.Contains(
+            StringAssert.DoesNotContain(
                 "EPreparationBindingMode.BattleSlot && occupied == false",
                 itemControllerScript.text);
-            StringAssert.Contains(
+            StringAssert.DoesNotContain(
                 "EPreparationBindingMode.FusionSlot && occupied == false",
+                itemControllerScript.text);
+            StringAssert.Contains("SetPreparationSlotBackdropVisible(", itemControllerScript.text);
+            StringAssert.Contains(
+                "Wrapper.OnBeginDrag += OnPreparationDragStarted",
                 itemControllerScript.text);
             StringAssert.Contains("ApplyExactSlotScale(slotSize);", itemControllerScript.text);
             StringAssert.Contains(
@@ -1098,7 +1222,7 @@ namespace Hearthstone.Tests
         }
 
         [Test]
-        public void GeneratedResultPanelsAndPreparationDeployedStateReplaceRuntimeText()
+        public void GeneratedResultBannerAndPreparationDeployedStateUsePrefabVisuals()
         {
             var battlePrefab = AssetDatabase.LoadAssetAtPath<GameObject>(
                 "Assets/Resources/Ui/BattleView.prefab");
@@ -1109,18 +1233,46 @@ namespace Hearthstone.Tests
 
             var battleView = battlePrefab.GetComponent<BattleView>();
             Assert.NotNull(battleView);
+            Assert.NotNull(battleView.ResultBackdropImage);
+            Assert.AreEqual("ResultBackdrop", battleView.ResultBackdropImage.gameObject.name);
             Assert.AreEqual(
-                "BattleVictoryBannerAged",
-                battleView.VictoryBannerRoot.GetComponent<Image>().sprite.name);
-            Assert.IsNull(battleView.VictoryBannerRoot.Find("Label"));
-            Assert.AreEqual("BattleDefeatPanelAged", battleView.ResultPopupImage.sprite.name);
-            Assert.IsNull(battleView.ResultPopupImage.transform.Find("Title"));
-            Assert.IsNull(battleView.ResultPopupImage.transform.Find("Body"));
-            Assert.NotNull(battleView.ReturnToMainMenuButton);
-            Assert.AreEqual(
-                "ReturnToMainMenuButtonAged",
-                battleView.ReturnToMainMenuButton.targetGraphic.GetComponent<Image>().sprite.name);
-            Assert.IsNull(battleView.ReturnToMainMenuButton.transform.Find("Label"));
+                new Color(0.18f, 0.18f, 0.18f, 0.62f),
+                battleView.ResultBackdropImage.color);
+            Assert.IsTrue(battleView.ResultBackdropImage.raycastTarget);
+            Assert.IsFalse(battleView.ResultBackdropImage.gameObject.activeSelf);
+            Assert.Less(
+                battleView.ResultBackdropImage.transform.GetSiblingIndex(),
+                battleView.ResultBannerRoot.GetSiblingIndex());
+            Assert.NotNull(battleView.ResultBannerImage);
+            Assert.AreSame(
+                battleView.ResultBannerImage,
+                battleView.ResultBannerRoot.GetComponent<Image>());
+            Assert.AreEqual("BattleVictoryBannerText", battleView.VictoryResultBanner.name);
+            Assert.AreEqual("BattleDefeatBannerText", battleView.DefeatResultBanner.name);
+            Assert.AreEqual("BattleFinalVictoryBannerText", battleView.FinalVictoryResultBanner.name);
+            Assert.AreSame(battleView.VictoryResultBanner, battleView.ResultBannerImage.sprite);
+            Assert.IsNull(battleView.ResultBannerRoot.Find("Label"));
+            Assert.IsNull(battleView.ResultBannerRoot.GetComponentInChildren<TMP_Text>(true));
+
+            AssertResultBannerTexture("BattleVictoryBannerText.png", 1983, 793);
+            AssertResultBannerTexture("BattleDefeatBannerText.png", 1983, 793);
+            AssertResultBannerTexture("BattleFinalVictoryBannerText.png", 1983, 793);
+            Assert.IsNull(battlePrefab.transform.Find("ResultPopup"));
+            Assert.IsNull(battlePrefab.GetComponentInChildren<Button>(true));
+            var removedResultAssets = new[]
+            {
+                "BattleDefeatPanel.png",
+                "BattleDefeatPanelAged.png",
+                "BattleVictoryBannerAged.png",
+                "ReturnToMainMenuButtonAged.png",
+                "RunVictoryPanel.png",
+                "RunVictoryPanelAged.png",
+            };
+            foreach (var removedAsset in removedResultAssets)
+            {
+                Assert.IsNull(AssetDatabase.LoadAssetAtPath<Texture2D>(
+                    "Assets/Resources/Art/BattleCards/Result/" + removedAsset));
+            }
 
             var cardView = cardPrefab.GetComponent<BattleCardItemView>();
             var deployedImage = cardView.PreparationDeployedState.GetComponent<Image>();
@@ -1130,10 +1282,39 @@ namespace Hearthstone.Tests
 
             var battleControllerScript = AssetDatabase.LoadAssetAtPath<MonoScript>(
                 "Assets/Scripts/Hearthstone/Ui/Controller/BattleController.cs");
-            StringAssert.Contains("ResourceApi.LoadSprite(resourcePath)", battleControllerScript.text);
+            StringAssert.Contains(
+                "StartResultBanner(m_View.DefeatResultBanner)",
+                battleControllerScript.text);
+            StringAssert.Contains("? m_View.FinalVictoryResultBanner", battleControllerScript.text);
+            StringAssert.Contains(": m_View.VictoryResultBanner", battleControllerScript.text);
+            StringAssert.Contains("m_View.ResultBannerImage.sprite = resultBanner", battleControllerScript.text);
+            StringAssert.Contains(
+                "m_View.ResultBackdropImage.gameObject.SetActive(true)",
+                battleControllerScript.text);
+            StringAssert.Contains(
+                "m_View.ResultBackdropImage.gameObject.SetActive(false)",
+                battleControllerScript.text);
+            StringAssert.Contains("maxBannerHeight * aspectRatio", battleControllerScript.text);
+            StringAssert.DoesNotContain("ResultBannerText", battleControllerScript.text);
             StringAssert.Contains("EnterMainMenuStageGroup()", battleControllerScript.text);
+            StringAssert.DoesNotContain("ShowResultPopup", battleControllerScript.text);
             StringAssert.DoesNotContain("RestartRun()", battleControllerScript.text);
             StringAssert.DoesNotContain("Resources.Load<Sprite>", battleControllerScript.text);
+        }
+
+        private static void AssertResultBannerTexture(string fileName, int width, int height)
+        {
+            var path = "Assets/Resources/Art/BattleCards/Result/" + fileName;
+            var texture = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+            var sprite = AssetDatabase.LoadAssetAtPath<Sprite>(path);
+            var importer = AssetImporter.GetAtPath(path) as TextureImporter;
+            Assert.NotNull(texture, path);
+            Assert.NotNull(sprite, path);
+            Assert.NotNull(importer, path);
+            Assert.AreEqual(width, texture.width, path);
+            Assert.AreEqual(height, texture.height, path);
+            Assert.IsTrue(importer.DoesSourceTextureHaveAlpha(), path);
+            Assert.AreEqual(TextureImporterType.Sprite, importer.textureType, path);
         }
 
         [Test]
@@ -1537,6 +1718,32 @@ namespace Hearthstone.Tests
             Assert.AreEqual(Vector2.one, frame.anchorMax);
             Assert.AreEqual(new Vector2(0f, 24f), frame.offsetMin);
             Assert.AreEqual(Vector2.zero, frame.offsetMax);
+        }
+
+        private static void AssertArtworkViewportFitsInsideFrame(
+            RectTransform frame,
+            RectTransform artworkViewport)
+        {
+            Assert.AreEqual(frame.anchorMin, artworkViewport.anchorMin);
+            Assert.AreEqual(frame.anchorMax, artworkViewport.anchorMax);
+            Assert.AreEqual(frame.offsetMin + new Vector2(2f, 2f), artworkViewport.offsetMin);
+            Assert.AreEqual(frame.offsetMax - new Vector2(2f, 2f), artworkViewport.offsetMax);
+            Assert.AreEqual(frame.localRotation, artworkViewport.localRotation);
+            Assert.AreEqual(frame.localScale, artworkViewport.localScale);
+        }
+
+        private static void AssertPixelAlignedCardImporter(string path)
+        {
+            var importer = AssetImporter.GetAtPath(path) as TextureImporter;
+            Assert.NotNull(importer);
+            Assert.AreEqual(TextureImporterType.Sprite, importer.textureType);
+            Assert.AreEqual(SpriteImportMode.Single, importer.spriteImportMode);
+            Assert.IsTrue(importer.alphaIsTransparency);
+            Assert.IsFalse(importer.mipmapEnabled);
+            Assert.AreEqual(TextureWrapMode.Clamp, importer.wrapMode);
+            Assert.AreEqual(TextureImporterNPOTScale.None, importer.npotScale);
+            Assert.GreaterOrEqual(importer.maxTextureSize, 2048);
+            Assert.AreEqual(TextureImporterCompression.Uncompressed, importer.textureCompression);
         }
 
         private static void AssertFramesRenderBelowCardMarkers(BattleCardItemView view)

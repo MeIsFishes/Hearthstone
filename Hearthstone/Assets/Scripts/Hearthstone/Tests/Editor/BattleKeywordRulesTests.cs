@@ -9,15 +9,6 @@ namespace Hearthstone.Tests
 {
     public sealed class BattleKeywordRulesTests
     {
-        private const string DefaultKeywordCsv =
-            "Keyword,DisplayName,Description,DisplayOrder,DamageNumerator,DamageDenominator,BlastDistance,AttackGain,HealthGain,SuppressCounterDamage\n" +
-            "// Unique single keyword flag,Chinese display name,Player-facing rule description,Stable display order,Damage scale numerator,Damage scale denominator,Adjacent slot distance,Attack gain per trigger,Health gain per trigger,Whether counter damage is suppressed\n" +
-            "// Associated: BattleCardTypeCsvData\n" +
-            "Taunt,嘲讽,敌方存在嘲讽单位时只能以嘲讽单位为攻击目标。,0,1,1,0,0,0,false\n" +
-            "LongShot,远射,攻击伤害减半并且不会受到目标反击。,1,1,2,0,0,0,true\n" +
-            "Blast,爆裂,攻击时对目标相邻1格内的存活单位造成主目标伤害的一半。,2,1,2,1,0,0,false\n" +
-            "Charge,冲锋,每次发动攻击前使己方所有存活单位的攻击和生命各提高1点。,3,1,1,0,1,1,false\n";
-
         [SetUp]
         public void SetUp()
         {
@@ -30,7 +21,9 @@ namespace Hearthstone.Tests
             CsvApi.ReadFromString<BattleCardCsvData>(
                 nameof(BattleCardCsvData),
                 ResourceApi.LoadTextAsset(nameof(BattleCardCsvData)).text);
-            CsvApi.ReadFromString<BattleKeywordCsvData>(nameof(BattleKeywordCsvData), DefaultKeywordCsv);
+            CsvApi.ReadFromString<BattleKeywordCsvData>(
+                nameof(BattleKeywordCsvData),
+                ResourceApi.LoadTextAsset(nameof(BattleKeywordCsvData)).text);
         }
 
         [TearDown]
@@ -51,15 +44,35 @@ namespace Hearthstone.Tests
 
             Assert.AreEqual(BattleKeywordRules.AllKeywords, result);
             Assert.AreEqual(result, BattleKeywordRules.UnionKeywords(result, result));
-            Assert.AreEqual("嘲讽、远射、爆裂、冲锋", BattleKeywordRules.FormatDisplayText(result));
-            Assert.AreEqual("嘲讽", BattleKeywordRules.FormatDisplayText(EBattleKeyword.Taunt));
+            Assert.AreEqual("嘲讽1、远射1、爆裂1、冲锋1", BattleKeywordRules.FormatDisplayText(result));
+            Assert.AreEqual("嘲讽1", BattleKeywordRules.FormatDisplayText(EBattleKeyword.Taunt));
             Assert.AreEqual(string.Empty, BattleKeywordRules.FormatDisplayText(EBattleKeyword.None));
             Assert.AreEqual(
-                "远射：攻击伤害减半并且不会受到目标反击。\n" +
-                "冲锋：每次发动攻击前使己方所有存活单位的攻击和生命各提高1点。",
+                "远射1：攻击时造成50%伤害，且不会受到目标反击。\n" +
+                "冲锋1：每次发动攻击前，使己方所有存活单位的攻击和生命各提高1点。",
                 BattleKeywordRules.FormatDescriptionText(
                     EBattleKeyword.LongShot | EBattleKeyword.Charge));
             Assert.AreEqual(string.Empty, BattleKeywordRules.FormatDescriptionText(EBattleKeyword.None));
+        }
+
+        [Test]
+        public void FusionKeywordMergeAddsRepeatedLevelsAndCapsAtFour()
+        {
+            var blastTwo = BattleKeywordRules.MergeFusionKeywords(
+                EBattleKeyword.Blast,
+                EBattleKeyword.Blast);
+            Assert.AreEqual(2, BattleKeywordRules.GetLevel(blastTwo, EBattleKeyword.Blast));
+            Assert.AreEqual("爆裂2", BattleKeywordRules.FormatDisplayText(blastTwo));
+
+            var chargeFour = BattleKeywordRules.MergeFusionKeywords(
+                EBattleKeyword.Charge,
+                EBattleKeyword.Charge,
+                EBattleKeyword.Charge,
+                EBattleKeyword.Charge,
+                EBattleKeyword.Charge);
+            Assert.AreEqual(4, BattleKeywordRules.GetLevel(chargeFour, EBattleKeyword.Charge));
+            Assert.AreEqual(chargeFour, BattleKeywordRules.Normalize(chargeFour));
+            Assert.AreEqual(chargeFour, BattleKeywordRules.UnionKeywords(chargeFour, EBattleKeyword.Charge));
         }
 
         [Test]
@@ -86,6 +99,8 @@ namespace Hearthstone.Tests
             Assert.AreEqual(2, DataApi.GetData<BattleKeywordCsvData>((int)EBattleKeyword.LongShot).DamageDenominator);
             Assert.AreEqual(1, DataApi.GetData<BattleKeywordCsvData>((int)EBattleKeyword.Blast).BlastDistance);
             Assert.AreEqual(1, DataApi.GetData<BattleKeywordCsvData>((int)EBattleKeyword.Charge).AttackGain);
+            Assert.AreEqual(5, BattleKeywordRules.GetConfig(EBattleKeyword.Taunt, 4).DamageReduction);
+            Assert.AreEqual(4, BattleKeywordRules.GetConfig(EBattleKeyword.Charge, 3).AttackGain);
         }
 
         [Test]
@@ -142,17 +157,81 @@ namespace Hearthstone.Tests
         }
 
         [Test]
+        public void KeywordLevelsDriveDamageReductionScalingAndChargeGain()
+        {
+            var expectedScaledDamage = new[] { 50, 60, 70, 80 };
+            for (var level = 1; level <= BattleKeywordRules.MaximumLevel; level++)
+            {
+                var longShot = BattleKeywordRules.SetLevel(
+                    EBattleKeyword.None,
+                    EBattleKeyword.LongShot,
+                    level);
+                var longShotDamage = BattleRules.ResolveKeywordDamage(100, 12, longShot);
+                Assert.AreEqual(expectedScaledDamage[level - 1], longShotDamage.MainDamage);
+
+                var blast = BattleKeywordRules.SetLevel(
+                    EBattleKeyword.None,
+                    EBattleKeyword.Blast,
+                    level);
+                var blastDamage = BattleRules.ResolveKeywordDamage(100, 12, blast);
+                Assert.AreEqual(expectedScaledDamage[level - 1], blastDamage.BlastDamage);
+            }
+
+            var longShotFour = BattleKeywordRules.SetLevel(
+                EBattleKeyword.None,
+                EBattleKeyword.LongShot,
+                4);
+            var longShotFourBlastThree = BattleKeywordRules.SetLevel(
+                longShotFour,
+                EBattleKeyword.Blast,
+                3);
+            var damage = BattleRules.ResolveKeywordDamage(100, 12, longShotFourBlastThree);
+            Assert.AreEqual(80, damage.MainDamage);
+            Assert.AreEqual(56, damage.BlastDamage);
+            Assert.AreEqual(0, damage.CounterDamage);
+
+            damage = BattleRules.ResolveKeywordDamage(
+                100,
+                12,
+                EBattleKeyword.LongShot | EBattleKeyword.Blast);
+            Assert.AreEqual(50, damage.MainDamage);
+            Assert.AreEqual(25, damage.BlastDamage);
+
+            Assert.AreEqual(10, BattleRules.ResolveIncomingDamage(10, EBattleKeyword.Taunt));
+            Assert.AreEqual(9, BattleRules.ResolveIncomingDamage(
+                10,
+                BattleKeywordRules.SetLevel(EBattleKeyword.None, EBattleKeyword.Taunt, 2)));
+            Assert.AreEqual(7, BattleRules.ResolveIncomingDamage(
+                10,
+                BattleKeywordRules.SetLevel(EBattleKeyword.None, EBattleKeyword.Taunt, 3)));
+            Assert.AreEqual(5, BattleRules.ResolveIncomingDamage(
+                10,
+                BattleKeywordRules.SetLevel(EBattleKeyword.None, EBattleKeyword.Taunt, 4)));
+            Assert.AreEqual(1, BattleRules.ResolveIncomingDamage(
+                3,
+                BattleKeywordRules.SetLevel(EBattleKeyword.None, EBattleKeyword.Taunt, 4)));
+            Assert.AreEqual(0, BattleRules.ResolveIncomingDamage(
+                0,
+                BattleKeywordRules.SetLevel(EBattleKeyword.None, EBattleKeyword.Taunt, 4)));
+
+            Assert.AreEqual(1, BattleKeywordRules.GetConfig(EBattleKeyword.Charge, 1).AttackGain);
+            Assert.AreEqual(2, BattleKeywordRules.GetConfig(EBattleKeyword.Charge, 2).AttackGain);
+            Assert.AreEqual(4, BattleKeywordRules.GetConfig(EBattleKeyword.Charge, 3).AttackGain);
+            Assert.AreEqual(5, BattleKeywordRules.GetConfig(EBattleKeyword.Charge, 4).AttackGain);
+        }
+
+        [Test]
         public void DamageAndChargeBehaviorUseKeywordConfigurationValues()
         {
             DataApi.ReleaseAllData<BattleKeywordCsvData>(false);
             const string customCsv =
-                "Keyword,DisplayName,Description,DisplayOrder,DamageNumerator,DamageDenominator,BlastDistance,AttackGain,HealthGain,SuppressCounterDamage\n" +
-                "// keyword,name,description,order,numerator,denominator,distance,attack gain,health gain,suppress counter\n" +
+                "Keyword,Level,DisplayName,Description,DisplayOrder,DamageNumerator,DamageDenominator,BlastDistance,AttackGain,HealthGain,DamageReduction,SuppressCounterDamage\n" +
+                "// keyword,level,name,description,order,numerator,denominator,distance,attack gain,health gain,damage reduction,suppress counter\n" +
                 "// Associated: BattleCardTypeCsvData\n" +
-                "Taunt,嘲讽,嘲讽说明,0,1,1,0,0,0,false\n" +
-                "LongShot,远射,远射说明,1,2,3,0,0,0,false\n" +
-                "Blast,爆裂,爆裂说明,2,1,3,2,0,0,false\n" +
-                "Charge,冲锋,冲锋说明,3,1,1,0,2,3,false\n";
+                "Taunt,1,嘲讽,嘲讽说明,0,1,1,0,0,0,0,false\n" +
+                "LongShot,1,远射,远射说明,1,2,3,0,0,0,0,false\n" +
+                "Blast,1,爆裂,爆裂说明,2,1,3,2,0,0,0,false\n" +
+                "Charge,1,冲锋,冲锋说明,3,1,1,0,2,3,0,false\n";
             CsvApi.ReadFromString<BattleKeywordCsvData>(nameof(BattleKeywordCsvData), customCsv);
 
             var damage = BattleRules.ResolveKeywordDamage(9, 5, EBattleKeyword.LongShot | EBattleKeyword.Blast);
@@ -165,7 +244,7 @@ namespace Hearthstone.Tests
         }
 
         [Test]
-        public void FusionUnionsAllMaterialKeywordsAndRejectsLockedAndFusionCardsAsMaterials()
+        public void FusionUpgradesRepeatedMaterialKeywordsAndRejectsLockedAndFusionCardsAsMaterials()
         {
             var runState = new RunStateSingletonRawComponent();
             var session = new PreparationSessionSingletonRawComponent();
@@ -189,7 +268,10 @@ namespace Hearthstone.Tests
                 RunCardRules.TryFuse(runState, session, out var result, out var transaction));
             Assert.AreEqual(7, result.Attack);
             Assert.AreEqual(80, result.MaxHealth);
-            Assert.AreEqual(EBattleKeyword.LongShot | EBattleKeyword.Blast, result.Keywords);
+            Assert.AreEqual(1, BattleKeywordRules.GetLevel(result.Keywords, EBattleKeyword.LongShot));
+            Assert.AreEqual(2, BattleKeywordRules.GetLevel(result.Keywords, EBattleKeyword.Blast));
+            Assert.AreEqual(0, BattleKeywordRules.GetLevel(result.Keywords, EBattleKeyword.Taunt));
+            Assert.AreEqual("远射1、爆裂2", BattleKeywordRules.FormatDisplayText(result.Keywords));
             Assert.AreEqual(result.Keywords, transaction.ResultCard.Keywords);
             Assert.AreEqual(
                 EFusionOperationResult.ResultCardCannotBeMaterial,

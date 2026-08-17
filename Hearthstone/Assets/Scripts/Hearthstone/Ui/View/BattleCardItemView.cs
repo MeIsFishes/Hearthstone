@@ -29,7 +29,9 @@ namespace Hearthstone
         public Image LongShotFeedbackIcon;
         public GameObject KeywordTooltip;
         public TMP_Text KeywordTooltipText;
+        public Image NewCollectionNotice;
         public GameObject PreparationEmptyState;
+        public Image CollectionLockedOverlay;
         public GameObject PreparationBattleSlotEmptyState;
         public GameObject PreparationFusionSlotEmptyState;
         public GameObject PreparationMaterialSelectedState;
@@ -40,6 +42,8 @@ namespace Hearthstone
         public UiInteractor PreparationInteractor;
         public UiEventListener PreparationEmptyAttemptListener;
         public UiEventListener CardHoverListener;
+        public UiEventListener CardClickListener;
+        public UiEventListener CardDragListener;
 
         public override Type GetControllerType()
         {

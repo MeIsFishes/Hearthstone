@@ -23,3 +23,6 @@ MonoBehaviour:
     - Key: Hearthstone.FusionRecommendationItemController
       Value:
         UiViewPrefabPath: Ui/FusionRecommendationItem
+    - Key: Hearthstone.NewPlayerGuideController
+      Value:
+        UiViewPrefabPath: Ui/NewPlayerGuideView

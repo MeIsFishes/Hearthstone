@@ -2,7 +2,9 @@ BattleNumber,UnlockSlotCount,DrawCardCount
 // Sequential battle round number,Number of additional battle slots unlocked before this round,Number of random ordinary cards drawn before this round
 // Associated: None
 1,2,3
-2,1,5
-3,1,5
-4,1,5
-5,1,5
+2,1,4
+3,1,4
+4,0,4
+5,1,4
+6,0,4
+7,1,4
